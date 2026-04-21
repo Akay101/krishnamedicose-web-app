@@ -1,0 +1,35 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build
+dist/
+build/
+.next/
+out/
+
+# Environment
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.production
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Logs
+logs/
+*.log
+
+# Misc
+.cache/
+.npm/
+.parcel-cache/
+.turbo/
+.vercel/
