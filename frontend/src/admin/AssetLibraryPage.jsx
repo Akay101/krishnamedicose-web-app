@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../utils/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, Trash2, Search, RefreshCw, CheckCircle2, AlertCircle, Image as ImageIcon } from 'lucide-react';
 
+import { useModal } from '../context/ModalContext';
+
 export default function AssetLibraryPage() {
+  const { showModal } = useModal();
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -12,9 +15,7 @@ export default function AssetLibraryPage() {
 
   const fetchAssets = async () => {
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/assets`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      const response = await api.get('/assets');
       setAssets(response.data);
     } catch (err) {
       console.error('Failed to fetch assets', err);
@@ -36,35 +37,35 @@ export default function AssetLibraryPage() {
     formData.append('file', file);
 
     try {
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/assets/upload`, formData, {
-        headers: { 
-          'Content-Type': 'multipart/form-data',
-          Authorization: `Bearer ${localStorage.getItem('token')}` 
-        }
+      const response = await api.post('/assets/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
       setAssets([response.data, ...assets]);
       setMessage('Asset uploaded successfully!');
       setTimeout(() => setMessage(''), 3000);
     } catch (err) {
-      alert('Upload failed');
+      showModal({ title: 'Upload Failed', message: 'Failed to upload the file to R2 cloud storage.', type: 'error' });
     } finally {
       setUploading(false);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this asset? It will be removed from Cloudflare R2.')) return;
-
-    try {
-      await axios.delete(`${import.meta.env.VITE_API_URL}/assets/${id}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      setAssets(assets.filter(a => a._id !== id));
-      setMessage('Asset deleted.');
-      setTimeout(() => setMessage(''), 3000);
-    } catch (err) {
-      alert('Delete failed');
-    }
+    showModal({
+      title: 'Confirm Delete',
+      message: 'Are you sure you want to delete this asset? It will be permanently removed from Cloudflare R2.',
+      type: 'confirm',
+      onConfirm: async () => {
+        try {
+          await api.delete(`/assets/${id}`);
+          setAssets(assets.filter(a => a._id !== id));
+          setMessage('Asset deleted.');
+          setTimeout(() => setMessage(''), 3000);
+        } catch (err) {
+          showModal({ title: 'Delete Failed', message: 'Failed to remove asset from storage.', type: 'error' });
+        }
+      }
+    });
   };
 
   const filteredAssets = assets.filter(a => a.filename.toLowerCase().includes(searchTerm.toLowerCase()));

@@ -134,7 +134,14 @@ const sendOfferConfirmation = async (userEmail, { userName, offerTitle, registra
 
 const sendOfferLeadToAdmin = async ({ offerTitle, registrationId, details }) => {
   const detailsHtml = Object.entries(details)
-    .map(([key, value]) => `<tr><td style="padding: 10px; border: 1px solid #e2e8f0; font-weight: bold; text-transform: capitalize; color: #64748b;">${key.replace('_', ' ')}</td><td style="padding: 10px; border: 1px solid #e2e8f0; color: #0f172a;">${value}</td></tr>`)
+    .map(([key, value]) => {
+      const isUrl = typeof value === 'string' && value.startsWith('http');
+      const displayValue = isUrl 
+        ? `<a href="${value}" style="display: inline-block; padding: 4px 12px; background-color: #f1f5f9; color: #0d9488; text-decoration: none; border-radius: 4px; font-weight: bold; border: 1px solid #e2e8f0;">View Document</a>`
+        : value;
+        
+      return `<tr><td style="padding: 10px; border: 1px solid #e2e8f0; font-weight: bold; text-transform: capitalize; color: #64748b;">${key.replace('_', ' ')}</td><td style="padding: 10px; border: 1px solid #e2e8f0; color: #0f172a;">${displayValue}</td></tr>`;
+    })
     .join('');
 
   const html = `
@@ -149,7 +156,7 @@ const sendOfferLeadToAdmin = async ({ offerTitle, registrationId, details }) => 
         </table>
       </div>
       
-      <p><a href="http://localhost:5173/admin/offers" style="display: inline-block; padding: 12px 24px; background-color: #2dd4bf; color: #020617; text-decoration: none; border-radius: 8px; font-weight: bold;">View in Admin Panel</a></p>
+      <p><a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/admin/offers" style="display: inline-block; padding: 12px 24px; background-color: #2dd4bf; color: #020617; text-decoration: none; border-radius: 8px; font-weight: bold;">View in Admin Panel</a></p>
     </div>
   `;
   return await sendEmail({ to: process.env.ADMIN_EMAIL, subject: `Lead Alert: ${offerTitle} [${registrationId}]`, html });

@@ -48,6 +48,12 @@ function LandingPage() {
 
   return (
     <main className="relative selection:bg-primary/30 selection:text-primary">
+      {/* Top Banner Offer Highlight */}
+      <div className="fixed top-0 left-0 right-0 z-[101] bg-primary text-dark py-1 text-center font-bold text-[10px] md:text-xs uppercase tracking-widest flex items-center justify-center gap-4">
+        <span>Exclusive Launch Offer Active!</span>
+        <a href="#offers" className="bg-dark/10 hover:bg-dark/20 px-3 py-0.5 rounded-full border border-dark/20 transition-all">Claim Now ↓</a>
+      </div>
+
       {/* Custom Progress Bar */}
       <motion.div
         className="fixed top-0 left-0 right-0 h-1.5 bg-primary z-[100] origin-left"

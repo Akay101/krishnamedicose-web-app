@@ -8,8 +8,11 @@ import LeadsManager from './admin/LeadsManager';
 import UsersManager from './admin/UsersManager';
 import AssetLibraryPage from './admin/AssetLibraryPage';
 import OffersManager from './admin/OffersManager';
+import { ModalProvider } from './context/ModalContext';
+import { useAnalytics } from './hooks/useAnalytics';
 
 function App() {
+  useAnalytics();
   const getAuth = () => {
     const token = localStorage.getItem('token');
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -32,61 +35,64 @@ function App() {
   };
 
   return (
-    <Routes>
-      <Route path="/" element={<LandingPage />} />
-      <Route path="/admin/login" element={<Login />} />
-      <Route 
-        path="/admin" 
-        element={
-          <PrivateRoute>
-            <AdminLayout />
-          </PrivateRoute>
-        }
-      >
-        <Route index element={<Dashboard />} />
+    <ModalProvider>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        {/* ... existing routes ... */}
+        <Route path="/admin/login" element={<Login />} />
         <Route 
-          path="content" 
-          element={
-            <PrivateRoute permission="website">
-              <ContentEditor />
-            </PrivateRoute>
-          } 
-        />
-        <Route 
-          path="leads" 
-          element={
-            <PrivateRoute permission="leads">
-              <LeadsManager />
-            </PrivateRoute>
-          } 
-        />
-        <Route 
-          path="users" 
+          path="/admin" 
           element={
             <PrivateRoute>
-              <UsersManager />
+              <AdminLayout />
             </PrivateRoute>
-          } 
-        />
-        <Route 
-          path="assets" 
-          element={
-            <PrivateRoute>
-              <AssetLibraryPage />
-            </PrivateRoute>
-          } 
-        />
-        <Route 
-          path="offers" 
-          element={
-            <PrivateRoute>
-              <OffersManager />
-            </PrivateRoute>
-          } 
-        />
-      </Route>
-      <Route path="*" element={<Navigate to="/" />} />
-    </Routes>
+          }
+        >
+          <Route index element={<Dashboard />} />
+          <Route 
+            path="content" 
+            element={
+              <PrivateRoute permission="website">
+                <ContentEditor />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="leads" 
+            element={
+              <PrivateRoute permission="leads">
+                <LeadsManager />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="users" 
+            element={
+              <PrivateRoute>
+                <UsersManager />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="assets" 
+            element={
+              <PrivateRoute>
+                <AssetLibraryPage />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="offers" 
+            element={
+              <PrivateRoute>
+                <OffersManager />
+              </PrivateRoute>
+            } 
+          />
+        </Route>
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    </ModalProvider>
   );
 }
 

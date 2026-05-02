@@ -1,6 +1,7 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { LayoutDashboard, FileEdit, Users, LogOut, Sparkles, Image as ImageIcon, Gift } from 'lucide-react';
 import { motion } from 'framer-motion';
+import api from '../utils/api';
 
 export default function AdminLayout() {
   const navigate = useNavigate();
@@ -42,10 +43,16 @@ export default function AdminLayout() {
     },
   ].filter(item => item.show);
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    navigate('/admin/login');
+  const handleLogout = async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch (err) {
+      console.error('Logout failed:', err);
+    } finally {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      navigate('/admin/login');
+    }
   };
 
   return (

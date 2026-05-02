@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Users, UserPlus, Shield, Mail, Phone, Trash2, Power, PowerOff, CheckCircle2, XCircle, Search, Edit3 } from 'lucide-react';
-import axios from 'axios';
+import api from '../utils/api';
+
+import { useModal } from '../context/ModalContext';
 
 export default function UsersManager() {
+  const { showModal } = useModal();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -19,9 +22,7 @@ export default function UsersManager() {
 
   const fetchUsers = async () => {
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/users`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      const response = await api.get('/users');
       setUsers(response.data);
     } catch (err) {
       console.error('Failed to fetch users', err);
@@ -37,39 +38,39 @@ export default function UsersManager() {
   const handleAddUser = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(`${import.meta.env.VITE_API_URL}/users`, formData, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      await api.post('/users', formData);
       setShowAddModal(false);
       resetForm();
       fetchUsers();
+      showModal({ title: 'User Created', message: 'The new team member has been successfully added.', type: 'success' });
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to create user');
+      showModal({ title: 'Creation Failed', message: err.response?.data?.message || 'Failed to create user', type: 'error' });
     }
   };
 
   const toggleStatus = async (user) => {
     try {
-      await axios.patch(`${import.meta.env.VITE_API_URL}/users/${user._id}`, 
-        { isActive: !user.isActive },
-        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
-      );
+      await api.patch(`/users/${user._id}`, { isActive: !user.isActive });
       fetchUsers();
     } catch (err) {
-      alert('Failed to update status');
+      showModal({ title: 'Status Update Error', message: 'Failed to update user status.', type: 'error' });
     }
   };
 
   const deleteUser = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
-    try {
-      await axios.delete(`${import.meta.env.VITE_API_URL}/users/${id}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      fetchUsers();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to delete user');
-    }
+    showModal({
+      title: 'Confirm Deletion',
+      message: 'Are you sure you want to delete this user? This action cannot be undone.',
+      type: 'confirm',
+      onConfirm: async () => {
+        try {
+          await api.delete(`/users/${id}`);
+          fetchUsers();
+        } catch (err) {
+          showModal({ title: 'Deletion Failed', message: err.response?.data?.message || 'Failed to delete user', type: 'error' });
+        }
+      }
+    });
   };
 
   const resetForm = () => {

@@ -58,6 +58,30 @@ body {
   border-radius: 10px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #2dd4bf;
-}
+  ::-webkit-scrollbar-thumb:hover {
+    background: #2dd4bf;
+  }
+  
+  @keyframes gradient {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  
+  .animate-gradient {
+    background-size: 300% 300%;
+    animation: gradient 8s ease infinite;
+  }
+  
+  .animate-spin-slow {
+    animation: spin 12s linear infinite;
+  }
+  
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  
+  .bg-300\% {
+    background-size: 300% 300%;
+  }

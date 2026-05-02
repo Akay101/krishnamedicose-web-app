@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Offer = require('./src/models/Offer');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 
 const seedOffers = async () => {
   try {
@@ -18,8 +19,8 @@ const seedOffers = async () => {
       emailConfirmation: true,
       formFields: [
         { name: "name", label: "Full Name", type: "text", required: true, placeholder: "John Doe" },
-        { name: "mobile", label: "Mobile Number", type: "number", required: true, placeholder: "+91 9876543210" },
-        { name: "email", label: "Email Address", type: "email", required: true, placeholder: "john@example.com" },
+        { name: "mobile", label: "Mobile Number", type: "number", required: true, isUnique: true, placeholder: "+91 9876543210" },
+        { name: "email", label: "Email Address", type: "email", required: true, isUnique: true, placeholder: "john@example.com" },
         { name: "pharmacy_name", label: "Pharmacy Name", type: "text", required: true, placeholder: "Krishna Pharmacy" },
         { name: "location", label: "Location", type: "text", required: true, placeholder: "Bharatpur, Rajasthan" },
         { 
@@ -29,6 +30,13 @@ const seedOffers = async () => {
           required: true, 
           placeholder: "DL-12345/XX",
           validation: "^[a-zA-Z0-9/-]{5,25}$" 
+        },
+        { 
+          name: "license_photo", 
+          label: "Drug License Photo", 
+          type: "file", 
+          required: true, 
+          placeholder: "Upload clear photo of license" 
         },
         { name: "current_software", label: "Current Software (If any)", type: "text", required: false, placeholder: "e.g. Marg, Tally" },
         { name: "problems", label: "Problems in Current Software", type: "textarea", required: false, placeholder: "What issues do you face?" }
@@ -40,7 +48,8 @@ const seedOffers = async () => {
       await Offer.create(defaultOffer);
       console.log('50-50 Offer seeded successfully!');
     } else {
-      console.log('50-50 Offer already exists.');
+      await Offer.findByIdAndUpdate(existing._id, defaultOffer);
+      console.log('50-50 Offer updated successfully!');
     }
 
     process.exit(0);

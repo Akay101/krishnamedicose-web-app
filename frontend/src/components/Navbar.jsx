@@ -12,7 +12,7 @@ export default function Navbar() {
   ];
 
   return (
-    <nav className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-5xl">
+    <nav className="fixed top-12 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-5xl">
       <div className="glass-morphism rounded-full px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="bg-primary p-2 rounded-full shadow-lg shadow-primary/50">

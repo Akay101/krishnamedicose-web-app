@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../utils/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, Trash2, Edit2, Search, Gift, Users, Eye, 
   CheckCircle2, XCircle, PlusCircle, MinusCircle, 
-  Settings, Mail, FileText, ChevronRight, ArrowLeft
+  Settings, Mail, FileText, ChevronRight, ArrowLeft, HelpCircle
 } from 'lucide-react';
 import AssetPicker from './components/AssetPicker';
+import { useModal } from '../context/ModalContext';
 
 export default function OffersManager() {
   const [offers, setOffers] = useState([]);
@@ -15,6 +16,7 @@ export default function OffersManager() {
   const [activeTab, setActiveTab] = useState('list'); // 'list', 'create', 'leads'
   const [selectedOffer, setSelectedOffer] = useState(null);
   const [showFormBuilder, setShowFormBuilder] = useState(false);
+  const { showModal } = useModal();
 
   useEffect(() => {
     fetchOffers();
@@ -23,9 +25,7 @@ export default function OffersManager() {
 
   const fetchOffers = async () => {
     try {
-      const resp = await axios.get(`${import.meta.env.VITE_API_URL}/offers`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      const resp = await api.get('/offers');
       setOffers(resp.data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
@@ -34,33 +34,46 @@ export default function OffersManager() {
   const fetchLeads = async (offerId = '') => {
     try {
       const url = offerId 
-        ? `${import.meta.env.VITE_API_URL}/offers/leads/${offerId}`
-        : `${import.meta.env.VITE_API_URL}/offers/leads`;
-      const resp = await axios.get(url, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+        ? `/offers/leads/${offerId}`
+        : '/offers/leads';
+      const resp = await api.get(url);
       setLeads(resp.data);
     } catch (err) { console.error(err); }
   };
-
   const toggleStatus = async (offer) => {
     try {
-      await axios.put(`${import.meta.env.VITE_API_URL}/offers/${offer._id}`, 
-        { isActive: !offer.isActive },
-        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+      await api.put(`/offers/${offer._id}`, 
+        { isActive: !offer.isActive }
       );
       fetchOffers();
-    } catch (err) { alert('Failed to update status'); }
+    } catch (err) { showModal({ title: 'Error', message: 'Failed to update status', type: 'error' }); }
   };
 
   const deleteOffer = async (id) => {
-    if (!window.confirm('Delete this offer and all associated registration data?')) return;
+    showModal({
+      title: 'Confirm Delete', 
+      message: 'Are you sure you want to delete this offer and all associated registration data? This action cannot be undone.', 
+      type: 'confirm',
+      onConfirm: async () => {
+        try {
+          await api.delete(`/offers/${id}`);
+          fetchOffers();
+        } catch (err) { showModal({ title: 'Error', message: 'Delete failed', type: 'error' }); }
+      }
+    });
+  };
+
+  const saveOffer = async (offerData) => {
     try {
-      await axios.delete(`${import.meta.env.VITE_API_URL}/offers/${id}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      if (selectedOffer) {
+        await api.put(`/offers/${selectedOffer._id}`, offerData);
+      } else {
+        await api.post('/offers', offerData);
+      }
       fetchOffers();
-    } catch (err) { alert('Delete failed'); }
+      setActiveTab('list');
+      setSelectedOffer(null);
+    } catch (err) { showModal({ title: 'Error', message: 'Save failed', type: 'error' }); }
   };
 
   if (loading) return <div>Loading...</div>;
@@ -161,7 +174,7 @@ function OfferEditor({ offer, onBack, onSaved }) {
   const handleAddField = () => {
     setFormData({
       ...formData,
-      formFields: [...formData.formFields, { name: '', label: '', type: 'text', required: true }]
+      formFields: [...formData.formFields, { name: '', label: '', type: 'text', required: true, isUnique: false }]
     });
   };
 
@@ -179,13 +192,11 @@ function OfferEditor({ offer, onBack, onSaved }) {
 
   const handleSave = async () => {
     try {
-      const url = offer ? `${import.meta.env.VITE_API_URL}/offers/${offer._id}` : `${import.meta.env.VITE_API_URL}/offers`;
       const method = offer ? 'put' : 'post';
-      await axios[method](url, formData, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      const url = offer ? `/offers/${offer._id}` : '/offers';
+      await api[method](url, formData);
       onSaved();
-    } catch (err) { alert('Save failed'); }
+    } catch (err) { console.error(err); }
   };
 
   return (
@@ -272,7 +283,23 @@ function OfferEditor({ offer, onBack, onSaved }) {
                       <option value="number">Number</option>
                       <option value="email">Email</option>
                       <option value="textarea">Long Text</option>
+                      <option value="file">File/Document</option>
                     </select>
+                  </div>
+                  <div className="w-24 group relative">
+                    <div className="flex items-center gap-1 mb-1">
+                      <label className="text-[10px] uppercase font-bold text-slate-500">Unique</label>
+                      <HelpCircle className="w-3 h-3 text-slate-600 cursor-help" />
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-dark border border-white/10 rounded-lg text-[10px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
+                        This field will be marked unique, so no duplicate entries will be allowed for this specific offer.
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => updateField(idx, 'isUnique', !field.isUnique)}
+                      className={`w-full py-2 rounded-xl border transition-all flex items-center justify-center ${field.isUnique ? 'bg-primary/20 border-primary/40 text-primary' : 'bg-white/5 border-white/10 text-slate-600'}`}
+                    >
+                      {field.isUnique ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4 opacity-30" />}
+                    </button>
                   </div>
                   <button onClick={() => removeField(idx)} className="p-2 text-red-400 hover:bg-red-400/10 rounded-xl mb-1"><MinusCircle className="w-5 h-5" /></button>
                 </div>
@@ -330,10 +357,21 @@ function LeadsViewer({ leads, onBack }) {
                 <td className="px-8 py-6 font-bold">{lead.offerId?.title}</td>
                 <td className="px-8 py-6">
                   <div className="text-xs space-y-1">
-                    {Object.entries(lead.formData).slice(0, 3).map(([k, v]) => (
-                      <div key={k}><span className="text-slate-500 capitalize">{k}:</span> {v}</div>
-                    ))}
-                    {Object.keys(lead.formData).length > 3 && <div className="text-primary font-bold italic">+ more</div>}
+                    {Object.entries(lead.formData).map(([k, v]) => {
+                      const isUrl = typeof v === 'string' && v.startsWith('http');
+                      return (
+                        <div key={k} className="flex items-center gap-2">
+                          <span className="text-slate-500 capitalize">{k.replace('_', ' ')}:</span> 
+                          {isUrl ? (
+                            <a href={v} target="_blank" rel="noreferrer" className="text-primary hover:underline flex items-center gap-1 font-bold">
+                              <FileText className="w-3 h-3" /> View Doc
+                            </a>
+                          ) : (
+                            <span className="truncate max-w-[150px]">{v}</span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </td>
                 <td className="px-8 py-6 text-sm text-slate-400">{new Date(lead.createdAt).toLocaleDateString()}</td>

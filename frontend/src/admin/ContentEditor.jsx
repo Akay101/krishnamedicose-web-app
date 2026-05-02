@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Save, RefreshCw, Eye, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Image as ImageIcon, Plus, Trash2, ChevronRight } from 'lucide-react';
+import api from '../utils/api';
 import AssetPicker from './components/AssetPicker';
 
 export default function ContentEditor() {
@@ -18,7 +18,7 @@ export default function ContentEditor() {
 
   const fetchContent = async () => {
     try {
-      const resp = await axios.get(`${import.meta.env.VITE_API_URL}/content`);
+      const resp = await api.get('/content');
       setContent(resp.data);
       setOriginalContent(resp.data);
     } catch (err) {
@@ -32,10 +32,7 @@ export default function ContentEditor() {
     setSaving(true);
     setMessage('');
     try {
-      const token = localStorage.getItem('token');
-      await axios.put(`${import.meta.env.VITE_API_URL}/content`, { data: content }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.put('/content', { data: content });
       setMessage('Website updated successfully in real-time!');
       setOriginalContent(content);
       setTimeout(() => setMessage(''), 3000);

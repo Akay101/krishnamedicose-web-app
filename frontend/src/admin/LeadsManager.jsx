@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../utils/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Phone, MapPin, Send, CheckCircle2, Inbox, Search, RefreshCw, ChevronRight } from 'lucide-react';
 
+import { useModal } from '../context/ModalContext';
+
 export default function LeadsManager() {
+  const { showModal } = useModal();
   const [leads, setLeads] = useState([]);
   const [selectedLead, setSelectedLead] = useState(null);
   const [reply, setReply] = useState('');
@@ -17,10 +20,7 @@ export default function LeadsManager() {
 
   const fetchLeads = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const resp = await axios.get(`${import.meta.env.VITE_API_URL}/enquiry`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const resp = await api.get('/enquiry');
       setLeads(resp.data);
       if (resp.data.length > 0 && !selectedLead) {
         setSelectedLead(resp.data[0]);
@@ -37,15 +37,12 @@ export default function LeadsManager() {
     if (!reply.trim()) return;
     setSending(true);
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(`${import.meta.env.VITE_API_URL}/enquiry/${selectedLead._id}/reply`, { message: reply }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.post(`/enquiry/${selectedLead._id}/reply`, { message: reply });
       setReply('');
       fetchLeads();
-      alert('Reply sent and status updated!');
+      showModal({ title: 'Reply Sent', message: 'Your professional response has been sent and the status updated.', type: 'success' });
     } catch (err) {
-      alert('Failed to send reply.');
+      showModal({ title: 'Send Error', message: 'Failed to send the reply. Please try again.', type: 'error' });
     } finally {
       setSending(false);
     }

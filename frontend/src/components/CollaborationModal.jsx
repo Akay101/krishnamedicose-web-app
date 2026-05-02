@@ -2,7 +2,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, User, Phone, Globe, Mail, MessageSquare, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 
+import { useModal } from '../context/ModalContext';
+
 export default function CollaborationModal({ isOpen, onClose }) {
+  const { showModal } = useModal();
   const [formData, setFormData] = useState({
     name: '',
     mobile: '',
@@ -35,11 +38,11 @@ export default function CollaborationModal({ isOpen, onClose }) {
           setFormData({ name: '', mobile: '', country: '', type: 'collaborate', email: '', description: '' });
         }, 3000);
       } else {
-        alert('Submission failed. Please try again.');
+        showModal({ title: 'Submission Error', message: 'Failed to send your request. Please check your details and try again.', type: 'error' });
       }
     } catch (error) {
       console.error('Submission error:', error);
-      alert('Network error. Please check your connection.');
+      showModal({ title: 'Network Error', message: 'Could not connect to the server. Please check your internet connection.', type: 'error' });
     } finally {
       setIsSubmitting(false);
     }

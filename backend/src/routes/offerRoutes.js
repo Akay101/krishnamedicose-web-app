@@ -3,9 +3,11 @@ const router = express.Router();
 const offerController = require('../controllers/offerController');
 const { authMiddleware, checkPermission } = require('../middleware/authMiddleware');
 
+const { upload } = require('../services/r2Service');
+
 // Public Routes
 router.get('/', offerController.getOffers);
-router.post('/register', offerController.submitLead);
+router.post('/register', upload.any(), offerController.submitLead);
 
 // Admin Routes
 router.use(authMiddleware);

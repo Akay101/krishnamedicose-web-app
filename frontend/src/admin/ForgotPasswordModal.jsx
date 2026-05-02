@@ -1,7 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Mail, ShieldCheck, Lock, ArrowRight, Sparkles, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
-import axios from 'axios';
+
+import api from '../utils/api';
 
 export default function ForgotPasswordModal({ isOpen, onClose }) {
   const [step, setStep] = useState(1); // 1: Email, 2: OTP, 3: New Password
@@ -18,7 +19,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }) {
     setLoading(true);
     setError(null);
     try {
-      await axios.post(`${import.meta.env.VITE_API_URL}/auth/forgot-password`, { email });
+      await api.post('/auth/forgot-password', { email });
       setStep(2);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to send OTP');
@@ -32,7 +33,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }) {
     setLoading(true);
     setError(null);
     try {
-      await axios.post(`${import.meta.env.VITE_API_URL}/auth/verify-otp`, { email, otp });
+      await api.post('/auth/verify-otp', { email, otp });
       setStep(3);
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid or expired OTP');
@@ -50,7 +51,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }) {
     setLoading(true);
     setError(null);
     try {
-      await axios.post(`${import.meta.env.VITE_API_URL}/auth/reset-password`, { email, otp, password });
+      await api.post('/auth/reset-password', { email, otp, password });
       setSuccess(true);
       setTimeout(() => {
         onClose();

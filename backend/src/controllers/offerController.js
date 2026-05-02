@@ -41,14 +41,42 @@ exports.deleteOffer = async (req, res) => {
   }
 };
 
+const { uploadToR2 } = require('../services/r2Service');
+
 exports.submitLead = async (req, res) => {
   try {
-    const { offerId, formData } = req.body;
+    const { offerId, ...formData } = req.body;
     const offer = await Offer.findById(offerId);
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
+    // Handle File Uploads
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const r2Result = await uploadToR2(file);
+        formData[file.fieldname] = r2Result.url;
+      }
+    }
+
     // Generate unique Registration ID
     const registrationId = `KM-${crypto.randomBytes(3).toString('hex').toUpperCase()}-${Date.now().toString().slice(-4)}`;
+
+    // Check for unique fields
+    for (const field of offer.formFields) {
+      if (field.isUnique) {
+        const value = formData[field.name];
+        if (value) {
+          const existingLead = await OfferLead.findOne({
+            offerId: offerId,
+            [`formData.${field.name}`]: value
+          });
+          if (existingLead) {
+            return res.status(400).json({ 
+              message: `This ${field.label} is already registered for this offer.` 
+            });
+          }
+        }
+      }
+    }
 
     const lead = new OfferLead({
       offerId,

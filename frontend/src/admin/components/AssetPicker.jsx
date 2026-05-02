@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Image as ImageIcon, Upload, X, Check, Search, Trash2, Plus, RefreshCw } from 'lucide-react';
-import axios from 'axios';
+import api from '../../utils/api';
+
+import { useModal } from '../../context/ModalContext';
 
 export default function AssetPicker({ currentImage, onSelect, label }) {
+  const { showModal } = useModal();
   const [isOpen, setIsOpen] = useState(false);
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -13,9 +16,7 @@ export default function AssetPicker({ currentImage, onSelect, label }) {
   const fetchAssets = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/assets`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      const response = await api.get('/assets');
       setAssets(response.data);
     } catch (err) {
       console.error('Failed to fetch assets', err);
@@ -37,17 +38,14 @@ export default function AssetPicker({ currentImage, onSelect, label }) {
     formData.append('file', file);
 
     try {
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/assets/upload`, formData, {
-        headers: { 
-          'Content-Type': 'multipart/form-data',
-          Authorization: `Bearer ${localStorage.getItem('token')}` 
-        }
+      const response = await api.post('/assets/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
       setAssets([response.data, ...assets]);
       onSelect(response.data.url);
       setIsOpen(false);
     } catch (err) {
-      alert('Upload failed');
+      showModal({ title: 'Upload Failed', message: 'Failed to upload asset. Please try again.', type: 'error' });
     } finally {
       setUploading(false);
     }

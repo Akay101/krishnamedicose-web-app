@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Sparkles, Mail, Lock, ArrowRight, Loader2 } from 'lucide-react';
-import axios from 'axios';
+import api from '../utils/api';
 import ForgotPasswordModal from './ForgotPasswordModal';
 
 export default function Login() {
@@ -19,7 +19,7 @@ export default function Login() {
     setError('');
 
     try {
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/auth/login`, { email, password });
+      const response = await api.post('/auth/login', { email, password });
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
       navigate('/admin');
