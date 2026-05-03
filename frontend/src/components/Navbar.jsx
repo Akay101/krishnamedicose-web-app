@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
-import { Pill, Menu, X } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { useState } from 'react';
+import Logo from './Logo';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -14,14 +15,7 @@ export default function Navbar() {
   return (
     <nav className="fixed top-12 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-5xl">
       <div className="glass-morphism rounded-full px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="bg-primary p-2 rounded-full shadow-lg shadow-primary/50">
-            <Pill className="text-dark w-5 h-5" />
-          </div>
-          <span className="font-bold text-xl tracking-tight font-outfit">
-            Krishna <span className="text-primary">Medicose</span>
-          </span>
-        </div>
+        <Logo size="sm" />
 
         {/* Desktop Links */}
         <div className="hidden md:flex items-center gap-8">

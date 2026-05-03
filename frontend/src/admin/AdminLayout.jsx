@@ -2,6 +2,7 @@ import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { LayoutDashboard, FileEdit, Users, LogOut, Sparkles, Image as ImageIcon, Gift } from 'lucide-react';
 import { motion } from 'framer-motion';
 import api from '../utils/api';
+import Logo from '../components/Logo';
 
 export default function AdminLayout() {
   const navigate = useNavigate();
@@ -58,11 +59,9 @@ export default function AdminLayout() {
   return (
     <div className="min-h-screen bg-dark text-white flex">
       <aside className="w-72 border-r border-white/5 bg-dark-lighter/50 backdrop-blur-xl p-8 flex flex-col fixed h-full z-50">
-        <div className="flex items-center gap-3 mb-12">
-          <div className="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center">
-            <Sparkles className="w-6 h-6 text-primary" />
-          </div>
-          <span className="font-bold text-xl font-outfit tracking-tight">Admin <span className="text-primary">Panel</span></span>
+        <div className="mb-12">
+          <Logo size="sm" />
+          <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mt-2 px-1">Admin Command Hub</p>
         </div>
 
         <nav className="flex-1 space-y-2">

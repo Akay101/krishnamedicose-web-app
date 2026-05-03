@@ -1,4 +1,4 @@
-const nodemailer = require('nodemailer');
+const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
   host: process.env.MAIL_HOST,
@@ -18,10 +18,10 @@ const sendEmail = async ({ to, subject, html }) => {
       subject,
       html,
     });
-    console.log('Message sent: %s', info.messageId);
+    console.log("Message sent: %s", info.messageId);
     return info;
   } catch (error) {
-    console.error('Error sending email:', error);
+    console.error("Error sending email:", error);
     throw error;
   }
 };
@@ -31,7 +31,7 @@ const sendOTPEmail = async (email, otp) => {
     await transporter.sendMail({
       from: `"${process.env.MAIL_FROM_NAME}" <${process.env.MAIL_FROM}>`,
       to: email,
-      subject: 'Password Recovery OTP - Krishna Medicose',
+      subject: "Password Recovery OTP - Krishna Medicose",
       html: `
           <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; background-color: #f9fbfd; border-radius: 20px;">
             <div style="text-align: center; margin-bottom: 30px;">
@@ -56,7 +56,7 @@ const sendOTPEmail = async (email, otp) => {
         `,
     });
   } catch (error) {
-    console.error('OTP Email error:', error);
+    console.error("OTP Email error:", error);
   }
 };
 
@@ -75,12 +75,16 @@ const sendConfirmationEmail = async (userEmail, userName) => {
         </div>
         <p>Best regards,<br><strong>Team Krishna Medicose</strong></p>
       </div>
-      <footer style="text-align: center; color: #64748b; font-size: 12px; margin-top: 20px;">
-        © 2024 Krishna Medicose. All rights reserved.
-      </footer>
+      // <footer style="text-align: center; color: #64748b; font-size: 12px; margin-top: 20px;">
+      //   © 2024 Krishna Medicose. All rights reserved.
+      // </footer>
     </div>
   `;
-  return await sendEmail({ to: userEmail, subject: 'Enquiry Successfully Registered - Krishna Medicose', html });
+  return await sendEmail({
+    to: userEmail,
+    subject: "Enquiry Successfully Registered - Krishna Medicose",
+    html,
+  });
 };
 
 const sendAdminNotification = async (enquiryData) => {
@@ -97,10 +101,17 @@ const sendAdminNotification = async (enquiryData) => {
       <p><a href="http://localhost:5173/admin" style="display: inline-block; padding: 10px 20px; background-color: #2dd4bf; color: #020617; text-decoration: none; border-radius: 5px;">View in Admin Panel</a></p>
     </div>
   `;
-  return await sendEmail({ to: process.env.ADMIN_EMAIL, subject: 'New Lead: ' + enquiryData.name, html });
+  return await sendEmail({
+    to: process.env.ADMIN_EMAIL,
+    subject: "New Lead: " + enquiryData.name,
+    html,
+  });
 };
 
-const sendOfferConfirmation = async (userEmail, { userName, offerTitle, registrationId, details }) => {
+const sendOfferConfirmation = async (
+  userEmail,
+  { userName, offerTitle, registrationId, details }
+) => {
   const html = `
     <div style="font-family: 'Outfit', sans-serif; max-width: 600px; margin: auto; padding: 30px; border-radius: 24px; background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1px solid #e2e8f0;">
       <div style="text-align: center; margin-bottom: 30px;">
@@ -129,20 +140,28 @@ const sendOfferConfirmation = async (userEmail, { userName, offerTitle, registra
       </footer>
     </div>
   `;
-  return await sendEmail({ to: userEmail, subject: `Registration Confirmed: ${offerTitle} [${registrationId}]`, html });
+  return await sendEmail({
+    to: userEmail,
+    subject: `Registration Confirmed: ${offerTitle} [${registrationId}]`,
+    html,
+  });
 };
 
-const sendOfferLeadToAdmin = async ({ offerTitle, registrationId, details }) => {
+const sendOfferLeadToAdmin = async ({
+  offerTitle,
+  registrationId,
+  details,
+}) => {
   const detailsHtml = Object.entries(details)
     .map(([key, value]) => {
-      const isUrl = typeof value === 'string' && value.startsWith('http');
-      const displayValue = isUrl 
+      const isUrl = typeof value === "string" && value.startsWith("http");
+      const displayValue = isUrl
         ? `<a href="${value}" style="display: inline-block; padding: 4px 12px; background-color: #f1f5f9; color: #0d9488; text-decoration: none; border-radius: 4px; font-weight: bold; border: 1px solid #e2e8f0;">View Document</a>`
         : value;
-        
-      return `<tr><td style="padding: 10px; border: 1px solid #e2e8f0; font-weight: bold; text-transform: capitalize; color: #64748b;">${key.replace('_', ' ')}</td><td style="padding: 10px; border: 1px solid #e2e8f0; color: #0f172a;">${displayValue}</td></tr>`;
+
+      return `<tr><td style="padding: 10px; border: 1px solid #e2e8f0; font-weight: bold; text-transform: capitalize; color: #64748b;">${key.replace("_", " ")}</td><td style="padding: 10px; border: 1px solid #e2e8f0; color: #0f172a;">${displayValue}</td></tr>`;
     })
-    .join('');
+    .join("");
 
   const html = `
     <div style="font-family: sans-serif; padding: 30px; background-color: #f1f5f9;">
@@ -156,10 +175,20 @@ const sendOfferLeadToAdmin = async ({ offerTitle, registrationId, details }) => 
         </table>
       </div>
       
-      <p><a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/admin/offers" style="display: inline-block; padding: 12px 24px; background-color: #2dd4bf; color: #020617; text-decoration: none; border-radius: 8px; font-weight: bold;">View in Admin Panel</a></p>
+      <p><a href="${process.env.FRONTEND_URL || "http://localhost:5173"}/admin/offers" style="display: inline-block; padding: 12px 24px; background-color: #2dd4bf; color: #020617; text-decoration: none; border-radius: 8px; font-weight: bold;">View in Admin Panel</a></p>
     </div>
   `;
-  return await sendEmail({ to: process.env.ADMIN_EMAIL, subject: `Lead Alert: ${offerTitle} [${registrationId}]`, html });
+  return await sendEmail({
+    to: process.env.ADMIN_EMAIL,
+    subject: `Lead Alert: ${offerTitle} [${registrationId}]`,
+    html,
+  });
 };
 
-module.exports = { sendEmail, sendConfirmationEmail, sendAdminNotification, sendOfferConfirmation, sendOfferLeadToAdmin };
+module.exports = {
+  sendEmail,
+  sendConfirmationEmail,
+  sendAdminNotification,
+  sendOfferConfirmation,
+  sendOfferLeadToAdmin,
+};

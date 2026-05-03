@@ -41,8 +41,16 @@ export default function CustomModal({
             initial={{ scale: 0.9, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 20 }}
-            className={`relative w-full max-w-md bg-dark/90 border ${colors[type]} rounded-[2.5rem] p-8 shadow-2xl backdrop-blur-xl overflow-hidden`}
+            className={`relative w-full max-w-2xl bg-dark/90 border ${colors[type]} rounded-[2.5rem] p-8 shadow-2xl backdrop-blur-xl overflow-hidden`}
           >
+            {/* Close Button */}
+            <button 
+              onClick={onClose}
+              className="absolute top-6 right-6 p-2 text-slate-500 hover:text-white transition-colors z-50 bg-white/5 rounded-full"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
             {/* Background Glow */}
             <div className={`absolute -top-24 -right-24 w-48 h-48 rounded-full blur-[80px] opacity-20 ${type === 'error' ? 'bg-red-400' : 'bg-primary'}`} />
 
@@ -51,9 +59,11 @@ export default function CustomModal({
                 {icons[type]}
               </div>
               
-              <div className="space-y-2">
+              <div className="space-y-2 w-full">
                 <h3 className="text-2xl font-bold font-outfit text-white">{title}</h3>
-                <p className="text-slate-400 leading-relaxed">{message}</p>
+                <div className="text-slate-400 leading-relaxed text-sm text-left max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar whitespace-pre-line">
+                  {message}
+                </div>
               </div>
 
               <div className="flex gap-4 w-full pt-4">
@@ -83,12 +93,6 @@ export default function CustomModal({
               </div>
             </div>
 
-            <button 
-              onClick={onClose}
-              className="absolute top-6 right-6 p-2 text-slate-500 hover:text-white transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
           </motion.div>
         </div>
       )}
