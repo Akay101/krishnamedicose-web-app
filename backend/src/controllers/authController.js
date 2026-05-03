@@ -29,9 +29,9 @@ exports.login = async (req, res) => {
     // Store refresh token in HTTP-only cookie
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      secure: true, // MUST be true in production (HTTPS)
+      sameSite: "none", // REQUIRED for cross-origin
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.json({

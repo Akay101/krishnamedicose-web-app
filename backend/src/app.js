@@ -6,29 +6,48 @@ require("dotenv").config();
 
 const app = express();
 
-// Middlewares
+/* ---------------- CORS CONFIG ---------------- */
+
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "https://krishnamedicose.in",
+  "https://www.krishnamedicose.in",
 ];
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    credentials: true,
-  })
-);
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests without origin (Postman, mobile apps, curl)
+    if (!origin) return callback(null, true);
+
+    // Allow localhost, custom domain, and all vercel deployments
+    if (allowedOrigins.includes(origin) || origin.includes("vercel.app")) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
+
+/* ---------------- MIDDLEWARES ---------------- */
+
+// CORS (must be first)
+app.use(cors(corsOptions));
+
+// Handle preflight requests
+app.options("*", cors(corsOptions));
+
 app.use(cookieParser());
 app.use(express.json());
+
+// Static uploads
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
-// Routes
+/* ---------------- ROUTES ---------------- */
+
 const authRoutes = require("./routes/authRoutes");
 const contentRoutes = require("./routes/contentRoutes");
 const enquiryRoutes = require("./routes/enquiryRoutes");
@@ -45,12 +64,29 @@ app.use("/api/assets", assetRoutes);
 app.use("/api/offers", offerRoutes);
 app.use("/api/analytics", analyticsRoutes);
 
-// Error Handler
+/* ---------------- HEALTH CHECK ---------------- */
+
+app.get("/", (req, res) => {
+  res.send("API is running...");
+});
+
+/* ---------------- ERROR HANDLER ---------------- */
+
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res
-    .status(500)
-    .send({ message: "Something went wrong!", error: err.message });
+  console.error("❌ Error:", err.message);
+
+  // CORS error handling (clean response instead of crash)
+  if (err.message.includes("CORS")) {
+    return res.status(403).json({
+      message: "CORS Error",
+      error: err.message,
+    });
+  }
+
+  res.status(500).json({
+    message: "Something went wrong!",
+    error: err.message,
+  });
 });
 
 module.exports = app;
