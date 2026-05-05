@@ -302,7 +302,7 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay" />
       </motion.div>
 
-      <div className="max-w-7xl mx-auto px-6 relative z-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
         {/* Header Section */}
         <div className="mb-24 text-center max-w-5xl mx-auto">
           <motion.div
@@ -318,17 +318,15 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
             Built by Krishna Medicose
           </motion.div>
 
-          <motion.h2
+          <motion.h2 
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.2 }}
-            className="text-6xl md:text-9xl font-black font-outfit text-white leading-[1.1] mb-10 tracking-tighter"
+            className="text-4xl sm:text-7xl md:text-9xl font-black font-outfit text-white leading-[1.1] mb-10 tracking-tighter"
           >
-            Our Pharmacy <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-secondary to-primary bg-300% animate-gradient italic">
-              Software
-            </span>
+            Our Pharmacy <br/>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-secondary to-primary bg-300% animate-gradient italic">Software</span>
           </motion.h2>
 
           <motion.div
@@ -407,17 +405,17 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
             initial={{ opacity: 0, y: 100 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="relative glass-morphism rounded-[4rem] border border-white/10 overflow-hidden shadow-2xl"
+            className="relative glass-morphism rounded-2xl sm:rounded-[4rem] border border-white/10 shadow-2xl mx-auto w-full"
           >
             <div className="grid lg:grid-cols-2">
               {/* Left Side: Offer Info */}
-              <div className="p-12 lg:p-20 flex flex-col space-y-12 bg-gradient-to-br from-primary/5 to-transparent">
+              <div className="px-4 py-10 sm:p-12 lg:p-20 flex flex-col space-y-8 sm:space-y-12 bg-gradient-to-br from-primary/5 to-transparent overflow-hidden">
                 <div>
                   <div className="inline-flex items-center gap-3 px-6 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-[10px] font-black uppercase tracking-[0.4em] mb-8">
                     Exclusive Launch Offer
                   </div>
 
-                  <h2 className="text-7xl md:text-9xl font-black font-outfit text-white leading-none tracking-tighter">
+                  <h2 className="text-4xl sm:text-7xl md:text-9xl font-black font-outfit text-white leading-none tracking-tighter">
                     50-50 <br />
                     <span className="text-primary italic">Access</span>
                   </h2>
@@ -442,9 +440,11 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
                       <div className="mt-1.5 w-5 h-5 rounded-full border border-primary/30 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
                         <div className="w-1.5 h-1.5 rounded-full bg-primary" />
                       </div>
-                      <p className="text-slate-300 text-sm font-medium leading-relaxed">
-                        {text}
-                      </p>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-slate-300 text-sm font-medium leading-relaxed break-words">
+                          {text}
+                        </p>
+                      </div>
                     </motion.div>
                   ))}
                 </div>
@@ -452,14 +452,14 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
-                  className="p-8 bg-red-400/5 border border-red-400/10 rounded-[2.5rem] flex gap-5"
+                  className="p-5 sm:p-8 bg-red-400/5 border border-red-400/10 rounded-2xl sm:rounded-[2.5rem] flex flex-col sm:flex-row gap-4 sm:gap-5"
                 >
-                  <AlertCircle className="w-6 h-6 text-red-400 shrink-0" />
-                  <div className="space-y-1">
-                    <p className="text-xs font-black text-red-400 uppercase tracking-widest">
+                  <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6 text-red-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1 flex-1 min-w-0">
+                    <p className="text-[10px] sm:text-xs font-black text-red-400 uppercase tracking-widest">
                       Important Disclaimer
                     </p>
-                    <p className="text-xs text-red-400/80 font-medium leading-relaxed">
+                    <p className="text-[10px] sm:text-xs text-red-400/80 font-medium leading-relaxed break-words">
                       Registration requires a valid Drug License. Submission of
                       incorrect details or invalid documents will lead to
                       immediate disqualification from the early access queue.
@@ -469,7 +469,7 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
               </div>
 
               {/* Right Side: Registration Form */}
-              <div className="p-12 lg:p-20 bg-white/[0.02] backdrop-blur-3xl border-l border-white/5 relative">
+              <div className="px-4 py-10 sm:p-12 lg:p-20 bg-white/[0.02] backdrop-blur-3xl border-l border-white/5 relative overflow-hidden">
                 {/* Decorative glow for form */}
                 <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-[100px] -z-10" />
 
@@ -544,7 +544,7 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
                           Are you using any current software? *
                           {errors['software_usage'] && <span className="text-red-400 normal-case tracking-normal">({errors['software_usage']})</span>}
                         </label>
-                        <div className="flex gap-6">
+                        <div className="grid grid-cols-2 gap-3 sm:gap-6">
                           {[
                             { label: 'Yes, I am', value: true },
                             { label: 'No, I am not', value: false }
@@ -560,7 +560,7 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
                                   return n;
                                 });
                               }}
-                              className={`flex-1 py-4 px-6 rounded-2xl border transition-all text-sm font-bold flex items-center justify-center gap-3 ${
+                              className={`py-4 px-3 sm:px-6 rounded-xl sm:rounded-2xl border transition-all text-xs sm:text-sm font-bold flex items-center justify-center gap-2 sm:gap-3 ${
                                 usingSoftware === opt.value 
                                   ? 'bg-primary/20 border-primary text-primary' 
                                   : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/30'
@@ -768,7 +768,7 @@ function FormField({ field, formData, setFormData, error }) {
           required={field.required}
           placeholder={field.placeholder}
           onChange={e => setFormData({...formData, [field.name]: e.target.value})}
-          className={`w-full bg-white/5 border rounded-[2rem] p-6 focus:border-primary/50 focus:bg-white/10 outline-none transition-all text-sm font-medium text-white placeholder:text-slate-500 ${error ? 'border-red-400/50 bg-red-400/5' : 'border-white/10'}`}
+          className={`w-full bg-white/5 border rounded-2xl sm:rounded-[2rem] px-5 py-4 sm:p-6 focus:border-primary/50 focus:bg-white/10 outline-none transition-all text-sm font-medium text-white placeholder:text-slate-500 ${error ? 'border-red-400/50 bg-red-400/5' : 'border-white/10'}`}
         />
       )}
     </motion.div>

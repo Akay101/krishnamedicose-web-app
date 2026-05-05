@@ -55,12 +55,12 @@ export const FullLogo = ({ size = "md", className = "" }) => {
     sm: { text: 'text-2xl' },
     md: { text: 'text-4xl' },
     lg: { text: 'text-6xl' },
-    xl: { text: 'text-7xl' }
+    xl: { text: 'text-4xl sm:text-6xl lg:text-7xl' }
   };
   const s = sizes[size] || sizes.md;
 
   return (
-    <div className={`flex items-center ${className}`}>
+    <div className={`relative flex items-center ${className} overflow-hidden`}>
       <div className={`${s.text} font-black font-outfit tracking-tighter flex items-center leading-none`}>
         <span className="text-white uppercase">KRISHNA</span>
         <span className="text-primary ml-2 uppercase italic">MEDICOSE</span>

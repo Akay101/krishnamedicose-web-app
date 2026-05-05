@@ -7,7 +7,7 @@ export default function HeroSection({ content }) {
     title: "Krishna Medicose",
     subtitle: "Redefining Pharmaceutical Excellence",
     description: "Experience world-class healthcare solutions where ultra-modern technology meets professional compassion. Your health, our vision.",
-    location: "Brij Vihar Road, Bharatpur Raj. 321001",
+    location: "S-29, Shalimar Garden Ext-2, Ghaziabad, UP, 201005",
     images: ['/assets/hero-pharmacy-1.png', '/assets/hero-pharmacy-2.png', '/assets/hero-pharmacy-3.png']
   };
 
@@ -37,7 +37,7 @@ export default function HeroSection({ content }) {
             <Sparkles className="w-4 h-4" />
             {heroData.subtitle}
           </div>
-          <h1 className="text-6xl md:text-8xl font-bold font-outfit leading-[1.1] mb-8">
+          <h1 className="text-4xl sm:text-6xl md:text-8xl font-bold font-outfit leading-[1.1] mb-8 tracking-tighter">
             {heroData.title.includes(' ') ? (
               <>
                 {heroData.title.split(' ')[0]} <br />
@@ -108,8 +108,8 @@ export default function HeroSection({ content }) {
                 24/7
               </div>
               <div>
-                <p className="text-sm font-bold">Always Open</p>
-                <p className="text-xs text-slate-400">Emergency Support</p>
+                <p className="text-sm font-bold">Building something</p>
+                <p className="text-xs text-slate-400">New & Modern</p>
               </div>
             </div>
           </motion.div>

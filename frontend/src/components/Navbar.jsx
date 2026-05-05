@@ -1,15 +1,15 @@
-import { motion } from 'framer-motion';
-import { Menu, X } from 'lucide-react';
-import { useState } from 'react';
-import Logo from './Logo';
+import { motion } from "framer-motion";
+import { Menu, X } from "lucide-react";
+import { useState } from "react";
+import Logo from "./Logo";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
 
   const navLinks = [
-    { name: 'Vision', href: '#vision' },
-    { name: 'Customers', href: '#customers' },
-    { name: 'The Owner', href: '#owner' },
+    { name: "Vision", href: "#vision" },
+    { name: "Products", href: "#offers" },
+    { name: "The Owner", href: "#owner" },
   ];
 
   return (
@@ -30,15 +30,17 @@ export default function Navbar() {
               <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary transition-all group-hover:w-full" />
             </motion.a>
           ))}
-          <button className="btn-primary py-2 text-sm">
-            Contact Us
-          </button>
+          <a href="#footer" className="btn-primary py-2 text-sm">Contact Us</a>
         </div>
 
         {/* Mobile Toggle */}
         <div className="md:hidden">
           <button onClick={() => setIsOpen(!isOpen)} className="p-2">
-            {isOpen ? <X className="text-primary" /> : <Menu className="text-primary" />}
+            {isOpen ? (
+              <X className="text-primary" />
+            ) : (
+              <Menu className="text-primary" />
+            )}
           </button>
         </div>
       </div>
@@ -60,7 +62,13 @@ export default function Navbar() {
               {link.name}
             </a>
           ))}
-          <button className="btn-primary w-full">Contact Us</button>
+          <a 
+            href="#footer" 
+            onClick={() => setIsOpen(false)}
+            className="btn-primary w-full text-center"
+          >
+            Contact Us
+          </a>
         </motion.div>
       )}
     </nav>
