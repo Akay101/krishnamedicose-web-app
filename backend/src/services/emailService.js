@@ -209,7 +209,142 @@ apiKey.apiKey = process.env.BREVO_API_KEY;
 
 const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
 
-const sendOfferConfirmation = async (to, data) => {
+/**
+ * Reusable Email Layout
+ */
+const createEmailLayout = ({ title, subtitle, content }) => {
+  return `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+
+  <body style="
+    margin:0;
+    padding:0;
+    background:#f1f5f9;
+    font-family:Arial,sans-serif;
+  ">
+
+    <div style="
+      max-width:700px;
+      margin:40px auto;
+      background:#ffffff;
+      border-radius:24px;
+      overflow:hidden;
+      box-shadow:0 10px 40px rgba(0,0,0,0.08);
+    ">
+
+      <!-- HEADER -->
+      <div style="
+        background:linear-gradient(135deg,#00D1FF,#2dd4bf);
+        padding:50px 40px;
+        text-align:center;
+      ">
+        <h1 style="
+          margin:0;
+          color:#02131a;
+          font-size:34px;
+          font-weight:800;
+        ">
+          Krishna Medicose
+        </h1>
+
+        <p style="
+          margin-top:12px;
+          color:#083344;
+          font-size:16px;
+        ">
+          AI Powered Pharmacy Solutions
+        </p>
+      </div>
+
+      <!-- BODY -->
+      <div style="padding:50px 40px;">
+
+        <h2 style="
+          margin-top:0;
+          color:#0f172a;
+          font-size:30px;
+          font-weight:700;
+        ">
+          ${title}
+        </h2>
+
+        <p style="
+          color:#64748b;
+          font-size:16px;
+          line-height:1.8;
+          margin-bottom:35px;
+        ">
+          ${subtitle}
+        </p>
+
+        ${content}
+
+      </div>
+
+      <!-- FOOTER -->
+      <div style="
+        background:#0f172a;
+        padding:35px 25px;
+        text-align:center;
+      ">
+
+        <div style="margin-bottom:20px;">
+          <a
+            href="https://www.instagram.com/krishna1211pandit/?hl=en"
+            style="
+              display:inline-block;
+              margin:0 10px;
+              color:#ffffff;
+              text-decoration:none;
+              font-size:14px;
+            "
+          >
+            Instagram
+          </a>
+
+          <a
+            href="https://www.youtube.com/@krishnamedicos12"
+            style="
+              display:inline-block;
+              margin:0 10px;
+              color:#ffffff;
+              text-decoration:none;
+              font-size:14px;
+            "
+          >
+            YouTube
+          </a>
+        </div>
+
+        <p style="
+          color:#94a3b8;
+          font-size:12px;
+          line-height:1.7;
+          margin:0;
+        ">
+          © ${new Date().getFullYear()} Krishna Medicose. All rights reserved.
+          <br/>
+          This is an automated email from Krishna Medicose.
+        </p>
+
+      </div>
+
+    </div>
+
+  </body>
+  </html>
+  `;
+};
+
+/**
+ * Generic Mail Sender
+ */
+const sendEmail = async ({ to, subject, html }) => {
   try {
     const sendSmtpEmail = {
       sender: {
@@ -217,94 +352,258 @@ const sendOfferConfirmation = async (to, data) => {
         name: process.env.MAIL_FROM_NAME,
       },
 
-      to: [
-        {
-          email: to,
-        },
-      ],
+      to: [{ email: to }],
 
-      subject: `Registration Successful - ${data.offerTitle}`,
+      subject,
 
-      htmlContent: `
-        <div style="font-family: Arial; padding:20px;">
-          <h2>Hello ${data.userName}</h2>
-
-          <p>Your registration was successful.</p>
-
-          <p>
-            <strong>Registration ID:</strong>
-            ${data.registrationId}
-          </p>
-
-          <p>
-            <strong>Offer:</strong>
-            ${data.offerTitle}
-          </p>
-
-          <br/>
-
-          <p>Thank you,<br/>Krishna Medicose</p>
-        </div>
-      `,
+      htmlContent: html,
     };
 
-    await apiInstance.sendTransacEmail(sendSmtpEmail);
+    const response = await apiInstance.sendTransacEmail(sendSmtpEmail);
 
-    console.log("Confirmation email sent");
+    console.log("Email sent:", response.messageId);
+
+    return response;
   } catch (error) {
     console.error(
-      "Error sending confirmation email:",
+      "Error sending email:",
       error.response?.body || error.message
     );
+
+    throw error;
   }
 };
 
+/**
+ * ENQUIRY CONFIRMATION
+ */
+const sendConfirmationEmail = async (userEmail, userName) => {
+  const html = createEmailLayout({
+    title: `Hello ${userName},`,
+    subtitle:
+      "Thank you for contacting Krishna Medicose. We have successfully received your enquiry.",
+
+    content: `
+      <div style="
+        background:#f8fafc;
+        border:1px solid #e2e8f0;
+        border-radius:18px;
+        padding:30px;
+      ">
+        <p style="
+          margin:0;
+          color:#334155;
+          font-size:15px;
+          line-height:1.8;
+        ">
+          Our team is currently reviewing your request and will get back to you shortly with the best possible assistance.
+          <br/><br/>
+          We appreciate your trust in Krishna Medicose.
+        </p>
+      </div>
+
+      <div style="margin-top:35px;">
+        <a
+          href="https://www.instagram.com/krishna1211pandit/?hl=en"
+          style="
+            display:inline-block;
+            background:#00D1FF;
+            color:#02131a;
+            text-decoration:none;
+            padding:14px 28px;
+            border-radius:12px;
+            font-weight:700;
+          "
+        >
+          Follow Us
+        </a>
+      </div>
+    `,
+  });
+
+  return sendEmail({
+    to: userEmail,
+    subject: "Enquiry Successfully Registered - Krishna Medicose",
+    html,
+  });
+};
+
+/**
+ * ADMIN LEAD MAIL
+ */
+const sendAdminNotification = async (enquiryData) => {
+  const html = createEmailLayout({
+    title: "New Business Lead Received",
+    subtitle: "A new enquiry has been submitted through your website.",
+
+    content: `
+      <table style="
+        width:100%;
+        border-collapse:collapse;
+        overflow:hidden;
+        border-radius:16px;
+      ">
+        <tr>
+          <td style="padding:16px;background:#f8fafc;font-weight:bold;">Name</td>
+          <td style="padding:16px;background:#ffffff;">${enquiryData.name}</td>
+        </tr>
+
+        <tr>
+          <td style="padding:16px;background:#f8fafc;font-weight:bold;">Email</td>
+          <td style="padding:16px;background:#ffffff;">${enquiryData.email}</td>
+        </tr>
+
+        <tr>
+          <td style="padding:16px;background:#f8fafc;font-weight:bold;">Type</td>
+          <td style="padding:16px;background:#ffffff;">${enquiryData.type}</td>
+        </tr>
+
+        <tr>
+          <td style="padding:16px;background:#f8fafc;font-weight:bold;">Description</td>
+          <td style="padding:16px;background:#ffffff;">${enquiryData.description}</td>
+        </tr>
+      </table>
+    `,
+  });
+
+  return sendEmail({
+    to: process.env.ADMIN_EMAIL,
+    subject: `New Lead: ${enquiryData.name}`,
+    html,
+  });
+};
+
+/**
+ * OFFER CONFIRMATION
+ */
+const sendOfferConfirmation = async (to, data) => {
+  const html = createEmailLayout({
+    title: "Registration Successful",
+    subtitle:
+      "Your registration for the exclusive Krishna Medicose offer has been completed successfully.",
+
+    content: `
+      <div style="
+        background:linear-gradient(135deg,#ecfeff,#f0fdfa);
+        border:1px solid #a5f3fc;
+        padding:35px;
+        border-radius:22px;
+        text-align:center;
+      ">
+
+        <p style="
+          color:#0f766e;
+          font-size:13px;
+          letter-spacing:2px;
+          text-transform:uppercase;
+          font-weight:bold;
+        ">
+          Registration ID
+        </p>
+
+        <h1 style="
+          margin:10px 0 0 0;
+          color:#0f172a;
+          font-size:34px;
+          letter-spacing:2px;
+        ">
+          ${data.registrationId}
+        </h1>
+
+      </div>
+
+      <div style="margin-top:30px;">
+        <p style="
+          color:#334155;
+          line-height:1.8;
+          font-size:15px;
+        ">
+          <strong>Name:</strong> ${data.userName}
+          <br/><br/>
+
+          <strong>Offer:</strong> ${data.offerTitle}
+
+          <br/><br/>
+
+          Our team will contact you shortly with further onboarding details.
+        </p>
+      </div>
+    `,
+  });
+
+  return sendEmail({
+    to,
+    subject: `Registration Confirmed - ${data.offerTitle}`,
+    html,
+  });
+};
+
+/**
+ * OFFER ADMIN MAIL
+ */
 const sendOfferLeadToAdmin = async (data) => {
-  try {
-    const sendSmtpEmail = {
-      sender: {
-        email: process.env.MAIL_FROM,
-        name: process.env.MAIL_FROM_NAME,
-      },
+  const detailsHtml = Object.entries(data.details)
+    .map(
+      ([key, value]) => `
+      <tr>
+        <td style="
+          padding:14px;
+          background:#f8fafc;
+          font-weight:bold;
+          text-transform:capitalize;
+        ">
+          ${key.replace(/_/g, " ")}
+        </td>
 
-      to: [
-        {
-          email: process.env.ADMIN_EMAIL,
-        },
-      ],
+        <td style="
+          padding:14px;
+          background:#ffffff;
+        ">
+          ${value}
+        </td>
+      </tr>
+    `
+    )
+    .join("");
 
-      subject: `New Offer Registration - ${data.offerTitle}`,
+  const html = createEmailLayout({
+    title: "New Offer Registration",
+    subtitle: "A new user has successfully registered for an offer.",
 
-      htmlContent: `
-        <div style="font-family: Arial; padding:20px;">
-          <h2>New Registration Received</h2>
+    content: `
+      <div style="
+        margin-bottom:25px;
+        padding:20px;
+        background:#fefce8;
+        border-radius:14px;
+        border:1px solid #fde68a;
+      ">
+        <strong>Registration ID:</strong>
+        ${data.registrationId}
+      </div>
 
-          <p>
-            <strong>Registration ID:</strong>
-            ${data.registrationId}
-          </p>
+      <table style="
+        width:100%;
+        border-collapse:collapse;
+        overflow:hidden;
+        border-radius:18px;
+      ">
+        ${detailsHtml}
+      </table>
+    `,
+  });
 
-          <h3>User Details</h3>
-
-          <pre>
-${JSON.stringify(data.details, null, 2)}
-          </pre>
-        </div>
-      `,
-    };
-
-    await apiInstance.sendTransacEmail(sendSmtpEmail);
-
-    console.log("Admin email sent");
-  } catch (error) {
-    console.error(
-      "Error sending admin email:",
-      error.response?.body || error.message
-    );
-  }
+  return sendEmail({
+    to: process.env.ADMIN_EMAIL,
+    subject: `New Offer Registration - ${data.offerTitle}`,
+    html,
+  });
 };
 
 module.exports = {
+  sendEmail,
+  sendConfirmationEmail,
+  sendAdminNotification,
   sendOfferConfirmation,
   sendOfferLeadToAdmin,
 };
