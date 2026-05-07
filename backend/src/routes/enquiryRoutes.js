@@ -6,5 +6,6 @@ const { authMiddleware, checkPermission } = require('../middleware/authMiddlewar
 router.post('/', enquiryController.createEnquiry);
 router.get('/', authMiddleware, checkPermission('leads'), enquiryController.getEnquiries);
 router.post('/:id/reply', authMiddleware, checkPermission('leads'), enquiryController.replyToEnquiry);
+router.patch('/:id/followup', authMiddleware, checkPermission('leads'), enquiryController.updateEnquiryFollowUp);
 
 module.exports = router;

@@ -115,11 +115,53 @@ exports.submitLead = async (req, res) => {
 
 exports.getLeads = async (req, res) => {
   try {
-    const query = req.params.offerId ? { offerId: req.params.offerId } : {};
-    const leads = await OfferLead.find(query)
-      .populate("offerId", "title")
-      .sort({ createdAt: -1 });
-    res.json(leads);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const status = req.query.status;
+    const offerId = req.params.offerId;
+
+    const query = {};
+    if (offerId) query.offerId = offerId;
+    if (status) query.followUpStatus = status;
+
+    const [leads, total, pendingCount, completedCount] = await Promise.all([
+      OfferLead.find(query)
+        .populate("offerId", "title")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      OfferLead.countDocuments(query),
+      OfferLead.countDocuments({ ...query, followUpStatus: 'pending' }),
+      OfferLead.countDocuments({ ...query, followUpStatus: 'completed' })
+    ]);
+
+    res.json({
+      data: leads,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      pendingCount,
+      completedCount
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.updateLeadFollowUp = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { followUpStatus, followUpNotes } = req.body;
+    
+    const lead = await OfferLead.findByIdAndUpdate(
+      id,
+      { followUpStatus, followUpNotes },
+      { new: true }
+    ).populate("offerId", "title");
+    
+    if (!lead) return res.status(404).json({ message: 'Lead not found' });
+    res.json(lead);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

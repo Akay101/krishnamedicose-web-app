@@ -72,14 +72,14 @@ export default function AssetLibraryPage() {
 
   return (
     <div className="space-y-8">
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
         <div>
-          <h1 className="text-4xl font-bold font-outfit mb-2">Media <span className="text-primary italic">Library</span></h1>
-          <p className="text-slate-400">Manage all your Cloudflare R2 assets in one place.</p>
+          <h1 className="text-3xl lg:text-4xl font-bold font-outfit mb-2">Media <span className="text-primary italic">Library</span></h1>
+          <p className="text-sm lg:text-base text-slate-400">Manage all your Cloudflare R2 assets in one place.</p>
         </div>
-        <label className="btn-primary flex items-center gap-2 px-8 py-3 cursor-pointer rounded-2xl shadow-lg shadow-primary/20">
+        <label className="w-full lg:w-auto btn-primary flex items-center justify-center gap-2 px-8 py-4 lg:py-3 cursor-pointer rounded-2xl shadow-lg shadow-primary/20 transition-transform active:scale-95">
           <Upload className="w-4 h-4" />
-          <span className="font-bold">{uploading ? 'Uploading...' : 'Upload Asset'}</span>
+          <span className="font-bold text-sm lg:text-base">{uploading ? 'Uploading...' : 'Upload Asset'}</span>
           <input type="file" className="hidden" onChange={handleUpload} disabled={uploading} />
         </label>
       </header>
@@ -90,21 +90,21 @@ export default function AssetLibraryPage() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="p-4 rounded-2xl bg-primary/10 text-primary border border-primary/20 font-bold flex items-center gap-2"
+            className="p-4 rounded-2xl bg-primary/10 text-primary border border-primary/20 font-bold flex items-center gap-2 text-xs lg:text-sm"
           >
-            <CheckCircle2 className="w-5 h-5" />
+            <CheckCircle2 className="w-4 h-4 lg:w-5 lg:h-5" />
             {message}
           </motion.div>
         )}
       </AnimatePresence>
 
-      <div className="glass-morphism p-8 rounded-[3rem] border border-white/5 space-y-6">
+      <div className="glass-morphism p-6 lg:p-8 rounded-[2.5rem] lg:rounded-[3rem] border border-white/5 space-y-6">
         <div className="relative">
-          <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+          <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 lg:w-5 lg:h-5 text-slate-500" />
           <input 
             type="text" 
             placeholder="Search assets by filename..."
-            className="w-full bg-white/5 border border-white/10 rounded-2xl pl-16 pr-6 py-4 focus:outline-none focus:border-primary transition-all font-medium text-white"
+            className="w-full bg-white/5 border border-white/10 rounded-2xl pl-14 lg:pl-16 pr-6 py-3.5 lg:py-4 focus:outline-none focus:border-primary transition-all font-medium text-white text-sm lg:text-base"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -117,22 +117,22 @@ export default function AssetLibraryPage() {
           </div>
         ) : filteredAssets.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4 border-2 border-dashed border-white/5 rounded-[2rem]">
-            <ImageIcon className="w-16 h-16 text-slate-700" />
-            <p className="text-slate-500 font-bold">No assets found</p>
+            <ImageIcon className="w-12 h-12 lg:w-16 lg:h-16 text-slate-700" />
+            <p className="text-slate-500 font-bold text-sm">No assets found</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-6">
             {filteredAssets.map(asset => (
               <motion.div 
                 key={asset._id}
                 layout
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="group relative rounded-[2rem] overflow-hidden aspect-square border border-white/10 hover:border-primary/50 transition-all bg-dark shadow-xl"
+                className="group relative rounded-2xl lg:rounded-[2rem] overflow-hidden aspect-square border border-white/10 hover:border-primary/50 transition-all bg-dark shadow-xl"
               >
                 <img src={asset.url} alt={asset.filename} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-80 group-hover:opacity-100" />
-                <div className="absolute inset-0 bg-gradient-to-t from-dark to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col justify-end p-4">
-                  <p className="text-[10px] text-white font-bold truncate mb-3">{asset.filename}</p>
+                <div className="absolute inset-0 bg-gradient-to-t from-dark/90 via-dark/40 to-transparent lg:opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col justify-end p-3 lg:p-4">
+                  <p className="text-[9px] lg:text-[10px] text-white font-bold truncate mb-3">{asset.filename}</p>
                   <div className="flex gap-2">
                     <button 
                       onClick={() => {
@@ -140,13 +140,13 @@ export default function AssetLibraryPage() {
                         setMessage('URL copied to clipboard!');
                         setTimeout(() => setMessage(''), 2000);
                       }}
-                      className="flex-1 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-black uppercase tracking-tighter backdrop-blur-md transition-colors"
+                      className="flex-1 py-2.5 lg:py-2 bg-white/10 hover:bg-white/20 rounded-xl text-[9px] lg:text-[10px] font-black uppercase tracking-tighter backdrop-blur-md transition-colors border border-white/5"
                     >
                       Copy URL
                     </button>
                     <button 
                       onClick={() => handleDelete(asset._id)}
-                      className="p-2 bg-red-400/20 hover:bg-red-400 text-red-400 hover:text-white rounded-xl transition-all"
+                      className="p-2.5 lg:p-2 bg-red-400/20 hover:bg-red-400 text-red-400 hover:text-white rounded-xl transition-all border border-red-400/10"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

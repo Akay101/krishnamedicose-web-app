@@ -16,5 +16,6 @@ router.put('/:id', checkPermission('website'), offerController.updateOffer);
 router.delete('/:id', checkPermission('website'), offerController.deleteOffer);
 router.get('/leads', checkPermission('leads'), offerController.getLeads);
 router.get('/leads/:offerId', checkPermission('leads'), offerController.getLeads);
+router.patch('/leads/:id/followup', checkPermission('leads'), offerController.updateLeadFollowUp);
 
 module.exports = router;

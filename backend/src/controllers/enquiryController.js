@@ -18,8 +18,47 @@ exports.createEnquiry = async (req, res) => {
 
 exports.getEnquiries = async (req, res) => {
   try {
-    const enquiries = await Enquiry.find().sort({ createdAt: -1 });
-    res.json(enquiries);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const status = req.query.status;
+
+    const query = {};
+    if (status) query.followUpStatus = status;
+
+    const [enquiries, total, pendingCount, completedCount] = await Promise.all([
+      Enquiry.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Enquiry.countDocuments(query),
+      Enquiry.countDocuments({ followUpStatus: 'pending' }),
+      Enquiry.countDocuments({ followUpStatus: 'completed' })
+    ]);
+
+    res.json({
+      data: enquiries,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      pendingCount,
+      completedCount
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.updateEnquiryFollowUp = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { followUpStatus, followUpNotes } = req.body;
+    
+    const enquiry = await Enquiry.findByIdAndUpdate(
+      id,
+      { followUpStatus, followUpNotes },
+      { new: true }
+    );
+    
+    if (!enquiry) return res.status(404).json({ message: 'Enquiry not found' });
+    res.json(enquiry);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -48,6 +87,7 @@ exports.replyToEnquiry = async (req, res) => {
 
     enquiry.replies.push({ message });
     enquiry.status = 'replied';
+    // Optionally mark as completed if replied? But let's keep follow-up independent.
     await enquiry.save();
     
     res.json({ message: 'Reply sent successfully', data: enquiry });

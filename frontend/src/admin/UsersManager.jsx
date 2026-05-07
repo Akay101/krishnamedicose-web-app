@@ -89,27 +89,27 @@ export default function UsersManager() {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h1 className="text-4xl font-bold font-outfit mb-2 flex items-center gap-4">
+          <h1 className="text-3xl lg:text-4xl font-bold font-outfit mb-2 flex items-center gap-4">
             Team <span className="text-primary italic">Management</span>
           </h1>
-          <p className="text-slate-400">Control who can access and manage your digital workspace.</p>
+          <p className="text-sm lg:text-base text-slate-400">Control who can access and manage your digital workspace.</p>
         </div>
         
         <button 
           onClick={() => setShowAddModal(true)}
-          className="btn-primary px-8 py-4 flex items-center gap-3 group"
+          className="w-full sm:w-auto btn-primary px-8 py-4 flex items-center justify-center gap-3 group"
         >
           <UserPlus className="w-5 h-5 group-hover:scale-110 transition-transform" />
           Add Member
         </button>
       </div>
 
-      <div className="relative max-w-md">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+      <div className="relative w-full lg:max-w-md">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 lg:w-5 lg:h-5 text-slate-500" />
         <input 
           type="text" 
-          placeholder="Search members by name or email..." 
-          className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 focus:outline-none focus:border-primary transition-all"
+          placeholder="Search by name or email..." 
+          className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-3.5 lg:py-4 focus:outline-none focus:border-primary transition-all text-sm"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -175,30 +175,30 @@ export default function UsersManager() {
       {/* Add User Modal */}
       <AnimatePresence>
         {showAddModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowAddModal(false)} className="absolute inset-0 bg-dark/80 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="relative w-full max-w-2xl glass-morphism rounded-[3rem] p-12 overflow-hidden border-white/20 shadow-2xl">
-              <h2 className="text-3xl font-bold font-outfit mb-8">Add New <span className="text-primary">Member</span></h2>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 lg:p-6">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowAddModal(false)} className="absolute inset-0 bg-dark/90 backdrop-blur-md" />
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-2xl bg-dark-lighter border border-white/10 rounded-[2.5rem] lg:rounded-[3rem] p-6 lg:p-12 overflow-y-auto max-h-[90dvh] shadow-2xl">
+              <h2 className="text-2xl lg:text-3xl font-bold font-outfit mb-6 lg:mb-8">Add New <span className="text-primary">Member</span></h2>
               
-              <form onSubmit={handleAddUser} className="space-y-6">
-                <div className="grid md:grid-cols-2 gap-6">
-                  <input required placeholder="Full Name" className="bg-white/5 border border-white/10 rounded-2xl px-6 py-4 w-full focus:outline-none focus:border-primary transition-all" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-                  <input required type="tel" placeholder="Mobile Number" className="bg-white/5 border border-white/10 rounded-2xl px-6 py-4 w-full focus:outline-none focus:border-primary transition-all" value={formData.mobile} onChange={e => setFormData({...formData, mobile: e.target.value})} />
+              <form onSubmit={handleAddUser} className="space-y-5 lg:space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
+                  <input required placeholder="Full Name" className="bg-white/5 border border-white/10 rounded-xl lg:rounded-2xl px-6 py-3.5 lg:py-4 w-full focus:outline-none focus:border-primary transition-all text-sm" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                  <input required type="tel" placeholder="Mobile Number" className="bg-white/5 border border-white/10 rounded-xl lg:rounded-2xl px-6 py-3.5 lg:py-4 w-full focus:outline-none focus:border-primary transition-all text-sm" value={formData.mobile} onChange={e => setFormData({...formData, mobile: e.target.value})} />
                 </div>
-                <input required type="email" placeholder="Email Address" className="bg-white/5 border border-white/10 rounded-2xl px-6 py-4 w-full focus:outline-none focus:border-primary transition-all" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-                <input required type="password" placeholder="Temporal Password" className="bg-white/5 border border-white/10 rounded-2xl px-6 py-4 w-full focus:outline-none focus:border-primary transition-all" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                <input required type="email" placeholder="Email Address" className="bg-white/5 border border-white/10 rounded-xl lg:rounded-2xl px-6 py-3.5 lg:py-4 w-full focus:outline-none focus:border-primary transition-all text-sm" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                <input required type="password" placeholder="Temporal Password" className="bg-white/5 border border-white/10 rounded-xl lg:rounded-2xl px-6 py-3.5 lg:py-4 w-full focus:outline-none focus:border-primary transition-all text-sm" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
                 
                 <div className="space-y-4">
-                  <p className="text-sm font-bold text-slate-400 flex items-center gap-2"><Shield className="w-4 h-4" /> Set Access Permissions</p>
-                  <div className="grid grid-cols-2 gap-4">
+                  <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-2"><Shield className="w-3 h-3" /> Set Access Permissions</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 lg:gap-4">
                     <PermissionToggle label="Edit Website" active={formData.permissions.website} onToggle={() => setFormData({...formData, permissions: {...formData.permissions, website: !formData.permissions.website}})} />
                     <PermissionToggle label="Manage Leads" active={formData.permissions.leads} onToggle={() => setFormData({...formData, permissions: {...formData.permissions, leads: !formData.permissions.leads}})} />
                   </div>
                 </div>
 
-                <div className="flex gap-4 pt-4">
-                  <button type="submit" className="btn-primary flex-1 py-4 font-bold">Create Member Account</button>
-                  <button type="button" onClick={() => setShowAddModal(false)} className="bg-white/5 hover:bg-white/10 px-8 py-4 rounded-2xl font-bold transition-all">Cancel</button>
+                <div className="flex flex-col sm:flex-row gap-3 pt-4">
+                  <button type="submit" className="btn-primary flex-1 py-4 font-black uppercase tracking-widest text-[10px]">Create Account</button>
+                  <button type="button" onClick={() => setShowAddModal(false)} className="bg-white/5 hover:bg-white/10 px-8 py-4 rounded-xl lg:rounded-2xl font-bold transition-all text-sm">Cancel</button>
                 </div>
               </form>
             </motion.div>

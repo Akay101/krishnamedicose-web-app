@@ -8,6 +8,8 @@ const enquirySchema = new mongoose.Schema({
   type: { type: String, enum: ['collaborate', 'enquire'], required: true },
   description: { type: String, required: true },
   status: { type: String, enum: ['new', 'replied'], default: 'new' },
+  followUpStatus: { type: String, enum: ['pending', 'completed'], default: 'pending' },
+  followUpNotes: { type: String, default: '' },
   replies: [{
     message: String,
     sentAt: { type: Date, default: Date.now }
