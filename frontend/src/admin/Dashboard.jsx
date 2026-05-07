@@ -17,6 +17,7 @@ export default function Dashboard() {
     newLeads: 0,
     analytics: {
       summary: { totalViews: 0, uniqueCount: 0 },
+      lifetime: { totalViews: 0, uniqueCount: 0 },
       timeline: [],
       devices: [],
       browsers: []
@@ -28,13 +29,13 @@ export default function Dashboard() {
     const fetchData = async () => {
       try {
         const [enquiryResp, analyticsResp] = await Promise.all([
-          api.get('/enquiry'),
+          api.get('/enquiry?limit=1000'), 
           api.get('/analytics/stats')
         ]);
         
         setStats({
-          totalLeads: enquiryResp.data.length,
-          newLeads: enquiryResp.data.filter(e => e.status === 'new').length,
+          totalLeads: enquiryResp.data.total || 0,
+          newLeads: enquiryResp.data.pendingCount || 0,
           analytics: analyticsResp.data
         });
       } catch (err) {
@@ -49,10 +50,34 @@ export default function Dashboard() {
   const COLORS = ['#2dd4bf', '#fb7185', '#818cf8', '#fbbf24'];
 
   const mainStats = [
-    { name: 'Total Page Views', value: stats.analytics.summary.totalViews, icon: Eye, color: 'text-primary', detail: 'Last 24 hours' },
-    { name: 'Unique Visitors', value: stats.analytics.summary.uniqueCount, icon: MousePointer2, color: 'text-secondary', detail: 'Total active sessions' },
-    { name: 'Inbound Leads', value: stats.totalLeads, icon: Users, color: 'text-white', detail: `${stats.newLeads} pending review` },
-    { name: 'Real-time Health', value: 'Active', icon: Zap, color: 'text-green-400', detail: 'All systems operational' },
+    { 
+      name: 'Total Page Views', 
+      value: stats.analytics.lifetime?.totalViews || 0, 
+      icon: Eye, 
+      color: 'text-primary', 
+      detail: `${stats.analytics.summary?.totalViews || 0} in last 24h` 
+    },
+    { 
+      name: 'Unique Visitors', 
+      value: stats.analytics.lifetime?.uniqueCount || 0, 
+      icon: MousePointer2, 
+      color: 'text-secondary', 
+      detail: `${stats.analytics.summary?.uniqueCount || 0} in last 24h` 
+    },
+    { 
+      name: 'Inbound Leads', 
+      value: stats.totalLeads, 
+      icon: Users, 
+      color: 'text-white', 
+      detail: `${stats.newLeads} pending review` 
+    },
+    { 
+      name: 'Real-time Health', 
+      value: 'Active', 
+      icon: Zap, 
+      color: 'text-green-400', 
+      detail: 'All systems operational' 
+    },
   ];
 
   if (loading) return (

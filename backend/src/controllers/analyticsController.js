@@ -35,19 +35,37 @@ exports.getDashboardStats = async (req, res) => {
     const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    // 1. Total & Unique Views (Last 24h)
-    const stats24h = await Analytics.aggregate([
-      { $match: { timestamp: { $gte: last24h } } },
-      { $group: {
-          _id: null,
-          totalViews: { $sum: 1 },
-          uniqueVisitors: { $addToSet: '$visitorId' }
-      }},
-      { $project: {
-          totalViews: 1,
-          uniqueCount: { $size: '$uniqueVisitors' }
+    // 1. Lifetime & 24h Summary
+    const summaries = await Analytics.aggregate([
+      { $facet: {
+          last24h: [
+            { $match: { timestamp: { $gte: last24h } } },
+            { $group: {
+                _id: null,
+                totalViews: { $sum: 1 },
+                uniqueVisitors: { $addToSet: '$visitorId' }
+            }},
+            { $project: {
+                totalViews: 1,
+                uniqueCount: { $size: '$uniqueVisitors' }
+            }}
+          ],
+          lifetime: [
+            { $group: {
+                _id: null,
+                totalViews: { $sum: 1 },
+                uniqueVisitors: { $addToSet: '$visitorId' }
+            }},
+            { $project: {
+                totalViews: 1,
+                uniqueCount: { $size: '$uniqueVisitors' }
+            }}
+          ]
       }}
     ]);
+
+    const summary24h = summaries[0].last24h[0] || { totalViews: 0, uniqueCount: 0 };
+    const summaryLifetime = summaries[0].lifetime[0] || { totalViews: 0, uniqueCount: 0 };
 
     // 2. Views Over Time (Last 7 Days, grouped by day)
     const timeline = await Analytics.aggregate([
@@ -79,7 +97,8 @@ exports.getDashboardStats = async (req, res) => {
     ]);
 
     res.json({
-      summary: stats24h[0] || { totalViews: 0, uniqueCount: 0 },
+      summary: summary24h,
+      lifetime: summaryLifetime,
       timeline,
       devices,
       browsers
