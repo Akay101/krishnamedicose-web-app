@@ -46,18 +46,7 @@ export default function OffersSection() {
   const { showModal } = useModal();
 
   const containerRef = useRef(null);
-  const isInView = useInView(containerRef, { amount: 0.2, once: false });
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ["start end", "end start"],
-  });
-
-  const backgroundY = useTransform(scrollYProgress, [0, 1], ["0%", "20%"]);
-  const opacityValue = useTransform(
-    scrollYProgress,
-    [0, 0.2, 0.8, 1],
-    [0, 1, 1, 0]
-  );
+  const isInView = useInView(containerRef, { amount: 0.1, once: true });
 
   useEffect(() => {
     const fetchOffers = async () => {
@@ -293,14 +282,11 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
       className="relative min-h-screen bg-[#050505] overflow-hidden py-32"
     >
       {/* Immersive Environment Background */}
-      <motion.div
-        style={{ y: backgroundY, opacity: opacityValue }}
-        className="absolute inset-0 pointer-events-none"
-      >
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-primary/10 blur-[150px] rounded-full animate-pulse" />
         <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-secondary/10 blur-[150px] rounded-full animate-pulse" />
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay" />
-      </motion.div>
+      </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
         {/* Header Section */}
@@ -362,8 +348,8 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
               key={feature.id}
               initial={{ opacity: 0, y: 50, scale: 0.9 }}
               whileInView={{ opacity: 1, y: 0, scale: 1 }}
-              viewport={{ once: true, margin: "-100px" }}
-              transition={{ delay: idx * 0.1 }}
+              viewport={{ once: true, margin: "0px" }}
+              transition={{ delay: idx * 0.05, duration: 0.4 }}
               whileHover={{ y: -10 }}
               className={`group relative aspect-[4/5] overflow-hidden rounded-[3rem] border border-white/5 bg-gradient-to-b ${feature.color} backdrop-blur-xl p-8 flex flex-col justify-between transition-all duration-500 hover:border-white/20`}
             >

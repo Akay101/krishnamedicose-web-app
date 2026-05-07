@@ -35,25 +35,25 @@ export default function InteractiveBackground() {
       
       {/* Floating Patterns */}
       <div className="absolute inset-0 opacity-10">
-        {[...Array(20)].map((_, i) => (
+        {[...Array(12)].map((_, i) => (
           <motion.div
             key={i}
             className="absolute rounded-full"
             style={{
-              width: Math.random() * 100 + 50,
-              height: Math.random() * 100 + 50,
+              width: Math.random() * 80 + 40,
+              height: Math.random() * 80 + 40,
               left: `${Math.random() * 100}%`,
               top: `${Math.random() * 100}%`,
-              border: '1px solid rgba(45, 212, 191, 0.3)',
+              border: '1px solid rgba(45, 212, 191, 0.2)',
+              willChange: 'transform',
             }}
             animate={{
-              y: [0, Math.random() * 100 - 50, 0],
-              x: [0, Math.random() * 100 - 50, 0],
-              rotate: [0, 360],
-              scale: [1, 1.2, 1],
+              y: [0, Math.random() * 60 - 30, 0],
+              x: [0, Math.random() * 60 - 30, 0],
+              scale: [1, 1.1, 1],
             }}
             transition={{
-              duration: Math.random() * 20 + 20,
+              duration: Math.random() * 15 + 15,
               repeat: Infinity,
               ease: "linear",
             }}

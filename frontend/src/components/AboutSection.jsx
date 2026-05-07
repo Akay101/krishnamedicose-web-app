@@ -23,8 +23,8 @@ export default function AboutSection({ content }) {
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.8 }}
+            viewport={{ once: true, amount: 0.1 }}
+            transition={{ duration: 0.6 }}
             className="md:order-2"
           >
             <div className="relative rounded-[3rem] overflow-hidden group">
@@ -74,7 +74,6 @@ export default function AboutSection({ content }) {
             <motion.p
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
               viewport={{ once: true }}
               className="text-lg text-slate-400 mb-10 leading-relaxed"
             >

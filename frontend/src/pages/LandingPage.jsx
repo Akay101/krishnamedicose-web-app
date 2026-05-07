@@ -109,21 +109,8 @@ function LandingPage() {
       <div className="flex flex-col gap-0">
         <HeroSection content={content?.hero} />
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          transition={{ duration: 1 }}
-        >
-          <AboutSection content={content?.about} />
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          transition={{ duration: 1 }}
-        >
-          <OwnerSection content={content?.owner} />
-        </motion.div>
+        <AboutSection content={content?.about} />
+        <OwnerSection content={content?.owner} />
 
         <OffersSection />
 

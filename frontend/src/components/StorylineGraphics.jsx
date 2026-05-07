@@ -15,6 +15,7 @@ export function InventoryVisual() {
             initial={{ x: -100, y: 50 + (i * 40), opacity: 0 }}
             animate={{ x: 300, opacity: [0, 1, 1, 0] }}
             transition={{ duration: 4, repeat: Infinity, delay: i * 0.8, ease: "linear" }}
+            style={{ willChange: 'transform' }}
             className="absolute w-12 h-8 bg-primary/40 rounded-lg flex items-center justify-center text-[8px] font-black"
           >
             PKG-{Math.floor(Math.random() * 900) + 100}
@@ -62,6 +63,7 @@ export function AIScanningVisual() {
         <motion.div
           animate={{ top: ['0%', '100%', '0%'] }}
           transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+          style={{ willChange: 'top' }}
           className="absolute left-[-10%] right-[-10%] h-1 bg-gradient-to-r from-transparent via-primary to-transparent shadow-[0_0_20px_#2dd4bf] z-10"
         />
 
