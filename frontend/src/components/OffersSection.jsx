@@ -279,13 +279,13 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
     <section
       ref={containerRef}
       id="offers"
-      className="relative min-h-screen bg-[#050505] overflow-hidden py-32"
+      className="relative min-h-screen bg-white overflow-hidden py-32 border-t border-slate-200/80"
     >
       {/* Immersive Environment Background */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-primary/10 blur-[150px] rounded-full animate-pulse" />
-        <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-secondary/10 blur-[150px] rounded-full animate-pulse" />
-        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay" />
+        <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-teal-100/15 blur-[120px] rounded-full" />
+        <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-sky-100/15 blur-[120px] rounded-full" />
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.08] mix-blend-overlay" />
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
@@ -295,11 +295,11 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="inline-flex items-center gap-3 px-6 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-[10px] font-black uppercase tracking-[0.4em] mb-12 shadow-xl shadow-primary/5"
+            className="inline-flex items-center gap-3 px-6 py-2 rounded-full bg-teal-50 border border-teal-200/80 text-teal-800 text-[10px] font-black uppercase tracking-[0.4em] mb-12 shadow-sm"
           >
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-500 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-600"></span>
             </span>
             Built by Krishna Medicose
           </motion.div>
@@ -309,10 +309,10 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.2 }}
-            className="text-4xl sm:text-7xl md:text-9xl font-black font-outfit text-white leading-[1.1] mb-10 tracking-tighter"
+            className="text-4xl sm:text-7xl md:text-9xl font-black font-outfit text-slate-900 leading-[1.1] mb-10 tracking-tighter"
           >
             Our Pharmacy <br/>
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-secondary to-primary bg-300% animate-gradient italic">Software</span>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-600 via-sky-600 to-teal-600 bg-300% animate-gradient italic">Software</span>
           </motion.h2>
 
           <motion.div
@@ -322,10 +322,10 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
             transition={{ delay: 0.3 }}
             className="relative inline-block"
           >
-            <p className="text-2xl md:text-4xl font-bold text-slate-300 font-outfit tracking-tight mb-8">
+            <p className="text-2xl md:text-4xl font-black text-slate-700 font-outfit tracking-tight mb-8">
               "Redefining Pharmacy Management through Intelligence"
             </p>
-            <div className="absolute -bottom-2 left-0 w-full h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+            <div className="absolute -bottom-2 left-0 w-full h-px bg-gradient-to-r from-transparent via-teal-500/20 to-transparent" />
           </motion.div>
 
           <motion.p
@@ -333,7 +333,7 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
             transition={{ delay: 0.4 }}
-            className="text-lg text-slate-500 max-w-2xl mx-auto mt-8 font-medium leading-relaxed"
+            className="text-lg text-slate-600 max-w-2xl mx-auto mt-8 font-bold leading-relaxed"
           >
             We've combined decades of pharmaceutical expertise with
             state-of-the-art AI to build the only ecosystem your pharmacy will
@@ -350,60 +350,60 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
               whileInView={{ opacity: 1, y: 0, scale: 1 }}
               viewport={{ once: true, margin: "0px" }}
               transition={{ delay: idx * 0.05, duration: 0.4 }}
-              whileHover={{ y: -10 }}
-              className={`group relative aspect-[4/5] overflow-hidden rounded-[3rem] border border-white/5 bg-gradient-to-b ${feature.color} backdrop-blur-xl p-8 flex flex-col justify-between transition-all duration-500 hover:border-white/20`}
+              whileHover={{ y: -6 }}
+              className="group relative aspect-[4/5] overflow-hidden rounded-[3rem] border border-slate-200/80 bg-white p-8 flex flex-col justify-between transition-all duration-500 hover:border-slate-350 hover:shadow-lg"
             >
               <div className="relative z-10">
                 <div className="flex items-center justify-between mb-6">
                   <div
-                    className={`p-4 rounded-2xl bg-white/5 border ${feature.borderColor} text-white`}
+                    className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-teal-600"
                   >
                     <feature.icon className="w-6 h-6" />
                   </div>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
                     {feature.tag}
                   </span>
                 </div>
-                <h3 className="text-2xl font-bold text-white mb-2 font-outfit">
+                <h3 className="text-2xl font-extrabold text-slate-900 mb-2 font-outfit">
                   {feature.title}
                 </h3>
-                <p className="text-sm text-slate-400 leading-relaxed">
+                <p className="text-sm text-slate-600 leading-relaxed font-bold">
                   {feature.description}
                 </p>
               </div>
 
               {/* Graphic Container */}
-              <div className="absolute inset-0 top-1/3 opacity-40 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none scale-90 group-hover:scale-100 transform transition-transform">
+              <div className="absolute inset-0 top-1/3 opacity-65 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none scale-90 group-hover:scale-100 transform transition-transform">
                 {feature.graphic}
               </div>
 
               {/* Subtle Gradient Overlay */}
-              <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
+              <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-white via-white/80 to-transparent pointer-events-none" />
             </motion.div>
           ))}
         </div>
 
         {/* The 50-50 Master Offer */}
         <div className="relative">
-          <div className="absolute inset-0 bg-primary/20 blur-[200px] rounded-full animate-pulse" />
+          <div className="absolute inset-0 bg-teal-100/20 blur-[120px] rounded-full" />
 
           <motion.div
             initial={{ opacity: 0, y: 100 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="relative glass-morphism rounded-2xl sm:rounded-[4rem] border border-white/10 shadow-2xl mx-auto w-full"
+            className="relative bg-white rounded-2xl sm:rounded-[4rem] border border-slate-200 shadow-xl mx-auto w-full overflow-hidden"
           >
             <div className="grid lg:grid-cols-2">
               {/* Left Side: Offer Info */}
-              <div className="px-4 py-10 sm:p-12 lg:p-20 flex flex-col space-y-8 sm:space-y-12 bg-gradient-to-br from-primary/5 to-transparent overflow-hidden">
+              <div className="px-4 py-10 sm:p-12 lg:p-20 flex flex-col space-y-8 sm:space-y-12 bg-gradient-to-br from-teal-50/40 to-transparent overflow-hidden">
                 <div>
-                  <div className="inline-flex items-center gap-3 px-6 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-[10px] font-black uppercase tracking-[0.4em] mb-8">
+                  <div className="inline-flex items-center gap-3 px-6 py-2 rounded-full bg-teal-50 border border-teal-200/80 text-teal-800 text-[10px] font-black uppercase tracking-[0.4em] mb-8">
                     Exclusive Launch Offer
                   </div>
 
-                  <h2 className="text-4xl sm:text-7xl md:text-9xl font-black font-outfit text-white leading-none tracking-tighter">
+                  <h2 className="text-4xl sm:text-7xl md:text-9xl font-black font-outfit text-slate-900 leading-none tracking-tighter">
                     50-50 <br />
-                    <span className="text-primary italic">Access</span>
+                    <span className="text-teal-600 italic">Access</span>
                   </h2>
                 </div>
 
@@ -423,11 +423,11 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
                       transition={{ delay: i * 0.1 }}
                       className="flex items-start gap-4 group"
                     >
-                      <div className="mt-1.5 w-5 h-5 rounded-full border border-primary/30 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
-                        <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                      <div className="mt-1.5 w-5 h-5 rounded-full border border-teal-300 flex items-center justify-center shrink-0 group-hover:bg-teal-50 transition-colors">
+                        <div className="w-1.5 h-1.5 rounded-full bg-teal-600" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-slate-300 text-sm font-medium leading-relaxed break-words">
+                        <p className="text-slate-700 text-sm font-bold leading-relaxed break-words">
                           {text}
                         </p>
                       </div>
@@ -438,14 +438,14 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
-                  className="p-5 sm:p-8 bg-red-400/5 border border-red-400/10 rounded-2xl sm:rounded-[2.5rem] flex flex-col sm:flex-row gap-4 sm:gap-5"
+                  className="p-5 sm:p-8 bg-red-50 border border-red-200 rounded-2xl sm:rounded-[2.5rem] flex flex-col sm:flex-row gap-4 sm:gap-5"
                 >
-                  <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6 text-red-400 shrink-0 mt-0.5" />
+                  <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6 text-red-650 shrink-0 mt-0.5" />
                   <div className="space-y-1 flex-1 min-w-0">
-                    <p className="text-[10px] sm:text-xs font-black text-red-400 uppercase tracking-widest">
+                    <p className="text-[10px] sm:text-xs font-extrabold text-red-700 uppercase tracking-widest">
                       Important Disclaimer
                     </p>
-                    <p className="text-[10px] sm:text-xs text-red-400/80 font-medium leading-relaxed break-words">
+                    <p className="text-[10px] sm:text-xs text-red-800/80 font-bold leading-relaxed break-words">
                       Registration requires a valid Drug License. Submission of
                       incorrect details or invalid documents will lead to
                       immediate disqualification from the early access queue.
@@ -455,9 +455,9 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
               </div>
 
               {/* Right Side: Registration Form */}
-              <div className="px-4 py-10 sm:p-12 lg:p-20 bg-white/[0.02] backdrop-blur-3xl border-l border-white/5 relative overflow-hidden">
+              <div className="px-4 py-10 sm:p-12 lg:p-20 bg-slate-50 border-l border-slate-200/80 relative overflow-hidden">
                 {/* Decorative glow for form */}
-                <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-[100px] -z-10" />
+                <div className="absolute top-0 right-0 w-64 h-64 bg-teal-600/5 blur-[100px] -z-10" />
 
                 {registrationId ? (
                   <motion.div
@@ -467,37 +467,36 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
                   >
                     <motion.div
                       animate={{
-                        scale: [1, 1.1, 1],
-                        rotate: [0, 5, -5, 0],
+                        scale: [1, 1.05, 1],
                       }}
                       transition={{ duration: 4, repeat: Infinity }}
-                      className="w-32 h-32 bg-primary/10 rounded-full flex items-center justify-center border border-primary/20 shadow-2xl shadow-primary/20"
+                      className="w-32 h-32 bg-teal-50 rounded-full flex items-center justify-center border border-teal-200 shadow-md shadow-teal-500/5"
                     >
-                      <CheckCircle2 className="w-16 h-16 text-primary" />
+                      <CheckCircle2 className="w-16 h-16 text-teal-600" />
                     </motion.div>
 
                     <div className="space-y-2">
-                      <h3 className="text-4xl font-black text-white font-outfit">
+                      <h3 className="text-4xl font-black text-slate-900 font-outfit">
                         Spot Reserved!
                       </h3>
-                      <p className="text-slate-400 font-medium">
+                      <p className="text-slate-600 font-bold">
                         Welcome to the future of pharmacy management.
                       </p>
                     </div>
 
-                    <div className="bg-white/5 p-8 rounded-[3rem] border border-white/10 w-full relative overflow-hidden group">
-                      <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-3">
+                    <div className="bg-white p-8 rounded-[3rem] border border-slate-200 w-full relative overflow-hidden group shadow-sm">
+                      <div className="absolute inset-0 bg-gradient-to-r from-teal-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-[0.3em] mb-3">
                         Your Priority Access ID
                       </p>
-                      <p className="text-4xl font-mono text-primary tracking-tighter font-bold">
+                      <p className="text-4xl font-mono text-teal-600 tracking-tighter font-black">
                         {registrationId}
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-3 text-slate-500">
-                      <Mail className="w-4 h-4" />
-                      <p className="text-sm font-medium italic">
+                    <div className="flex items-center gap-3 text-slate-650">
+                      <Mail className="w-4 h-4 text-teal-600" />
+                      <p className="text-sm font-bold italic">
                         Check your inbox for onboarding details.
                       </p>
                     </div>
@@ -507,28 +506,28 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
                     <div className="space-y-6">
                       <div className="grid md:grid-cols-2 gap-6">
                         {mainOffer?.formFields
-                          .filter(
-                            (f) => f.name === "name" || f.name === "mobile" || f.name === "email" || f.name === "pharmacy_name" || f.name === "location"
-                          )
-                          .map((field) => (
-                            <FormField
-                              key={field.name}
-                              field={field}
-                              formData={formData}
-                              setFormData={setFormData}
-                              error={errors[field.name]}
-                            />
-                          ))}
+                           .filter(
+                             (f) => f.name === "name" || f.name === "mobile" || f.name === "email" || f.name === "pharmacy_name" || f.name === "location"
+                           )
+                           .map((field) => (
+                             <FormField
+                               key={field.name}
+                               field={field}
+                               formData={formData}
+                               setFormData={setFormData}
+                               error={errors[field.name]}
+                             />
+                           ))}
                       </div>
 
                       {/* Software Usage Radio Buttons */}
                       <div 
                         id="software_usage"
-                        className={`space-y-4 p-6 bg-white/5 rounded-[2rem] border transition-colors ${errors['software_usage'] ? 'border-red-400/50 bg-red-400/5 animate-shake' : 'border-white/10'}`}
+                        className={`space-y-4 p-6 bg-white rounded-[2rem] border transition-colors ${errors['software_usage'] ? 'border-red-400/50 bg-red-400/5 animate-shake' : 'border-slate-200'}`}
                       >
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] ml-2 flex items-center gap-2">
+                        <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-[0.4em] ml-2 flex items-center gap-2">
                           Are you using any current software? *
-                          {errors['software_usage'] && <span className="text-red-400 normal-case tracking-normal">({errors['software_usage']})</span>}
+                          {errors['software_usage'] && <span className="text-red-500 normal-case tracking-normal">({errors['software_usage']})</span>}
                         </label>
                         <div className="grid grid-cols-2 gap-3 sm:gap-6">
                           {[
@@ -548,12 +547,12 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
                               }}
                               className={`py-4 px-3 sm:px-6 rounded-xl sm:rounded-2xl border transition-all text-xs sm:text-sm font-bold flex items-center justify-center gap-2 sm:gap-3 ${
                                 usingSoftware === opt.value 
-                                  ? 'bg-primary/20 border-primary text-primary' 
-                                  : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/30'
+                                  ? 'bg-teal-50 border-teal-500 text-teal-800' 
+                                  : 'bg-white border-slate-200 text-slate-650 hover:border-slate-350'
                               }`}
                             >
-                              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${usingSoftware === opt.value ? 'border-primary' : 'border-slate-600'}`}>
-                                {usingSoftware === opt.value && <div className="w-2 h-2 rounded-full bg-primary" />}
+                              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${usingSoftware === opt.value ? 'border-teal-500' : 'border-slate-400'}`}>
+                                {usingSoftware === opt.value && <div className="w-2 h-2 rounded-full bg-teal-500" />}
                               </div>
                               {opt.label}
                             </button>
@@ -578,9 +577,9 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
                               if (isGlobalField) return false; 
                               
                               if (usingSoftware) {
-                                return isSoftwareField;
+                                  return isSoftwareField;
                               } else {
-                                return !isSoftwareField;
+                                  return !isSoftwareField;
                               }
                             })
                             .map((field) => {
@@ -609,11 +608,11 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
                             id={field.name}
                             className={`space-y-3 transition-colors ${errors[field.name] ? 'animate-shake' : ''}`}
                           >
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] ml-2 flex items-center gap-2">
+                            <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-[0.4em] ml-2 flex items-center gap-2">
                               {field.label} *
-                              {errors[field.name] && <span className="text-red-400 normal-case tracking-normal">(Required)</span>}
+                              {errors[field.name] && <span className="text-red-500 normal-case tracking-normal">(Required)</span>}
                             </label>
-                            <div className={`relative group h-20 rounded-[2rem] border transition-all ${errors[field.name] ? 'border-red-400/50 bg-red-400/5' : 'border-white/10 bg-white/5'}`}>
+                            <div className={`relative group h-20 rounded-[2rem] border transition-all ${errors[field.name] ? 'border-red-400/50 bg-red-400/5' : 'border-slate-200 bg-white'}`}>
                               <input
                                 type="file"
                                 name={field.name}
@@ -631,21 +630,21 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
                                 }}
                                 className="absolute inset-0 opacity-0 cursor-pointer z-10"
                               />
-                              <div className={`absolute inset-0 rounded-[2rem] flex items-center justify-between px-8 group-hover:border-primary/50 group-hover:bg-white/10 transition-all duration-300`}>
+                              <div className="absolute inset-0 rounded-[2rem] flex items-center justify-between px-8 group-hover:border-teal-500/50 group-hover:bg-slate-50/50 transition-all duration-300">
                                 <div className="flex items-center gap-4 min-w-0">
                                   <div
-                                    className={`p-2 rounded-lg ${formData[field.name] ? "bg-primary/20 text-primary" : "bg-white/5 text-slate-500"}`}
+                                    className={`p-2 rounded-lg ${formData[field.name] ? "bg-teal-50 text-teal-600" : "bg-slate-100 text-slate-550"}`}
                                   >
                                     <FileText className="w-5 h-5" />
                                   </div>
-                                  <span className="text-sm text-slate-300 truncate font-medium">
+                                  <span className="text-sm text-slate-700 truncate font-bold">
                                     {formData[field.name]?.name ||
                                       field.placeholder ||
                                       "Upload Document / Photo"}
                                   </span>
                                 </div>
                                 <CheckCircle2
-                                  className={`w-5 h-5 transition-colors ${formData[field.name] ? "text-primary" : "text-slate-800"}`}
+                                  className={`w-5 h-5 transition-colors ${formData[field.name] ? "text-teal-600" : "text-slate-300"}`}
                                 />
                               </div>
                             </div>
@@ -654,23 +653,23 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
                     </div>
 
                     <div className="space-y-6">
-                      <div className="flex items-start gap-3 p-4 bg-white/5 rounded-2xl border border-white/10 group hover:border-primary/30 transition-colors">
+                      <div className="flex items-start gap-3 p-4 bg-white rounded-2xl border border-slate-200 group hover:border-teal-300 transition-colors">
                         <div className="relative flex items-center h-5">
                           <input
                             id="terms"
                             type="checkbox"
                             checked={termsAccepted}
                             onChange={(e) => setTermsAccepted(e.target.checked)}
-                            className="w-5 h-5 rounded border-white/20 bg-white/5 text-primary focus:ring-primary/20 cursor-pointer"
+                            className="w-5 h-5 rounded border-slate-300 bg-white text-teal-650 focus:ring-teal-500/20 cursor-pointer"
                           />
                         </div>
                         <div className="flex flex-col">
                           <label
                             htmlFor="terms"
-                            className="text-xs text-slate-400 cursor-pointer select-none"
+                            className="text-xs text-slate-500 cursor-pointer select-none font-bold"
                           >
                             I agree to the{" "}
-                            <span className="text-white font-bold">
+                            <span className="text-slate-900 font-extrabold">
                               50-50 Pre-Launch Registration Offer
                             </span>{" "}
                             terms.
@@ -678,7 +677,7 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
                           <button
                             type="button"
                             onClick={handleShowTerms}
-                            className="text-[10px] text-primary font-black uppercase tracking-widest mt-2 flex items-center gap-1 hover:gap-2 transition-all"
+                            className="text-[10px] text-teal-600 font-extrabold uppercase tracking-widest mt-2 flex items-center gap-1 hover:gap-2 transition-all"
                           >
                             View Full Terms <ArrowRight className="w-3 h-3" />
                           </button>
@@ -689,10 +688,10 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
                         <button
                           type="submit"
                           disabled={isSubmitting || !termsAccepted}
-                          className={`w-full py-6 rounded-[2rem] flex items-center justify-center gap-4 font-black uppercase tracking-[0.2em] transition-all shadow-2xl group relative overflow-hidden ${
+                          className={`w-full py-6 rounded-[2rem] flex items-center justify-center gap-4 font-black uppercase tracking-[0.2em] transition-all shadow-md group relative overflow-hidden ${
                             termsAccepted
-                              ? "bg-primary text-dark hover:scale-[1.02] active:scale-[0.98] shadow-primary/20"
-                              : "bg-white/10 text-slate-500 cursor-not-allowed opacity-50"
+                              ? "bg-teal-600 text-white hover:bg-teal-700 hover:scale-[1.02] active:scale-[0.98] shadow-teal-600/10"
+                              : "bg-slate-200 text-slate-400 cursor-not-allowed opacity-60"
                           }`}
                         >
                           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
@@ -706,12 +705,12 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
                           )}
                         </button>
 
-                        <div className="mt-8 flex items-center justify-center gap-6 opacity-30">
-                          <div className="h-px w-12 bg-white" />
-                          <p className="text-[9px] text-white font-black uppercase tracking-[0.3em] whitespace-nowrap">
+                        <div className="mt-8 flex items-center justify-center gap-6 opacity-40">
+                          <div className="h-px w-12 bg-slate-300" />
+                          <p className="text-[9px] text-slate-500 font-black uppercase tracking-[0.3em] whitespace-nowrap">
                             Powered by Krishna Medicose
                           </p>
-                          <div className="h-px w-12 bg-white" />
+                          <div className="h-px w-12 bg-slate-300" />
                         </div>
                       </div>
                     </div>
@@ -733,9 +732,9 @@ function FormField({ field, formData, setFormData, error }) {
       transition={{ duration: 0.4 }}
       className="space-y-3"
     >
-      <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] ml-2 flex items-center gap-2">
+      <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-[0.4em] ml-2 flex items-center gap-2">
         {field.label} {field.required && '*'}
-        {error && <span className="text-red-400 normal-case tracking-normal">({error})</span>}
+        {error && <span className="text-red-500 normal-case tracking-normal">({error})</span>}
       </label>
       
       {field.type === 'textarea' ? (
@@ -744,7 +743,7 @@ function FormField({ field, formData, setFormData, error }) {
           required={field.required}
           placeholder={field.placeholder}
           onChange={e => setFormData({...formData, [field.name]: e.target.value})}
-          className={`w-full bg-white/5 border rounded-[2rem] p-6 focus:border-primary/50 focus:bg-white/10 outline-none transition-all text-sm resize-none font-medium text-white placeholder:text-slate-500 ${error ? 'border-red-400/50 bg-red-400/5' : 'border-white/10'}`}
+          className={`w-full bg-white border rounded-[2rem] p-6 focus:border-teal-500/50 focus:bg-slate-50 outline-none transition-all text-sm resize-none font-bold text-slate-800 placeholder:text-slate-400 ${error ? 'border-red-400/50 bg-red-400/5' : 'border-slate-200'}`}
           rows={3}
         />
       ) : (
@@ -754,7 +753,7 @@ function FormField({ field, formData, setFormData, error }) {
           required={field.required}
           placeholder={field.placeholder}
           onChange={e => setFormData({...formData, [field.name]: e.target.value})}
-          className={`w-full bg-white/5 border rounded-2xl sm:rounded-[2rem] px-5 py-4 sm:p-6 focus:border-primary/50 focus:bg-white/10 outline-none transition-all text-sm font-medium text-white placeholder:text-slate-500 ${error ? 'border-red-400/50 bg-red-400/5' : 'border-white/10'}`}
+          className={`w-full bg-white border rounded-2xl sm:rounded-[2rem] px-5 py-4 sm:p-6 focus:border-teal-500/50 focus:bg-slate-50 outline-none transition-all text-sm font-bold text-slate-800 placeholder:text-slate-400 ${error ? 'border-red-400/50 bg-red-400/5' : 'border-slate-200'}`}
         />
       )}
     </motion.div>

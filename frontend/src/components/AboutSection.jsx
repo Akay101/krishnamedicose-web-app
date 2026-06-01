@@ -17,7 +17,7 @@ export default function AboutSection({ content }) {
   const stats = aboutData.stats;
 
   return (
-    <section id="vision" className="section-padding relative">
+    <section id="vision" className="section-padding relative border-t border-slate-200/80">
       <div className="max-w-7xl mx-auto">
         <div className="grid lg:grid-cols-2 gap-20 items-center">
           <motion.div
@@ -27,25 +27,13 @@ export default function AboutSection({ content }) {
             transition={{ duration: 0.6 }}
             className="md:order-2"
           >
-            <div className="relative rounded-[3rem] overflow-hidden group">
+            <div className="relative rounded-[3rem] overflow-hidden group border-8 border-white shadow-xl">
               <img
                 src={aboutData.image || "/assets/happy-customers.png"}
                 alt="Happy Customers"
                 className="w-full h-auto object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-700 hover:scale-105"
               />
-              <div className="absolute inset-0 bg-primary/10 mix-blend-overlay group-hover:bg-transparent transition-colors duration-700" />
-
-              {/* Floating Stat Card */}
-              {/* <motion.div 
-                animate={{ y: [0, 15, 0] }}
-                transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-                className="absolute top-10 -right-4 glass-morphism p-6 rounded-2xl border-primary/20"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="text-3xl font-bold text-primary">{aboutData.satisfaction_rate}</div>
-                  <div className="text-[10px] uppercase font-bold text-slate-400">Satisfaction<br/>Rate</div>
-                </div>
-              </motion.div> */}
+              <div className="absolute inset-0 bg-teal-600/5 mix-blend-overlay group-hover:bg-transparent transition-colors duration-700" />
             </div>
           </motion.div>
 
@@ -54,19 +42,19 @@ export default function AboutSection({ content }) {
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              className="text-4xl md:text-5xl font-bold font-outfit mb-8 relative"
+              className="text-4xl md:text-5xl font-black font-outfit mb-8 relative text-slate-900"
             >
               {aboutData.vision_title.includes(" & ") ? (
                 <>
                   {aboutData.vision_title.split(" & ")[0]} &{" "}
-                  <span className="text-secondary">
+                  <span className="text-sky-600">
                     {aboutData.vision_title.split(" & ")[1]}
                   </span>
                 </>
               ) : (
                 aboutData.vision_title
               )}
-              <div className="absolute -top-10 -left-6 text-primary/10 text-6xl sm:text-8xl font-black -z-10 select-none uppercase tracking-tighter">
+              <div className="absolute -top-10 -left-6 text-slate-200/40 text-6xl sm:text-8xl font-black -z-10 select-none uppercase tracking-tighter">
                 VISION
               </div>
             </motion.h2>
@@ -75,35 +63,35 @@ export default function AboutSection({ content }) {
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              className="text-lg text-slate-400 mb-10 leading-relaxed"
+              className="text-lg text-slate-600 mb-10 leading-relaxed font-bold"
             >
               {aboutData.vision_description}
             </motion.p>
 
             <div className="space-y-6 mb-12">
               <div className="flex gap-4">
-                <div className="flex-shrink-0 w-12 h-12 rounded-2xl glass flex items-center justify-center text-primary border border-primary/20">
+                <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-teal-600 border border-teal-200/80 shadow-sm">
                   <Eye className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-xl mb-1 font-outfit">
+                  <h3 className="font-extrabold text-xl mb-1 font-outfit text-slate-900">
                     Modern Vision
                   </h3>
-                  <p className="text-slate-400">
+                  <p className="text-slate-600 font-bold">
                     Integrating latest medical technologies for faster and more
                     accurate pharmaceutical services.
                   </p>
                 </div>
               </div>
               <div className="flex gap-4">
-                <div className="flex-shrink-0 w-12 h-12 rounded-2xl glass flex items-center justify-center text-secondary border border-secondary/20">
+                <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-sky-600 border border-sky-200/80 shadow-sm">
                   <Users className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-xl mb-1 font-outfit">
+                  <h3 className="font-extrabold text-xl mb-1 font-outfit text-slate-900">
                     Customer First
                   </h3>
-                  <p className="text-slate-400">
+                  <p className="text-slate-600 font-bold">
                     Trusted by over 10,000+ families across area for
                     genuine medicines and expert advice.
                   </p>
@@ -111,13 +99,13 @@ export default function AboutSection({ content }) {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-6">
+            <div className="grid grid-cols-3 gap-6 border-t border-slate-200/80 pt-8">
               {stats.map((stat, i) => (
                 <div key={i} className="text-center">
-                  <div className="text-2xl md:text-3xl font-bold text-white mb-1">
+                  <div className="text-2xl md:text-3xl font-black text-slate-900 mb-1">
                     {stat.value}
                   </div>
-                  <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider font-outfit">
+                  <div className="text-[10px] uppercase font-extrabold text-slate-500 tracking-wider font-outfit">
                     {stat.label}
                   </div>
                 </div>

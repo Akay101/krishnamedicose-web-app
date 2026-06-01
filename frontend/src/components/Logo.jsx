@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { FullLogo, LogoIcon } from './BrandLogos';
 
-const Logo = ({ className = '', showText = true, size = 'md' }) => {
+const Logo = ({ className = '', showText = true, size = 'md', theme = 'light' }) => {
   return (
     <motion.div 
       className={`inline-flex items-center ${className}`}
@@ -11,7 +11,7 @@ const Logo = ({ className = '', showText = true, size = 'md' }) => {
       animate={{ opacity: 1 }}
     >
       {showText ? (
-        <FullLogo size={size} />
+        <FullLogo size={size} theme={theme} />
       ) : (
         <LogoIcon size={size === 'sm' ? 32 : size === 'lg' ? 64 : size === 'xl' ? 80 : 44} />
       )}

@@ -28,24 +28,24 @@ export default function FollowUpModal({ isOpen, onClose, onSave, initialNotes = 
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="absolute inset-0 bg-dark/80 backdrop-blur-sm"
+          className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
         />
         
         <motion.div
           initial={{ opacity: 0, scale: 0.9, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
-          className="relative w-full max-w-lg bg-dark-lighter border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden"
+          className="relative w-full max-w-lg bg-white border border-slate-200 rounded-[2.5rem] shadow-2xl overflow-hidden z-10 text-slate-900"
         >
-          <div className="p-8 border-b border-white/5 flex items-center justify-between">
+          <div className="p-8 border-b border-slate-250/60 flex items-center justify-between bg-slate-50">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+              <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center text-teal-650">
                 <MessageSquare className="w-5 h-5" />
               </div>
-              <h2 className="text-xl font-bold font-outfit">{title}</h2>
+              <h2 className="text-xl font-bold font-outfit text-slate-900">{title}</h2>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-all">
-              <X className="w-5 h-5 text-slate-500" />
+            <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-all">
+              <X className="w-5 h-5 text-slate-400 hover:text-slate-800" />
             </button>
           </div>
 
@@ -59,7 +59,7 @@ export default function FollowUpModal({ isOpen, onClose, onSave, initialNotes = 
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Describe the conversation, outcomes, or next steps..."
-                className="w-full h-40 bg-white/5 border border-white/10 rounded-2xl p-4 text-slate-300 focus:border-primary outline-none transition-all resize-none"
+                className="w-full h-40 bg-slate-50 border border-slate-200 rounded-2xl p-4 text-slate-800 focus:bg-white focus:border-teal-500 outline-none transition-all resize-none font-medium text-sm leading-relaxed"
               />
             </div>
 
@@ -67,7 +67,7 @@ export default function FollowUpModal({ isOpen, onClose, onSave, initialNotes = 
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 py-4 rounded-2xl bg-white/5 font-bold hover:bg-white/10 transition-all"
+                className="flex-1 py-4 rounded-2xl bg-white border border-slate-200 text-slate-700 font-bold hover:bg-slate-50 transition-all text-sm"
               >
                 Cancel
               </button>

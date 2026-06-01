@@ -40,8 +40,8 @@ export default function OwnerSection({ content }) {
   };
 
   return (
-    <section id="owner" className="section-padding bg-dark-lighter/50 relative overflow-hidden">
-      <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+    <section id="owner" className="section-padding bg-slate-100/50 relative overflow-hidden border-t border-slate-200/80">
+      <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-slate-200/80 to-transparent" />
       
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-16">
@@ -49,15 +49,15 @@ export default function OwnerSection({ content }) {
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-4xl md:text-6xl font-bold font-outfit mb-4"
+            className="text-4xl md:text-6xl font-black font-outfit mb-4 text-slate-900"
           >
-            Meet the <span className="text-primary italic">Visionary</span>
+            Meet the <span className="text-teal-600 italic">Visionary</span>
           </motion.h2>
           <motion.p 
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-slate-400 max-w-2xl mx-auto"
+            className="text-slate-600 font-bold max-w-2xl mx-auto"
           >
             Bridging the gap between pharmaceutical expertise and digital content creation.
           </motion.p>
@@ -71,14 +71,14 @@ export default function OwnerSection({ content }) {
             className="flex flex-col justify-center"
           >
             <div className="glass-morphism p-8 md:p-12 rounded-[3.5rem] relative">
-              <div className="absolute top-8 right-8 text-primary/20">
+              <div className="absolute top-8 right-8 text-teal-600/10">
                 <MessageSquare className="w-16 h-16" />
               </div>
               
-              <h3 className="text-3xl md:text-4xl font-bold font-outfit mb-2">{ownerData.name}</h3>
-              <p className="text-primary font-bold text-lg mb-6 uppercase tracking-wider">{ownerData.title}</p>
+              <h3 className="text-3xl md:text-4xl font-extrabold font-outfit mb-2 text-slate-900">{ownerData.name}</h3>
+              <p className="text-teal-600 font-extrabold text-lg mb-6 uppercase tracking-wider">{ownerData.title}</p>
               
-              <p className="text-slate-300 text-lg leading-relaxed mb-8">
+              <p className="text-slate-700 text-lg leading-relaxed mb-8 font-medium">
                 {ownerData.bio}
               </p>
 
@@ -93,18 +93,18 @@ export default function OwnerSection({ content }) {
                       rel="noopener noreferrer"
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
-                      className={`flex items-center gap-4 p-4 glass rounded-2xl transition-all duration-300 group ${
-                        social.name === 'YouTube' ? 'hover:bg-red-500/20 hover:text-red-500' : 'hover:bg-pink-500/20 hover:text-pink-500'
+                      className={`flex items-center gap-4 p-4 bg-white border border-slate-200 shadow-sm rounded-2xl transition-all duration-300 group ${
+                        social.name === 'YouTube' ? 'hover:bg-red-50 hover:text-white' : 'hover:bg-gradient-to-tr hover:from-orange-500 hover:to-pink-600 hover:text-white'
                       }`}
                     >
-                      <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center">
+                      <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-700 group-hover:bg-white/20 group-hover:border-transparent group-hover:text-white transition-all">
                         <Icon className="w-6 h-6" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-[10px] font-bold text-slate-500 uppercase leading-none mb-1">{social.name}</div>
-                        <div className="font-outfit font-bold truncate text-sm">{social.handle}</div>
+                        <div className="text-[10px] font-extrabold text-slate-400 uppercase leading-none mb-1 group-hover:text-white/80">{social.name}</div>
+                        <div className="font-outfit font-extrabold truncate text-sm group-hover:text-white">{social.handle}</div>
                       </div>
-                      <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-white/5 group-hover:bg-primary/20 group-hover:text-primary transition-all">
+                      <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 border border-slate-100 text-slate-400 group-hover:bg-white/20 group-hover:text-white transition-all">
                         <ArrowUpRight className="w-4 h-4" />
                       </div>
                     </motion.a>
@@ -119,11 +119,11 @@ export default function OwnerSection({ content }) {
                 onClick={() => setIsModalOpen(true)}
                 className="w-full relative group overflow-hidden rounded-[2rem] p-px"
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-primary via-secondary to-primary bg-[length:200%_auto] animate-gradient-x" />
-                <div className="relative bg-dark/90 rounded-[1.95rem] py-5 px-8 flex items-center justify-center gap-3 transition-colors group-hover:bg-transparent">
-                  <Briefcase className="w-5 h-5 text-primary group-hover:text-dark transition-colors" />
-                  <span className="font-bold text-lg group-hover:text-dark transition-colors">Collaborate / Business</span>
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-dark/20 group-hover:text-dark transition-all">
+                <div className="absolute inset-0 bg-gradient-to-r from-teal-600 via-sky-500 to-teal-600 bg-[length:200%_auto] animate-gradient-x" />
+                <div className="relative bg-white rounded-[1.95rem] py-5 px-8 flex items-center justify-center gap-3 transition-colors group-hover:bg-transparent">
+                  <Briefcase className="w-5 h-5 text-teal-600 group-hover:text-white transition-colors" />
+                  <span className="font-extrabold text-lg text-slate-900 group-hover:text-white transition-colors">Collaborate / Business</span>
+                  <div className="w-8 h-8 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center group-hover:bg-white/20 group-hover:text-white transition-all">
                     <Send className="w-4 h-4" />
                   </div>
                 </div>
@@ -137,24 +137,24 @@ export default function OwnerSection({ content }) {
             viewport={{ once: true }}
             className="relative"
           >
-            <div className="relative rounded-[3rem] overflow-hidden group border-8 border-white/5 shadow-2xl">
+            <div className="relative rounded-[3rem] overflow-hidden group border-8 border-white shadow-xl">
               <img 
                 src={ownerData.image || "/assets/owner-krishna.png"} 
                 alt="Krishna Pandit" 
                 className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-700"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-dark via-transparent to-transparent opacity-80" />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent" />
               
               <div className="absolute bottom-10 left-1/2 -translate-x-1/2 md:left-10 md:translate-x-0 w-[90%] md:w-auto">
-                <div className="glass-morphism px-6 py-4 rounded-3xl border-white/20">
+                <div className="glass-morphism px-6 py-4 rounded-3xl border-slate-200">
                   <div className="flex items-center gap-4">
                     <div className="relative flex-shrink-0">
                       <div className="w-3 h-3 bg-green-500 rounded-full animate-ping absolute inset-0" />
                       <div className="w-3 h-3 bg-green-500 rounded-full relative" />
                     </div>
                     <div>
-                      <p className="font-bold text-lg leading-tight">{ownerData.social_family} Social Family</p>
-                      <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Always Growing</p>
+                      <p className="font-extrabold text-lg leading-tight text-slate-900">{ownerData.social_family} Social Family</p>
+                      <p className="text-[10px] text-slate-500 uppercase tracking-wider font-extrabold">Always Growing</p>
                     </div>
                   </div>
                 </div>

@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Users, UserPlus, Shield, Mail, Phone, Trash2, Power, PowerOff, CheckCircle2, XCircle, Search, Edit3 } from 'lucide-react';
 import api from '../utils/api';
-
 import { useModal } from '../context/ModalContext';
 
 export default function UsersManager() {
@@ -90,26 +89,26 @@ export default function UsersManager() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <h1 className="text-3xl lg:text-4xl font-bold font-outfit mb-2 flex items-center gap-4">
-            Team <span className="text-primary italic">Management</span>
+            Team <span className="text-teal-650 italic">Management</span>
           </h1>
-          <p className="text-sm lg:text-base text-slate-400">Control who can access and manage your digital workspace.</p>
+          <p className="text-sm lg:text-base text-slate-500 font-medium">Control who can access and manage your digital workspace.</p>
         </div>
         
         <button 
           onClick={() => setShowAddModal(true)}
-          className="w-full sm:w-auto btn-primary px-8 py-4 flex items-center justify-center gap-3 group"
+          className="w-full sm:w-auto btn-primary px-8 py-4 flex items-center justify-center gap-3 group text-xs shadow-lg uppercase tracking-wider font-bold"
         >
           <UserPlus className="w-5 h-5 group-hover:scale-110 transition-transform" />
           Add Member
         </button>
       </div>
 
-      <div className="relative w-full lg:max-w-md">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 lg:w-5 lg:h-5 text-slate-500" />
+      <div className="relative w-full lg:max-w-md group">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 lg:w-5 lg:h-5 text-slate-450" />
         <input 
           type="text" 
           placeholder="Search by name or email..." 
-          className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-3.5 lg:py-4 focus:outline-none focus:border-primary transition-all text-sm"
+          className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-4 py-3.5 lg:py-4 focus:outline-none focus:bg-white focus:border-teal-500 transition-all font-bold text-slate-800 text-sm shadow-inner"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -124,18 +123,18 @@ export default function UsersManager() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="glass-morphism rounded-[2rem] p-8 relative overflow-hidden"
+              className="bg-white border border-slate-200 rounded-[2rem] p-8 relative overflow-hidden shadow-sm"
             >
               <div className="flex justify-between items-start mb-6">
                 <div className="flex gap-4">
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold ${user.isActive ? 'bg-primary/20 text-primary' : 'bg-slate-800 text-slate-500'}`}>
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold font-outfit border ${user.isActive ? 'bg-teal-50 border-teal-200 text-teal-650' : 'bg-slate-100 border-slate-200 text-slate-400'}`}>
                     {user.name?.[0] || user.email[0].toUpperCase()}
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold font-outfit">{user.name || 'Staff Member'}</h3>
-                    <div className="flex items-center gap-4 text-sm text-slate-400 mt-1">
-                      <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {user.email}</span>
-                      {user.mobile && <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {user.mobile}</span>}
+                    <h3 className="text-xl font-bold font-outfit text-slate-900">{user.name || 'Staff Member'}</h3>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs font-bold text-slate-500 mt-2">
+                      <span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-slate-400" /> {user.email}</span>
+                      {user.mobile && <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-slate-400" /> {user.mobile}</span>}
                     </div>
                   </div>
                 </div>
@@ -143,14 +142,14 @@ export default function UsersManager() {
                 <div className="flex gap-2">
                   <button 
                     onClick={() => toggleStatus(user)}
-                    className={`p-3 rounded-xl transition-all ${user.isActive ? 'bg-green-400/10 text-green-400 hover:bg-green-400/20' : 'bg-red-400/10 text-red-400 hover:bg-red-400/20'}`}
+                    className={`p-3 rounded-xl border transition-all ${user.isActive ? 'bg-green-50 border-green-200 text-green-600 hover:bg-green-100' : 'bg-red-50 border-red-200 text-red-650 hover:bg-red-100'}`}
                     title={user.isActive ? "Deactivate" : "Activate"}
                   >
                     {user.isActive ? <Power className="w-5 h-5" /> : <PowerOff className="w-5 h-5" />}
                   </button>
                   <button 
                     onClick={() => deleteUser(user._id)}
-                    className="p-3 rounded-xl bg-white/5 text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition-all"
+                    className="p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-200 transition-all"
                   >
                     <Trash2 className="w-5 h-5" />
                   </button>
@@ -164,7 +163,7 @@ export default function UsersManager() {
 
               {user.email === 'amanyadavu65@gmail.com' && (
                 <div className="absolute top-0 right-0 p-4">
-                  <span className="px-3 py-1 bg-primary text-dark text-[10px] font-black uppercase rounded-bl-xl tracking-widest">Root Admin</span>
+                  <span className="px-3 py-1 bg-teal-500 text-slate-900 text-[10px] font-black uppercase rounded-bl-xl tracking-widest">Root Admin</span>
                 </div>
               )}
             </motion.div>
@@ -176,20 +175,20 @@ export default function UsersManager() {
       <AnimatePresence>
         {showAddModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 lg:p-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowAddModal(false)} className="absolute inset-0 bg-dark/90 backdrop-blur-md" />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-2xl bg-dark-lighter border border-white/10 rounded-[2.5rem] lg:rounded-[3rem] p-6 lg:p-12 overflow-y-auto max-h-[90dvh] shadow-2xl">
-              <h2 className="text-2xl lg:text-3xl font-bold font-outfit mb-6 lg:mb-8">Add New <span className="text-primary">Member</span></h2>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowAddModal(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-[2.5rem] lg:rounded-[3rem] p-6 lg:p-12 overflow-y-auto max-h-[90dvh] shadow-2xl text-slate-900 z-10">
+              <h2 className="text-2xl lg:text-3xl font-bold font-outfit mb-6 lg:mb-8 text-slate-900">Add New <span className="text-teal-650">Member</span></h2>
               
               <form onSubmit={handleAddUser} className="space-y-5 lg:space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-                  <input required placeholder="Full Name" className="bg-white/5 border border-white/10 rounded-xl lg:rounded-2xl px-6 py-3.5 lg:py-4 w-full focus:outline-none focus:border-primary transition-all text-sm" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-                  <input required type="tel" placeholder="Mobile Number" className="bg-white/5 border border-white/10 rounded-xl lg:rounded-2xl px-6 py-3.5 lg:py-4 w-full focus:outline-none focus:border-primary transition-all text-sm" value={formData.mobile} onChange={e => setFormData({...formData, mobile: e.target.value})} />
+                  <input required placeholder="Full Name" className="bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl px-6 py-3.5 lg:py-4 w-full focus:outline-none focus:bg-white focus:border-teal-500 font-bold text-slate-800 text-sm" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                  <input required type="tel" placeholder="Mobile Number" className="bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl px-6 py-3.5 lg:py-4 w-full focus:outline-none focus:bg-white focus:border-teal-500 font-bold text-slate-800 text-sm" value={formData.mobile} onChange={e => setFormData({...formData, mobile: e.target.value})} />
                 </div>
-                <input required type="email" placeholder="Email Address" className="bg-white/5 border border-white/10 rounded-xl lg:rounded-2xl px-6 py-3.5 lg:py-4 w-full focus:outline-none focus:border-primary transition-all text-sm" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-                <input required type="password" placeholder="Temporal Password" className="bg-white/5 border border-white/10 rounded-xl lg:rounded-2xl px-6 py-3.5 lg:py-4 w-full focus:outline-none focus:border-primary transition-all text-sm" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                <input required type="email" placeholder="Email Address" className="bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl px-6 py-3.5 lg:py-4 w-full focus:outline-none focus:bg-white focus:border-teal-500 font-bold text-slate-800 text-sm" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                <input required type="password" placeholder="Temporary Password" className="bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl px-6 py-3.5 lg:py-4 w-full focus:outline-none focus:bg-white focus:border-teal-500 font-bold text-slate-800 text-sm" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
                 
                 <div className="space-y-4">
-                  <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-2"><Shield className="w-3 h-3" /> Set Access Permissions</p>
+                  <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-2"><Shield className="w-3.5 h-3.5 text-teal-650" /> Set Access Permissions</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 lg:gap-4">
                     <PermissionToggle label="Edit Website" active={formData.permissions.website} onToggle={() => setFormData({...formData, permissions: {...formData.permissions, website: !formData.permissions.website}})} />
                     <PermissionToggle label="Manage Leads" active={formData.permissions.leads} onToggle={() => setFormData({...formData, permissions: {...formData.permissions, leads: !formData.permissions.leads}})} />
@@ -198,7 +197,7 @@ export default function UsersManager() {
 
                 <div className="flex flex-col sm:flex-row gap-3 pt-4">
                   <button type="submit" className="btn-primary flex-1 py-4 font-black uppercase tracking-widest text-[10px]">Create Account</button>
-                  <button type="button" onClick={() => setShowAddModal(false)} className="bg-white/5 hover:bg-white/10 px-8 py-4 rounded-xl lg:rounded-2xl font-bold transition-all text-sm">Cancel</button>
+                  <button type="button" onClick={() => setShowAddModal(false)} className="bg-white border border-slate-200 hover:bg-slate-50 px-8 py-4 rounded-xl lg:rounded-2xl font-bold transition-all text-sm text-slate-700">Cancel</button>
                 </div>
               </form>
             </motion.div>
@@ -211,19 +210,19 @@ export default function UsersManager() {
 
 function PermissionCard({ label, granted }) {
   return (
-    <div className={`p-4 rounded-2xl border flex items-center justify-between ${granted ? 'bg-primary/5 border-primary/20 text-white' : 'bg-white/2 border-white/5 text-slate-500'}`}>
-      <span className="text-xs font-bold">{label}</span>
-      {granted ? <CheckCircle2 className="w-4 h-4 text-primary" /> : <XCircle className="w-4 h-4" />}
+    <div className={`p-4 rounded-2xl border flex items-center justify-between font-bold text-xs ${granted ? 'bg-teal-50 border-teal-200 text-teal-800' : 'bg-slate-50 border-slate-200/60 text-slate-500'}`}>
+      <span>{label}</span>
+      {granted ? <CheckCircle2 className="w-4 h-4 text-teal-600" /> : <XCircle className="w-4 h-4 text-slate-350" />}
     </div>
   );
 }
 
 function PermissionToggle({ label, active, onToggle }) {
   return (
-    <button type="button" onClick={onToggle} className={`p-4 rounded-2xl border flex items-center justify-between transition-all ${active ? 'bg-primary/10 border-primary text-primary' : 'bg-white/5 border-white/10 text-slate-500 hover:border-white/20'}`}>
+    <button type="button" onClick={onToggle} className={`p-4 rounded-2xl border flex items-center justify-between transition-all ${active ? 'bg-teal-50 border-teal-200 text-teal-700 font-bold' : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-350'}`}>
       <span className="text-xs font-bold">{label}</span>
-      <div className={`w-10 h-6 rounded-full relative transition-colors ${active ? 'bg-primary' : 'bg-slate-700'}`}>
-        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${active ? 'left-5' : 'left-1'}`} />
+      <div className={`w-10 h-6 rounded-full relative transition-colors ${active ? 'bg-teal-500' : 'bg-slate-200'}`}>
+        <div className="absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm" style={{ left: active ? '20px' : '4px' }} />
       </div>
     </button>
   );

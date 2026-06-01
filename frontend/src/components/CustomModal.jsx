@@ -34,34 +34,34 @@ export default function CustomModal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-dark/80 backdrop-blur-sm"
+            className="absolute inset-0 bg-slate-900/40"
           />
           
           <motion.div
             initial={{ scale: 0.9, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 20 }}
-            className={`relative w-full max-w-2xl bg-dark/90 border ${colors[type]} rounded-[2.5rem] p-8 shadow-2xl backdrop-blur-xl overflow-hidden`}
+            className={`relative w-full max-w-2xl bg-white border ${colors[type]} rounded-[2.5rem] p-8 shadow-2xl overflow-hidden`}
           >
             {/* Close Button */}
             <button 
               onClick={onClose}
-              className="absolute top-6 right-6 p-2 text-slate-500 hover:text-white transition-colors z-50 bg-white/5 rounded-full"
+              className="absolute top-6 right-6 p-2 text-slate-500 hover:text-slate-800 transition-colors z-50 bg-slate-50 border border-slate-100 hover:bg-slate-100 rounded-full"
             >
               <X className="w-5 h-5" />
             </button>
 
             {/* Background Glow */}
-            <div className={`absolute -top-24 -right-24 w-48 h-48 rounded-full blur-[80px] opacity-20 ${type === 'error' ? 'bg-red-400' : 'bg-primary'}`} />
+            <div className={`absolute -top-24 -right-24 w-48 h-48 rounded-full blur-[80px] opacity-25 ${type === 'error' ? 'bg-red-300' : 'bg-teal-300'}`} />
 
             <div className="flex flex-col items-center text-center space-y-6 relative z-10">
-              <div className="p-4 bg-white/5 rounded-2xl">
+              <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl">
                 {icons[type]}
               </div>
               
               <div className="space-y-2 w-full">
-                <h3 className="text-2xl font-bold font-outfit text-white">{title}</h3>
-                <div className="text-slate-400 leading-relaxed text-sm text-left max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar whitespace-pre-line">
+                <h3 className="text-2xl font-black font-outfit text-slate-900">{title}</h3>
+                <div className="text-slate-700 font-bold leading-relaxed text-sm text-left max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar whitespace-pre-line">
                   {message}
                 </div>
               </div>
@@ -71,13 +71,13 @@ export default function CustomModal({
                   <>
                     <button
                       onClick={onClose}
-                      className="flex-1 py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-bold hover:bg-white/10 transition-all"
+                      className="flex-1 py-4 rounded-2xl bg-slate-100 border border-slate-200 text-slate-700 font-bold hover:bg-slate-200 transition-all"
                     >
                       {cancelText}
                     </button>
                     <button
                       onClick={() => { onConfirm(); onClose(); }}
-                      className="flex-1 py-4 rounded-2xl bg-primary text-dark font-black uppercase tracking-widest hover:bg-primary/80 transition-all shadow-lg shadow-primary/20"
+                      className="flex-1 py-4 rounded-2xl bg-teal-650 text-white font-extrabold uppercase tracking-widest hover:bg-teal-700 transition-all shadow-md"
                     >
                       {confirmText}
                     </button>
@@ -85,7 +85,7 @@ export default function CustomModal({
                 ) : (
                   <button
                     onClick={onClose}
-                    className="w-full py-4 rounded-2xl bg-primary text-dark font-black uppercase tracking-widest hover:bg-primary/80 transition-all shadow-lg shadow-primary/20"
+                    className="w-full py-4 rounded-2xl bg-teal-600 text-white font-extrabold uppercase tracking-widest hover:bg-teal-700 transition-all shadow-md"
                   >
                     Got it
                   </button>

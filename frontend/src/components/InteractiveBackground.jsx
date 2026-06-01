@@ -1,74 +1,18 @@
-import { useEffect, useState } from 'react';
-import { motion, useSpring, useMotionValue } from 'framer-motion';
-
 export default function InteractiveBackground() {
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
-
-  const springConfig = { damping: 25, stiffness: 150 };
-  const smoothX = useSpring(mouseX, springConfig);
-  const smoothY = useSpring(mouseY, springConfig);
-
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      mouseX.set(e.clientX);
-      mouseY.set(e.clientY);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
-
   return (
-    <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-      {/* Dynamic Gradient Glow */}
-      <motion.div
-        className="absolute w-[600px] h-[600px] rounded-full"
-        style={{
-          x: smoothX,
-          y: smoothY,
-          translateX: '-50%',
-          translateY: '-50%',
-          background: 'radial-gradient(circle, rgba(45, 212, 191, 0.15) 0%, rgba(45, 212, 191, 0) 70%)',
-        }}
-      />
-      
-      {/* Floating Patterns */}
-      <div className="absolute inset-0 opacity-10">
-        {[...Array(12)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute rounded-full"
-            style={{
-              width: Math.random() * 80 + 40,
-              height: Math.random() * 80 + 40,
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              border: '1px solid rgba(45, 212, 191, 0.2)',
-              willChange: 'transform',
-            }}
-            animate={{
-              y: [0, Math.random() * 60 - 30, 0],
-              x: [0, Math.random() * 60 - 30, 0],
-              scale: [1, 1.1, 1],
-            }}
-            transition={{
-              duration: Math.random() * 15 + 15,
-              repeat: Infinity,
-              ease: "linear",
-            }}
-          />
-        ))}
-      </div>
-
-      {/* Grid Pattern Overlay */}
+    <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none bg-slate-50">
+      {/* Subtle Grid Pattern */}
       <div 
-        className="absolute inset-0" 
+        className="absolute inset-0 opacity-[0.3]" 
         style={{ 
-          backgroundImage: `radial-gradient(rgba(45, 212, 191, 0.05) 1px, transparent 0)`,
-          backgroundSize: '40px 40px' 
+          backgroundImage: `radial-gradient(#94a3b8 1.5px, transparent 1.5px)`,
+          backgroundSize: '32px 32px' 
         }} 
       />
+
+      {/* Soft background glow circles - static, no animations */}
+      <div className="absolute top-[-10%] left-[-10%] w-[500px] sm:w-[600px] h-[500px] sm:h-[600px] rounded-full bg-teal-100/45 blur-[120px]" />
+      <div className="absolute bottom-[-15%] right-[-10%] w-[500px] sm:w-[600px] h-[500px] sm:h-[600px] rounded-full bg-sky-100/45 blur-[120px]" />
     </div>
   );
 }

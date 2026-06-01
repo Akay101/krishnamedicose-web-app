@@ -24,8 +24,8 @@ export default function HeroSection({ content }) {
   return (
     <section className="relative min-h-screen flex flex-col items-center justify-center pt-32 section-padding overflow-hidden">
       {/* Background Decor */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 blur-[120px] rounded-full -z-10 animate-pulse" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-secondary/20 blur-[120px] rounded-full -z-10 animate-pulse" />
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-teal-200/25 blur-[100px] rounded-full -z-10" />
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-sky-200/25 blur-[100px] rounded-full -z-10" />
 
       <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
         <motion.div
@@ -33,21 +33,21 @@ export default function HeroSection({ content }) {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.8, ease: "easeOut" }}
         >
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass border border-primary/30 text-primary text-xs font-bold uppercase tracking-widest mb-6">
-            <Sparkles className="w-4 h-4" />
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-teal-50 border border-teal-200/80 text-teal-800 text-xs font-extrabold uppercase tracking-widest mb-6">
+            <Sparkles className="w-4 h-4 text-teal-600" />
             {heroData.subtitle}
           </div>
-          <h1 className="text-4xl sm:text-6xl md:text-8xl font-bold font-outfit leading-[1.1] mb-8 tracking-tighter">
+          <h1 className="text-4xl sm:text-6xl md:text-8xl font-black font-outfit leading-[1.1] mb-8 tracking-tighter text-slate-900">
             {heroData.title.includes(' ') ? (
               <>
                 {heroData.title.split(' ')[0]} <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary text-glow">
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-sky-600">
                   {heroData.title.split(' ').slice(1).join(' ')}
                 </span>
               </>
             ) : heroData.title}
           </h1>
-          <p className="text-lg md:text-xl text-slate-400 mb-10 max-w-xl leading-relaxed">
+          <p className="text-lg md:text-xl text-slate-600 mb-10 max-w-xl leading-relaxed font-bold">
             {heroData.description}
           </p>
 
@@ -56,9 +56,9 @@ export default function HeroSection({ content }) {
               Explore Our Vision
               <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
             </button>
-            <div className="flex items-center gap-3 glass py-3 px-6 rounded-full">
-              <MapPin className="text-secondary w-5 h-5" />
-              <span className="text-sm font-medium">{heroData.location}</span>
+            <div className="flex items-center gap-3 bg-white border border-slate-200 shadow-sm py-3 px-6 rounded-full">
+              <MapPin className="text-teal-600 w-5 h-5" />
+              <span className="text-sm font-extrabold text-slate-700">{heroData.location}</span>
             </div>
           </div>
         </motion.div>
@@ -69,7 +69,7 @@ export default function HeroSection({ content }) {
           transition={{ duration: 1, delay: 0.2, ease: "easeOut" }}
           className="relative"
         >
-          <div className="relative z-10 rounded-[3rem] overflow-hidden border-8 border-white/5 shadow-2xl bg-dark aspect-[4/3]">
+          <div className="relative z-10 rounded-[3rem] overflow-hidden border-8 border-white shadow-xl bg-slate-100 aspect-[4/3]">
             <AnimatePresence mode="wait">
               <motion.img
                 key={currentIndex}
@@ -83,7 +83,7 @@ export default function HeroSection({ content }) {
               />
             </AnimatePresence>
             
-            <div className="absolute inset-0 bg-gradient-to-t from-dark via-transparent to-transparent opacity-60" />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/40 via-transparent to-transparent" />
 
             {/* Carousel Controls */}
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-3 z-30">
@@ -91,7 +91,7 @@ export default function HeroSection({ content }) {
                 <button
                   key={i}
                   onClick={() => setCurrentIndex(i)}
-                  className={`h-1.5 rounded-full transition-all duration-300 ${currentIndex === i ? 'w-8 bg-primary shadow-[0_0_8px_#2dd4bf]' : 'w-2 bg-white/20 hover:bg-white/40'}`}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${currentIndex === i ? 'w-8 bg-teal-600 shadow-sm' : 'w-2 bg-white/50 hover:bg-white/80'}`}
                 />
               ))}
             </div>
@@ -104,12 +104,12 @@ export default function HeroSection({ content }) {
             className="absolute -bottom-10 -left-10 z-20 glass-morphism p-6 rounded-3xl hidden md:block"
           >
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center font-bold text-dark shadow-lg shadow-primary/30">
+              <div className="w-12 h-12 rounded-2xl bg-teal-600 flex items-center justify-center font-black text-white shadow-md shadow-teal-600/20">
                 24/7
               </div>
               <div>
-                <p className="text-sm font-bold">Building something</p>
-                <p className="text-xs text-slate-400">New & Modern</p>
+                <p className="text-sm font-extrabold text-slate-900">Building something</p>
+                <p className="text-xs font-bold text-slate-500">New & Modern</p>
               </div>
             </div>
           </motion.div>

@@ -50,7 +50,7 @@ export const LogoIcon = ({ size = 40, className = "" }) => (
   </svg>
 );
 
-export const FullLogo = ({ size = "md", className = "" }) => {
+export const FullLogo = ({ size = "md", className = "", theme = "light" }) => {
   const sizes = {
     sm: { text: 'text-2xl' },
     md: { text: 'text-4xl' },
@@ -62,8 +62,8 @@ export const FullLogo = ({ size = "md", className = "" }) => {
   return (
     <div className={`relative flex items-center ${className} overflow-hidden`}>
       <div className={`${s.text} font-black font-outfit tracking-tighter flex items-center leading-none`}>
-        <span className="text-white uppercase">KRISHNA</span>
-        <span className="text-primary ml-2 uppercase italic">MEDICOSE</span>
+        <span className={`${theme === 'dark' ? 'text-white' : 'text-slate-900'} uppercase`}>KRISHNA</span>
+        <span className="text-teal-600 ml-2 uppercase italic">MEDICOSE</span>
       </div>
     </div>
   );

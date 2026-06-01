@@ -10,6 +10,9 @@ import AssetLibraryPage from './admin/AssetLibraryPage';
 import OffersManager from './admin/OffersManager';
 import { ModalProvider } from './context/ModalContext';
 import { useAnalytics } from './hooks/useAnalytics';
+import MedicineDataPage from './pages/MedicineDataPage';
+import PaymentVerificationPage from './pages/PaymentVerificationPage';
+
 
 function App() {
   useAnalytics();
@@ -38,6 +41,8 @@ function App() {
     <ModalProvider>
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/medicine-data" element={<MedicineDataPage />} />
+        <Route path="/medicine-data/verify-payment" element={<PaymentVerificationPage />} />
         {/* ... existing routes ... */}
         <Route path="/admin/login" element={<Login />} />
         <Route 

@@ -64,13 +64,13 @@ export default function AdminLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-dark text-white flex flex-col lg:flex-row">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col lg:flex-row">
       {/* Mobile Navbar */}
-      <div className="lg:hidden flex items-center justify-between p-6 border-b border-white/5 bg-dark-lighter/50 backdrop-blur-xl sticky top-0 z-[60]">
+      <div className="lg:hidden flex items-center justify-between p-6 border-b border-slate-200/80 bg-white/80 backdrop-blur-md sticky top-0 z-[60]">
         <Logo size="sm" />
         <button 
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="p-3 bg-white/5 rounded-2xl text-primary"
+          className="p-3 bg-slate-100 rounded-2xl text-teal-600"
         >
           {isSidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
@@ -84,13 +84,13 @@ export default function AdminLayout() {
             animate={{ x: 0 }}
             exit={{ x: -300 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className={`w-72 border-r border-white/5 bg-dark-lighter/80 lg:bg-dark-lighter/50 backdrop-blur-xl p-8 flex flex-col fixed lg:sticky top-0 h-[100dvh] z-50 overflow-y-auto ${
+            className={`w-72 border-r border-slate-200 bg-white p-8 flex flex-col fixed lg:sticky top-0 h-[100dvh] z-50 overflow-y-auto ${
               isSidebarOpen ? 'left-0' : '-left-full lg:left-0'
             }`}
           >
             <div className="mb-12 hidden lg:block">
               <Logo size="sm" />
-              <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mt-2 px-1">Admin Command Hub</p>
+              <p className="text-[10px] font-extrabold uppercase text-slate-400 tracking-widest mt-2 px-1">Admin Command Hub</p>
             </div>
 
             <nav className="flex-1 space-y-2">
@@ -102,12 +102,12 @@ export default function AdminLayout() {
                     to={item.path}
                     className={`flex items-center gap-4 px-6 py-4 rounded-2xl transition-all duration-300 group ${
                       isActive 
-                        ? 'bg-primary/10 text-primary border border-primary/20' 
-                        : 'hover:bg-white/5 text-slate-400 hover:text-white'
+                        ? 'bg-teal-50 text-teal-700 border border-teal-200/60' 
+                        : 'hover:bg-slate-50 text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <item.icon className={`w-5 h-5 ${isActive ? 'text-primary' : 'group-hover:text-white'}`} />
-                    <span className="font-bold font-outfit">{item.name}</span>
+                    <item.icon className={`w-5 h-5 ${isActive ? 'text-teal-600' : 'text-slate-400 group-hover:text-slate-800'}`} />
+                    <span className="font-extrabold font-outfit">{item.name}</span>
                   </Link>
                 );
               })}
@@ -115,10 +115,10 @@ export default function AdminLayout() {
 
             <button 
               onClick={handleLogout}
-              className="flex items-center gap-4 px-6 py-4 rounded-2xl text-slate-500 hover:text-red-400 hover:bg-red-400/5 transition-all duration-300 mt-8 lg:mt-auto"
+              className="flex items-center gap-4 px-6 py-4 rounded-2xl text-slate-500 hover:text-red-600 hover:bg-red-50 transition-all duration-300 mt-8 lg:mt-auto"
             >
               <LogOut className="w-5 h-5" />
-              <span className="font-bold font-outfit">Logout</span>
+              <span className="font-extrabold font-outfit">Logout</span>
             </button>
           </motion.aside>
         )}
@@ -127,7 +127,7 @@ export default function AdminLayout() {
       {/* Overlay for mobile sidebar */}
       {isSidebarOpen && (
         <div 
-          className="fixed inset-0 bg-dark/60 backdrop-blur-sm z-40 lg:hidden" 
+          className="fixed inset-0 bg-slate-900/30 z-40 lg:hidden animate-fade-in" 
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
@@ -137,8 +137,8 @@ export default function AdminLayout() {
           <Outlet />
         </div>
         
-        <div className="fixed top-0 right-0 w-[400px] lg:w-[800px] h-[400px] lg:h-[800px] bg-primary/5 blur-[100px] lg:blur-[150px] rounded-full -z-10" />
-        <div className="fixed bottom-0 right-0 w-[300px] lg:w-[600px] h-[300px] lg:h-[600px] bg-secondary/5 blur-[100px] lg:blur-[150px] rounded-full -z-10" />
+        <div className="fixed top-0 right-0 w-[400px] lg:w-[800px] h-[400px] lg:h-[800px] bg-teal-500/5 blur-[100px] lg:blur-[150px] rounded-full -z-10" />
+        <div className="fixed bottom-0 right-0 w-[300px] lg:w-[600px] h-[300px] lg:h-[600px] bg-sky-500/5 blur-[100px] lg:blur-[150px] rounded-full -z-10" />
       </main>
     </div>
   );

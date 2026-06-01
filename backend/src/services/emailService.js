@@ -399,10 +399,135 @@ const sendOfferLeadToAdmin = async (data) => {
   });
 };
 
+/**
+ * BUNDLE PURCHASE CONFIRMATION FOR USER
+ */
+const sendBundlePurchaseConfirmation = async (to, data) => {
+  const html = createEmailLayout({
+    title: "Medicine Data Bundle Purchased Successfully!",
+    subtitle: "Thank you for your purchase. You now have access to the Popular Medicine Data Bundle.",
+    content: `
+      <div style="
+        background:linear-gradient(135deg,#ecfeff,#f0fdfa);
+        border:1px solid #a5f3fc;
+        padding:35px;
+        border-radius:22px;
+        text-align:center;
+      ">
+        <p style="
+          color:#0f766e;
+          font-size:13px;
+          letter-spacing:2px;
+          text-transform:uppercase;
+          font-weight:bold;
+        ">
+          Order ID
+        </p>
+        <h2 style="
+          margin:10px 0 0 0;
+          color:#0f172a;
+          font-size:24px;
+          font-family:monospace;
+        ">
+          ${data.orderId}
+        </h2>
+      </div>
+
+      <div style="margin-top:30px;">
+        <p style="
+          color:#334155;
+          line-height:1.8;
+          font-size:15px;
+        ">
+          <strong>Customer Name:</strong> ${data.userName}
+          <br/><br/>
+          <strong>Amount Paid:</strong> ₹${data.amount}
+          <br/><br/>
+          <strong>Popular Medicine Data Bundle Access:</strong>
+          <br/>
+          Below is your secured link to view the medicine dataset, containing the most highly sold products in Indian pharmacies, their indications, and wholesale statistics.
+        </p>
+      </div>
+
+      <div style="margin-top:35px; text-align:center;">
+        <a
+          href="${data.bundleLink}"
+          style="
+            display:inline-block;
+            background:#00D1FF;
+            color:#02131a;
+            text-decoration:none;
+            padding:16px 32px;
+            border-radius:12px;
+            font-weight:bold;
+            font-size:16px;
+          "
+        >
+          View Medicine Data Document
+        </a>
+      </div>
+    `,
+  });
+
+  return sendEmail({
+    to,
+    subject: "Purchase Confirmed: Medicine Data Bundle - Krishna Medicose",
+    html,
+  });
+};
+
+/**
+ * BUNDLE PURCHASE NOTIFICATION FOR ADMIN
+ */
+const sendBundleAdminNotification = async (data) => {
+  const html = createEmailLayout({
+    title: "New Medicine Bundle Purchase Received",
+    subtitle: "A customer has successfully bought the Popular Medicine Data Bundle.",
+    content: `
+      <table style="
+        width:100%;
+        border-collapse:collapse;
+        overflow:hidden;
+        border-radius:18px;
+      ">
+        <tr>
+          <td style="padding:16px;background:#f8fafc;font-weight:bold;">Customer Name</td>
+          <td style="padding:16px;background:#ffffff;">${data.userName}</td>
+        </tr>
+        <tr>
+          <td style="padding:16px;background:#f8fafc;font-weight:bold;">Email Address</td>
+          <td style="padding:16px;background:#ffffff;">${data.userEmail}</td>
+        </tr>
+        <tr>
+          <td style="padding:16px;background:#f8fafc;font-weight:bold;">Mobile Number</td>
+          <td style="padding:16px;background:#ffffff;">${data.userMobile}</td>
+        </tr>
+        <tr>
+          <td style="padding:16px;background:#f8fafc;font-weight:bold;">Order ID</td>
+          <td style="padding:16px;background:#ffffff;font-family:monospace;">${data.orderId}</td>
+        </tr>
+        <tr>
+          <td style="padding:16px;background:#f8fafc;font-weight:bold;">Amount Paid</td>
+          <td style="padding:16px;background:#ffffff;font-weight:bold;">₹${data.amount}</td>
+        </tr>
+      </table>
+    `,
+  });
+
+  return sendEmail({
+    to: "amanyadavu65@gmail.com",
+    subject: `Success: Medicine Bundle Purchased by ${data.userName}`,
+    html,
+  });
+};
+
 module.exports = {
   sendEmail,
   sendConfirmationEmail,
   sendAdminNotification,
   sendOfferConfirmation,
   sendOfferLeadToAdmin,
+  sendBundlePurchaseConfirmation,
+  sendBundleAdminNotification,
 };
+

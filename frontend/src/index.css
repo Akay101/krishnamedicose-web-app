@@ -12,7 +12,7 @@ html, body {
   font-family: 'Outfit', system-ui, -apple-system, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color-scheme: dark;
+  color-scheme: light;
   -webkit-text-size-adjust: 100%;
 }
 
@@ -20,7 +20,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background-color: #020617;
+  background-color: #f8fafc;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -33,19 +33,19 @@ body {
 
 @layer components {
   .glass {
-    @apply bg-white/5 backdrop-blur-xl border border-white/10;
+    @apply bg-white border border-slate-200/80 shadow-sm;
   }
   
   .glass-morphism {
-    @apply bg-white/10 backdrop-blur-md border border-white/20 shadow-2xl;
+    @apply bg-white border border-slate-200 shadow-md;
   }
 
   .text-gradient {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary;
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary-dark to-secondary-dark font-extrabold;
   }
   
   .btn-primary {
-    @apply px-6 py-3 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-full transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg shadow-primary/20;
+    @apply px-6 py-3 bg-primary hover:bg-primary-dark text-slate-900 hover:text-white font-extrabold rounded-full transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-md shadow-primary/20;
   }
 
   .section-padding {
@@ -59,16 +59,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #020617;
+  background: #f1f5f9;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: #cbd5e1;
   border-radius: 10px;
 }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #2dd4bf;
+    background: #0d9488;
   }
   
   @keyframes gradient {

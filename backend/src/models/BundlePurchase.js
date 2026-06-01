@@ -1,0 +1,42 @@
+const mongoose = require('mongoose');
+
+const BundlePurchaseSchema = new mongoose.Schema({
+  orderId: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  name: {
+    type: String,
+    required: true
+  },
+  email: {
+    type: String,
+    required: true
+  },
+  mobile: {
+    type: String,
+    required: true
+  },
+  amount: {
+    type: Number,
+    required: true
+  },
+  paymentStatus: {
+    type: String,
+    enum: ['pending', 'paid', 'failed'],
+    default: 'pending'
+  },
+  cashfreeReferenceId: {
+    type: String
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  paidAt: {
+    type: Date
+  }
+});
+
+module.exports = mongoose.model('BundlePurchase', BundlePurchaseSchema);
