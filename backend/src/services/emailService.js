@@ -445,13 +445,15 @@ const sendBundlePurchaseConfirmation = async (to, data) => {
           <br/><br/>
           <strong>Popular Medicine Data Bundle Access:</strong>
           <br/>
-          Below is your secured link to view the medicine dataset, containing the most highly sold products in Indian pharmacies, their indications, and wholesale statistics.
+          For data security and anti-theft compliance, direct downloads are disabled. You can securely access and query the dataset on-screen through our interactive viewer.
+          <br/><br/>
+          Please log in using the email address you purchased the bundle with to receive your secure verification OTP.
         </p>
       </div>
 
       <div style="margin-top:35px; text-align:center;">
         <a
-          href="${data.bundleLink}"
+          href="https://www.krishnamedicose.in/medicine-data"
           style="
             display:inline-block;
             background:#00D1FF;
@@ -463,7 +465,7 @@ const sendBundlePurchaseConfirmation = async (to, data) => {
             font-size:16px;
           "
         >
-          View Medicine Data Document
+          Access Secure Data Portal
         </a>
       </div>
     `,
@@ -472,6 +474,58 @@ const sendBundlePurchaseConfirmation = async (to, data) => {
   return sendEmail({
     to,
     subject: "Purchase Confirmed: Medicine Data Bundle - Krishna Medicose",
+    html,
+  });
+};
+
+/**
+ * BUNDLE OTP EMAIL FOR USER LOGIN
+ */
+const sendBundleOtpEmail = async (to, otp) => {
+  const html = createEmailLayout({
+    title: "Secure Access OTP",
+    subtitle: "Use this one-time password to securely access the Popular Medicine Data Bundle.",
+    content: `
+      <div style="
+        background:#f8fafc;
+        border:1px solid #e2e8f0;
+        border-radius:18px;
+        padding:30px;
+        text-align:center;
+      ">
+        <p style="
+          margin:0;
+          color:#64748b;
+          font-size:12px;
+          text-transform:uppercase;
+          letter-spacing:2px;
+          font-weight:bold;
+        ">
+          One-Time Password (OTP)
+        </p>
+        <h1 style="
+          margin:15px 0;
+          color:#0f172a;
+          font-size:42px;
+          letter-spacing:6px;
+          font-weight:800;
+        ">
+          ${otp}
+        </h1>
+        <p style="
+          margin:0;
+          color:#94a3b8;
+          font-size:13px;
+        ">
+          This OTP is valid for 5 minutes. Do not share it with anyone.
+        </p>
+      </div>
+    `,
+  });
+
+  return sendEmail({
+    to,
+    subject: "OTP for Secure Medicine Data Access - Krishna Medicose",
     html,
   });
 };
@@ -529,5 +583,73 @@ module.exports = {
   sendOfferLeadToAdmin,
   sendBundlePurchaseConfirmation,
   sendBundleAdminNotification,
+  sendBundleOtpEmail,
+};
+
+/**
+ * BUNDLE UPDATE NOTIFICATION
+ */
+const sendBundleUpdateNotification = async (to, userName) => {
+  const html = createEmailLayout({
+    title: "Medicine Dataset Updated!",
+    subtitle: "We have released a new update for the Popular Medicine Data Bundle.",
+    content: `
+      <div style="
+        background:#f8fafc;
+        border:1px solid #e2e8f0;
+        border-radius:18px;
+        padding:30px;
+      ">
+        <p style="
+          margin:0;
+          color:#334155;
+          font-size:15px;
+          line-height:1.8;
+        ">
+          Hello ${userName || "Valued Customer"},
+          <br/><br/>
+          An updated version of the **Popular Medicine Data Bundle** has been successfully uploaded to our secure database.
+          <br/><br/>
+          You can immediately view and search the new dataset by logging into your secure viewer portal on our website.
+        </p>
+      </div>
+
+      <div style="margin-top:35px; text-align:center;">
+        <a
+          href="https://www.krishnamedicose.in/medicine-data"
+          style="
+            display:inline-block;
+            background:#00D1FF;
+            color:#02131a;
+            text-decoration:none;
+            padding:16px 32px;
+            border-radius:12px;
+            font-weight:bold;
+            font-size:16px;
+          "
+        >
+          Access Secure Viewer
+        </a>
+      </div>
+    `,
+  });
+
+  return sendEmail({
+    to,
+    subject: "Update Released: Medicine Data Bundle - Krishna Medicose",
+    html,
+  });
+};
+
+module.exports = {
+  sendEmail,
+  sendConfirmationEmail,
+  sendAdminNotification,
+  sendOfferConfirmation,
+  sendOfferLeadToAdmin,
+  sendBundlePurchaseConfirmation,
+  sendBundleAdminNotification,
+  sendBundleOtpEmail,
+  sendBundleUpdateNotification,
 };
 

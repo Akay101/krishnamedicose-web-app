@@ -8,6 +8,21 @@ const api = axios.create({
 // Request interceptor for adding the bearer token
 api.interceptors.request.use(
   (config) => {
+    // If authorization header is already set, do not overwrite it
+    if (config.headers.Authorization) {
+      return config;
+    }
+
+    // Auto-attach bundle token for secure medicine-bundle data requests only
+    if (config.url?.includes('/medicine-bundle/data')) {
+      const bundleToken = localStorage.getItem('bundle_token');
+      if (bundleToken) {
+        config.headers.Authorization = `Bearer ${bundleToken}`;
+      }
+      return config;
+    }
+
+    // Fallback to admin/default token
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -25,8 +40,8 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // If error is 401 and we haven't retried yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // If error is 401, we haven't retried yet, and the request is not for the medicine bundle
+    if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/medicine-bundle')) {
       originalRequest._retry = true;
 
       try {

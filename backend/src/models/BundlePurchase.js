@@ -36,6 +36,18 @@ const BundlePurchaseSchema = new mongoose.Schema({
   },
   paidAt: {
     type: Date
+  },
+  otp: {
+    type: String
+  },
+  otpExpiresAt: {
+    type: Date
+  },
+  activeSessionId: {
+    type: String
+  },
+  sessionExpiresAt: {
+    type: Date
   }
 });
 

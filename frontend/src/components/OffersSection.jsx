@@ -285,7 +285,12 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-teal-100/15 blur-[120px] rounded-full" />
         <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-sky-100/15 blur-[120px] rounded-full" />
-        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.08] mix-blend-overlay" />
+        <div 
+          className="absolute inset-0 opacity-[0.08] mix-blend-overlay" 
+          style={{ 
+            backgroundImage: `url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='noiseFilter'><feTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23noiseFilter)'/></svg>")` 
+          }} 
+        />
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
@@ -506,18 +511,20 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
                     <div className="space-y-6">
                       <div className="grid md:grid-cols-2 gap-6">
                         {mainOffer?.formFields
-                           .filter(
-                             (f) => f.name === "name" || f.name === "mobile" || f.name === "email" || f.name === "pharmacy_name" || f.name === "location"
-                           )
-                           .map((field) => (
-                             <FormField
-                               key={field.name}
-                               field={field}
-                               formData={formData}
-                               setFormData={setFormData}
-                               error={errors[field.name]}
-                             />
-                           ))}
+                           ? mainOffer.formFields
+                               .filter(
+                                 (f) => f.name === "name" || f.name === "mobile" || f.name === "email" || f.name === "pharmacy_name" || f.name === "location"
+                               )
+                               .map((field) => (
+                                 <FormField
+                                   key={field.name}
+                                   field={field}
+                                   formData={formData}
+                                   setFormData={setFormData}
+                                   error={errors[field.name]}
+                                 />
+                               ))
+                           : null}
                       </div>
 
                       {/* Software Usage Radio Buttons */}
@@ -564,92 +571,96 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
                       {usingSoftware !== null && (
                         <>
                           {mainOffer?.formFields
-                            .filter((f) => {
-                              const isSoftwareField = f.label.toUpperCase().includes('CURRENT SOFTWARE') || f.label.toUpperCase().includes('PROBLEMS');
-                              const isGlobalField = 
-                                f.name === "name" || 
-                                f.name === "mobile" || 
-                                f.name === "email" ||
-                                f.name === "pharmacy_name" || 
-                                f.name === "location" ||
-                                f.type === "file";
-                              
-                              if (isGlobalField) return false; 
-                              
-                              if (usingSoftware) {
-                                  return isSoftwareField;
-                              } else {
-                                  return !isSoftwareField;
-                              }
-                            })
-                            .map((field) => {
-                              const isDrugLicense = field.label.toLowerCase().includes('drug license');
-                              const fieldOverride = isDrugLicense ? { ...field, required: false } : field;
+                            ? mainOffer.formFields
+                               .filter((f) => {
+                                 const isSoftwareField = f.label.toUpperCase().includes('CURRENT SOFTWARE') || f.label.toUpperCase().includes('PROBLEMS');
+                                 const isGlobalField = 
+                                   f.name === "name" || 
+                                   f.name === "mobile" || 
+                                   f.name === "email" ||
+                                   f.name === "pharmacy_name" || 
+                                   f.name === "location" ||
+                                   f.type === "file";
+                                 
+                                 if (isGlobalField) return false; 
+                                 
+                                 if (usingSoftware) {
+                                     return isSoftwareField;
+                                 } else {
+                                     return !isSoftwareField;
+                                 }
+                               })
+                               .map((field) => {
+                                 const isDrugLicense = field.label.toLowerCase().includes('drug license');
+                                 const fieldOverride = isDrugLicense ? { ...field, required: false } : field;
 
-                              return (
-                                <FormField
-                                  key={field.name}
-                                  field={fieldOverride}
-                                  formData={formData}
-                                  setFormData={setFormData}
-                                  error={errors[field.name]}
-                                />
-                              );
-                            })}
+                                 return (
+                                   <FormField
+                                     key={field.name}
+                                     field={fieldOverride}
+                                     formData={formData}
+                                     setFormData={setFormData}
+                                     error={errors[field.name]}
+                                   />
+                                 );
+                               })
+                            : null}
                         </>
                       )}
 
                       {/* Photo/File Field */}
                       {mainOffer?.formFields
-                        .filter((f) => f.type === "file")
-                        .map((field) => (
-                          <div 
-                            key={field.name} 
-                            id={field.name}
-                            className={`space-y-3 transition-colors ${errors[field.name] ? 'animate-shake' : ''}`}
-                          >
-                            <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-[0.4em] ml-2 flex items-center gap-2">
-                              {field.label} *
-                              {errors[field.name] && <span className="text-red-500 normal-case tracking-normal">(Required)</span>}
-                            </label>
-                            <div className={`relative group h-20 rounded-[2rem] border transition-all ${errors[field.name] ? 'border-red-400/50 bg-red-400/5' : 'border-slate-200 bg-white'}`}>
-                              <input
-                                type="file"
-                                name={field.name}
-                                accept="image/*,application/pdf"
-                                onChange={(e) => {
-                                  setFormData({
-                                    ...formData,
-                                    [field.name]: e.target.files[0],
-                                  });
-                                  setErrors(prev => {
-                                    const n = {...prev};
-                                    delete n[field.name];
-                                    return n;
-                                  });
-                                }}
-                                className="absolute inset-0 opacity-0 cursor-pointer z-10"
-                              />
-                              <div className="absolute inset-0 rounded-[2rem] flex items-center justify-between px-8 group-hover:border-teal-500/50 group-hover:bg-slate-50/50 transition-all duration-300">
-                                <div className="flex items-center gap-4 min-w-0">
-                                  <div
-                                    className={`p-2 rounded-lg ${formData[field.name] ? "bg-teal-50 text-teal-600" : "bg-slate-100 text-slate-550"}`}
-                                  >
-                                    <FileText className="w-5 h-5" />
-                                  </div>
-                                  <span className="text-sm text-slate-700 truncate font-bold">
-                                    {formData[field.name]?.name ||
-                                      field.placeholder ||
-                                      "Upload Document / Photo"}
-                                  </span>
-                                </div>
-                                <CheckCircle2
-                                  className={`w-5 h-5 transition-colors ${formData[field.name] ? "text-teal-600" : "text-slate-300"}`}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                        ? mainOffer.formFields
+                           .filter((f) => f.type === "file")
+                           .map((field) => (
+                             <div 
+                               key={field.name} 
+                               id={field.name}
+                               className={`space-y-3 transition-colors ${errors[field.name] ? 'animate-shake' : ''}`}
+                             >
+                               <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-[0.4em] ml-2 flex items-center gap-2">
+                                 {field.label} *
+                                 {errors[field.name] && <span className="text-red-500 normal-case tracking-normal">(Required)</span>}
+                               </label>
+                               <div className={`relative group h-20 rounded-[2rem] border transition-all ${errors[field.name] ? 'border-red-400/50 bg-red-400/5' : 'border-slate-200 bg-white'}`}>
+                                 <input
+                                   type="file"
+                                   name={field.name}
+                                   accept="image/*,application/pdf"
+                                   onChange={(e) => {
+                                     setFormData({
+                                       ...formData,
+                                       [field.name]: e.target.files[0],
+                                     });
+                                     setErrors(prev => {
+                                       const n = {...prev};
+                                       delete n[field.name];
+                                       return n;
+                                     });
+                                   }}
+                                   className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                                 />
+                                 <div className="absolute inset-0 rounded-[2rem] flex items-center justify-between px-8 group-hover:border-teal-500/50 group-hover:bg-slate-50/50 transition-all duration-300">
+                                   <div className="flex items-center gap-4 min-w-0">
+                                     <div
+                                       className={`p-2 rounded-lg ${formData[field.name] ? "bg-teal-50 text-teal-600" : "bg-slate-100 text-slate-550"}`}
+                                     >
+                                       <FileText className="w-5 h-5" />
+                                     </div>
+                                     <span className="text-sm text-slate-700 truncate font-bold">
+                                       {formData[field.name]?.name ||
+                                         field.placeholder ||
+                                         "Upload Document / Photo"}
+                                     </span>
+                                   </div>
+                                   <CheckCircle2
+                                     className={`w-5 h-5 transition-colors ${formData[field.name] ? "text-teal-600" : "text-slate-300"}`}
+                                   />
+                                 </div>
+                               </div>
+                             </div>
+                           ))
+                        : null}
                     </div>
 
                     <div className="space-y-6">

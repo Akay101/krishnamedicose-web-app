@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileEdit, Users, LogOut, Sparkles, Image as ImageIcon, Gift, Menu, X } from 'lucide-react';
+import { LayoutDashboard, FileEdit, Users, LogOut, Sparkles, Image as ImageIcon, Gift, Menu, X, FileSpreadsheet } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../utils/api';
 import Logo from '../components/Logo';
@@ -42,6 +42,12 @@ export default function AdminLayout() {
       path: '/admin/leads', 
       icon: Users, 
       show: isRootAdmin || user.permissions?.leads 
+    },
+    { 
+      name: 'Medicine Dataset', 
+      path: '/admin/medicine-data', 
+      icon: FileSpreadsheet, 
+      show: isRootAdmin 
     },
     { 
       name: 'Team Members', 

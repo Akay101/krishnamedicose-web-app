@@ -1,26 +1,26 @@
-import React, { createContext, useContext, useState } from 'react';
-import CustomModal from '../components/CustomModal';
+import React, { createContext, useContext, useState } from "react";
+import CustomModal from "../components/CustomModal";
 
 const ModalContext = createContext();
 
 export function ModalProvider({ children }) {
   const [modalConfig, setModalConfig] = useState({
     isOpen: false,
-    title: '',
-    message: '',
-    type: 'info',
+    title: "",
+    message: "",
+    type: "info",
     onConfirm: null,
-    confirmText: 'Confirm',
-    cancelText: 'Cancel'
+    confirmText: "Confirm",
+    cancelText: "Cancel",
   });
 
-  const showModal = ({ 
-    title, 
-    message, 
-    type = 'info', 
+  const showModal = ({
+    title,
+    message,
+    type = "info",
     onConfirm = null,
-    confirmText = 'Confirm',
-    cancelText = 'Cancel'
+    confirmText = "Confirm",
+    cancelText = "Cancel",
   }) => {
     setModalConfig({
       isOpen: true,
@@ -29,21 +29,18 @@ export function ModalProvider({ children }) {
       type,
       onConfirm,
       confirmText,
-      cancelText
+      cancelText,
     });
   };
 
   const hideModal = () => {
-    setModalConfig(prev => ({ ...prev, isOpen: false }));
+    setModalConfig((prev) => ({ ...prev, isOpen: false }));
   };
 
   return (
     <ModalContext.Provider value={{ showModal, hideModal }}>
       {children}
-      <CustomModal 
-        {...modalConfig}
-        onClose={hideModal}
-      />
+      <CustomModal {...modalConfig} onClose={hideModal} />
     </ModalContext.Provider>
   );
 }
@@ -51,7 +48,7 @@ export function ModalProvider({ children }) {
 export const useModal = () => {
   const context = useContext(ModalContext);
   if (!context) {
-    throw new Error('useModal must be used within a ModalProvider');
+    throw new Error("useModal must be used within a ModalProvider");
   }
   return context;
 };

@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { CheckCircle2, XCircle, Loader2, Sparkles, Eye, Mail, ArrowRight } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Sparkles, Eye, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import InteractiveBackground from '../components/InteractiveBackground';
 import api from '../utils/api';
@@ -16,6 +16,7 @@ export default function PaymentVerificationPage() {
   const [errorMessage, setErrorMessage] = useState('');
 
   const orderId = searchParams.get('order_id');
+  const verificationRequested = useRef(false);
 
   useEffect(() => {
     if (!orderId) {
@@ -25,13 +26,21 @@ export default function PaymentVerificationPage() {
       return;
     }
 
+    if (verificationRequested.current) return;
+    verificationRequested.current = true;
+
     const verify = async () => {
       try {
         const response = await api.post('/medicine-bundle/verify-payment', { orderId });
         if (response.data.status === 'SUCCESS') {
           setPurchase(response.data.purchase);
-          setBundleLink(response.data.bundleLink || 'https://drive.google.com');
           setStatus('SUCCESS');
+          
+          // Auto-login user by saving session token and user info
+          if (response.data.token && response.data.user) {
+            localStorage.setItem('bundle_token', response.data.token);
+            localStorage.setItem('bundle_user', JSON.stringify(response.data.user));
+          }
         } else {
           setErrorMessage(response.data.message || 'Payment verification failed.');
           setStatus('FAILED');
@@ -97,20 +106,18 @@ export default function PaymentVerificationPage() {
               <div className="flex items-center gap-3 bg-sky-50 border border-sky-100/60 p-4 rounded-xl text-xs text-sky-850">
                 <Mail className="w-5 h-5 shrink-0 text-sky-600" />
                 <p className="font-bold">
-                  A receipt and your access link have been dispatched to <span className="underline">{purchase?.email}</span>.
+                  A receipt and secure login details have been dispatched to <span className="underline">{purchase?.email}</span>.
                 </p>
               </div>
 
               <div className="space-y-3">
-                <a
-                  href={bundleLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  onClick={() => navigate('/medicine-data')}
                   className="w-full btn-primary py-4 flex items-center justify-center gap-2 group rounded-xl lg:rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-lg shadow-teal-500/20 hover:scale-105 active:scale-95 transition-all"
                 >
-                  <Eye className="w-4 h-4" />
-                  <span>View Document</span>
-                </a>
+                  <ShieldCheck className="w-4 h-4 animate-pulse" />
+                  <span>Access Secure Viewer</span>
+                </button>
                 <button
                   onClick={() => navigate('/')}
                   className="w-full py-4 bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 rounded-xl lg:rounded-2xl font-black uppercase text-[11px] tracking-widest transition-all"

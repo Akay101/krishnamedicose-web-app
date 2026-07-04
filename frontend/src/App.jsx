@@ -8,6 +8,7 @@ import LeadsManager from './admin/LeadsManager';
 import UsersManager from './admin/UsersManager';
 import AssetLibraryPage from './admin/AssetLibraryPage';
 import OffersManager from './admin/OffersManager';
+import MedicineDataManager from './admin/MedicineDataManager';
 import { ModalProvider } from './context/ModalContext';
 import { useAnalytics } from './hooks/useAnalytics';
 import MedicineDataPage from './pages/MedicineDataPage';
@@ -91,6 +92,14 @@ function App() {
             element={
               <PrivateRoute>
                 <OffersManager />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="medicine-data" 
+            element={
+              <PrivateRoute>
+                <MedicineDataManager />
               </PrivateRoute>
             } 
           />
