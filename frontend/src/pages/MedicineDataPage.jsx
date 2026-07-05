@@ -241,7 +241,13 @@ export default function MedicineDataPage() {
         "/medicine-bundle/create-order",
         checkoutForm,
       );
-      const { paymentSessionId, orderId, isProduction } = resp.data;
+      const { gateway, paymentSessionId, orderId, paymentUrl, isProduction } = resp.data;
+
+      if (gateway === 'INSTAMOJO' || paymentUrl) {
+        // Redirect directly to Instamojo payment request url
+        window.location.href = paymentUrl;
+        return;
+      }
 
       if (!window.Cashfree) {
         throw new Error(

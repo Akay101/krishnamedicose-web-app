@@ -44,6 +44,7 @@ router.post('/create-order', async (req, res) => {
     returnUrl = returnUrl.replace(/^http:\/\//, 'https://');
   }
 
+  // Attempt Cashfree order creation first
   try {
     const cashfreeResponse = await fetch(`${CASHFREE_BASE_URL}/orders`, {
       method: 'POST',
@@ -71,44 +72,203 @@ router.post('/create-order', async (req, res) => {
 
     const cashfreeData = await cashfreeResponse.json();
 
-    if (!cashfreeResponse.ok) {
-      console.error('Cashfree order creation error:', cashfreeData);
-      return res.status(cashfreeResponse.status).json({
-        message: 'Failed to initiate payment session with Cashfree',
-        error: cashfreeData
+    if (cashfreeResponse.ok && cashfreeData.payment_session_id) {
+      // Save pending purchase record
+      const purchase = new BundlePurchase({
+        orderId,
+        name,
+        email,
+        mobile,
+        amount,
+        paymentStatus: 'pending'
+      });
+      await purchase.save();
+
+      return res.status(200).json({
+        gateway: 'CASHFREE',
+        orderId,
+        paymentSessionId: cashfreeData.payment_session_id,
+        amount,
+        isProduction
+      });
+    } else {
+      console.warn('Cashfree order creation rejected/unsupported. Initiating Instamojo fallback...', cashfreeData);
+      throw new Error(cashfreeData.message || 'Cashfree gateway unavailable');
+    }
+  } catch (cashfreeError) {
+    console.error('Cashfree transaction initiation failed, falling back to Instamojo:', cashfreeError.message);
+
+    // Fallback to Instamojo
+    try {
+      let instamojoReturnUrl = `${origin.replace(/\/$/, '')}/medicine-data/verify-payment`;
+      
+      const instamojoParams = new URLSearchParams();
+      instamojoParams.append('amount', amount.toFixed(2));
+      instamojoParams.append('purpose', 'Medicine Data Bundle');
+      instamojoParams.append('buyer_name', name);
+      instamojoParams.append('email', email.trim().toLowerCase());
+      instamojoParams.append('phone', mobile);
+      instamojoParams.append('redirect_url', instamojoReturnUrl);
+      instamojoParams.append('send_email', 'false');
+      instamojoParams.append('send_sms', 'false');
+      instamojoParams.append('allow_repeated_payments', 'false');
+
+      const INSTAMOJO_BASE_URL = isProduction
+        ? 'https://www.instamojo.com/api/1.1'
+        : 'https://test.instamojo.com/api/1.1';
+
+      const instamojoResponse = await fetch(`${INSTAMOJO_BASE_URL}/payment-requests/`, {
+        method: 'POST',
+        headers: {
+          'X-Api-Key': process.env.INSTAMOJO_PRIVATE_API_KEY,
+          'X-Auth-Token': process.env.INSTAMOJO_PRIVATE_AUTH_TOKEN,
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: instamojoParams.toString()
+      });
+
+      const instamojoData = await instamojoResponse.json();
+
+      if (!instamojoResponse.ok) {
+        console.error('Instamojo creation failure response:', instamojoData);
+        return res.status(instamojoResponse.status || 500).json({
+          message: 'Failed to initiate payment session with both Cashfree and Instamojo',
+          cashfreeError: cashfreeError.message,
+          instamojoError: instamojoData
+        });
+      }
+
+      // Save pending purchase record with Instamojo request ID
+      const purchase = new BundlePurchase({
+        orderId: orderId,
+        name,
+        email,
+        mobile,
+        amount,
+        paymentStatus: 'pending',
+        cashfreeReferenceId: instamojoData.payment_request.id // Store Instamojo Payment Request ID
+      });
+      await purchase.save();
+
+      return res.status(200).json({
+        gateway: 'INSTAMOJO',
+        orderId,
+        paymentUrl: instamojoData.payment_request.longurl,
+        amount
+      });
+    } catch (mojoErr) {
+      console.error('Instamojo fallback initialization crashed:', mojoErr);
+      return res.status(500).json({
+        message: 'Both Cashfree and Instamojo payment gateways failed to initialize.',
+        cashfreeError: cashfreeError.message,
+        instamojoError: mojoErr.message
       });
     }
-
-    // Save pending purchase record
-    const purchase = new BundlePurchase({
-      orderId,
-      name,
-      email,
-      mobile,
-      amount,
-      paymentStatus: 'pending'
-    });
-    await purchase.save();
-
-    res.status(200).json({
-      orderId,
-      paymentSessionId: cashfreeData.payment_session_id,
-      amount,
-      isProduction
-    });
-  } catch (err) {
-    console.error('Error creating bundle order:', err);
-    res.status(500).json({ message: 'Internal Server Error', error: err.message });
   }
 });
 
-// Verify Cashfree Payment
+// Verify Cashfree or Instamojo Payment
 router.post('/verify-payment', async (req, res) => {
-  const { orderId } = req.body;
-  if (!orderId) {
-    return res.status(400).json({ message: 'Order ID is required' });
+  const { orderId, paymentId, paymentRequestId } = req.body;
+  if (!orderId && !paymentRequestId) {
+    return res.status(400).json({ message: 'Order ID or Payment Request ID is required' });
   }
 
+  // Handle Instamojo verification
+  if (paymentRequestId) {
+    try {
+      const INSTAMOJO_BASE_URL = isProduction
+        ? 'https://www.instamojo.com/api/1.1'
+        : 'https://test.instamojo.com/api/1.1';
+
+      const imResponse = await fetch(`${INSTAMOJO_BASE_URL}/payment-requests/${paymentRequestId}/`, {
+        method: 'GET',
+        headers: {
+          'X-Api-Key': process.env.INSTAMOJO_PRIVATE_API_KEY,
+          'X-Auth-Token': process.env.INSTAMOJO_PRIVATE_AUTH_TOKEN
+        }
+      });
+
+      const imData = await imResponse.json();
+
+      if (!imResponse.ok) {
+        console.error('Instamojo verification error:', imData);
+        return res.status(imResponse.status).json({
+          message: 'Failed to verify payment status with Instamojo',
+          error: imData
+        });
+      }
+
+      const isPaid = imData.payment_request.status === 'Completed';
+      const purchase = await BundlePurchase.findOne({ cashfreeReferenceId: paymentRequestId });
+
+      if (!purchase) {
+        return res.status(404).json({ message: 'Order record not found in system' });
+      }
+
+      if (isPaid) {
+        let sessionId = purchase.activeSessionId;
+        if (!sessionId) {
+          sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10);
+          purchase.activeSessionId = sessionId;
+        }
+        purchase.sessionExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+        let newlyPaid = false;
+        if (purchase.paymentStatus !== 'paid') {
+          purchase.paymentStatus = 'paid';
+          purchase.paidAt = new Date();
+          purchase.cashfreeReferenceId = paymentId || purchase.cashfreeReferenceId;
+          newlyPaid = true;
+        }
+        await purchase.save();
+
+        const token = jwt.sign(
+          { purchaseId: purchase._id, email: purchase.email, sessionId },
+          process.env.JWT_SECRET || 'krishna_medicose_secret_7788',
+          { expiresIn: '1d' }
+        );
+
+        if (newlyPaid) {
+          try {
+            await sendBundlePurchaseConfirmation(purchase.email, {
+              orderId: purchase.orderId,
+              userName: purchase.name,
+              amount: purchase.amount
+            });
+            await sendBundleAdminNotification({
+              orderId: purchase.orderId,
+              userName: purchase.name,
+              userEmail: purchase.email,
+              userMobile: purchase.mobile,
+              amount: purchase.amount
+            });
+          } catch (mailErr) {
+            console.error('Mail trigger failed:', mailErr);
+          }
+        }
+
+        return res.status(200).json({ 
+          status: 'SUCCESS', 
+          purchase,
+          token,
+          user: {
+            name: purchase.name,
+            email: purchase.email
+          }
+        });
+      } else {
+        purchase.paymentStatus = 'failed';
+        await purchase.save();
+        return res.status(200).json({ status: 'FAILED', message: 'Payment was not successful' });
+      }
+    } catch (err) {
+      console.error('Error verifying Instamojo payment:', err);
+      return res.status(500).json({ message: 'Internal Server Error', error: err.message });
+    }
+  }
+
+  // Handle Cashfree verification
   try {
     const cashfreeResponse = await fetch(`${CASHFREE_BASE_URL}/orders/${orderId}`, {
       method: 'GET',

@@ -16,10 +16,12 @@ export default function PaymentVerificationPage() {
   const [errorMessage, setErrorMessage] = useState('');
 
   const orderId = searchParams.get('order_id');
+  const paymentId = searchParams.get('payment_id');
+  const paymentRequestId = searchParams.get('payment_request_id');
   const verificationRequested = useRef(false);
 
   useEffect(() => {
-    if (!orderId) {
+    if (!orderId && !paymentRequestId) {
       setErrorMessage('Invalid or missing order reference.');
       setStatus('FAILED');
       setLoading(false);
@@ -31,7 +33,11 @@ export default function PaymentVerificationPage() {
 
     const verify = async () => {
       try {
-        const response = await api.post('/medicine-bundle/verify-payment', { orderId });
+        const payload = paymentRequestId
+          ? { paymentId, paymentRequestId }
+          : { orderId };
+
+        const response = await api.post('/medicine-bundle/verify-payment', payload);
         if (response.data.status === 'SUCCESS') {
           setPurchase(response.data.purchase);
           setStatus('SUCCESS');
@@ -55,7 +61,7 @@ export default function PaymentVerificationPage() {
     };
 
     verify();
-  }, [orderId]);
+  }, [orderId, paymentId, paymentRequestId]);
 
   return (
     <main className="relative min-h-screen bg-slate-50 text-slate-900 selection:bg-teal-200 selection:text-teal-900 flex flex-col justify-center items-center p-6">
@@ -72,8 +78,8 @@ export default function PaymentVerificationPage() {
             <div className="flex flex-col items-center justify-center py-12 gap-6 text-center">
               <Loader2 className="w-16 h-16 text-teal-600 animate-spin" />
               <div>
-                <h2 className="text-xl font-bold font-outfit text-slate-900 mb-2">Verifying Payment</h2>
-                <p className="text-sm text-slate-500 font-bold uppercase tracking-wider">Securing authorization from Cashfree...</p>
+                 <h2 className="text-xl font-bold font-outfit text-slate-900 mb-2">Verifying Payment</h2>
+                 <p className="text-sm text-slate-500 font-bold uppercase tracking-wider">Securing authorization from {paymentRequestId ? 'Instamojo' : 'Cashfree'}...</p>
               </div>
             </div>
           ) : status === 'SUCCESS' ? (
