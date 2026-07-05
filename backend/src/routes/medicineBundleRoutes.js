@@ -13,10 +13,62 @@ const {
 } = require('../services/emailService');
 const { authMiddleware } = require('../middleware/authMiddleware');
 
+const https = require('https');
 const isProduction = process.env.NODE_ENV === 'production';
 const CASHFREE_BASE_URL = isProduction 
   ? 'https://api.cashfree.com/pg' 
   : 'https://sandbox.cashfree.com/pg';
+
+// Helper to make raw HTTPS requests bypassing global fetch bugs
+function httpsRequest({ url, method, headers = {}, body = null }) {
+  return new Promise((resolve, reject) => {
+    const urlObj = new URL(url);
+    const options = {
+      hostname: urlObj.hostname,
+      port: 443,
+      path: urlObj.pathname + urlObj.search,
+      method: method,
+      headers: {
+        ...headers,
+        'Host': urlObj.hostname
+      }
+    };
+
+    if (body) {
+      options.headers['Content-Length'] = Buffer.byteLength(body);
+    }
+
+    const req = https.request(options, (res) => {
+      let responseBody = '';
+      res.on('data', (chunk) => {
+        responseBody += chunk;
+      });
+      res.on('end', () => {
+        resolve({
+          ok: res.statusCode >= 200 && res.statusCode < 300,
+          status: res.statusCode,
+          json: async () => {
+            try {
+              return JSON.parse(responseBody);
+            } catch (e) {
+              return responseBody;
+            }
+          },
+          text: async () => responseBody
+        });
+      });
+    });
+
+    req.on('error', (err) => {
+      reject(err);
+    });
+
+    if (body) {
+      req.write(body);
+    }
+    req.end();
+  });
+}
 
 // Get Config Details (Amount & Link)
 router.get('/config', (req, res) => {
@@ -46,7 +98,8 @@ router.post('/create-order', async (req, res) => {
 
   // Attempt Cashfree order creation first
   try {
-    const cashfreeResponse = await fetch(`${CASHFREE_BASE_URL}/orders`, {
+    const cashfreeResponse = await httpsRequest({
+      url: `${CASHFREE_BASE_URL}/orders`,
       method: 'POST',
       headers: {
         'x-client-id': process.env.CASHFREE_APP_ID,
@@ -117,7 +170,8 @@ router.post('/create-order', async (req, res) => {
         ? 'https://www.instamojo.com/api/1.1'
         : 'https://test.instamojo.com/api/1.1';
 
-      let instamojoResponse = await fetch(`${INSTAMOJO_BASE_URL}/payment-requests/`, {
+      let instamojoResponse = await httpsRequest({
+        url: `${INSTAMOJO_BASE_URL}/payment-requests/`,
         method: 'POST',
         headers: {
           'X-Api-Key': process.env.INSTAMOJO_PRIVATE_API_KEY,
@@ -137,7 +191,8 @@ router.post('/create-order', async (req, res) => {
         
         console.warn(`Instamojo credentials rejected on ${INSTAMOJO_BASE_URL}. Retrying request with alternative gateway URL: ${ALT_BASE_URL}`);
         
-        const altResponse = await fetch(`${ALT_BASE_URL}/payment-requests/`, {
+        const altResponse = await httpsRequest({
+          url: `${ALT_BASE_URL}/payment-requests/`,
           method: 'POST',
           headers: {
             'X-Api-Key': process.env.INSTAMOJO_PRIVATE_API_KEY,
@@ -206,7 +261,8 @@ router.post('/verify-payment', async (req, res) => {
         ? 'https://www.instamojo.com/api/1.1'
         : 'https://test.instamojo.com/api/1.1';
 
-      let imResponse = await fetch(`${INSTAMOJO_BASE_URL}/payment-requests/${paymentRequestId}/`, {
+      let imResponse = await httpsRequest({
+        url: `${INSTAMOJO_BASE_URL}/payment-requests/${paymentRequestId}/`,
         method: 'GET',
         headers: {
           'X-Api-Key': process.env.INSTAMOJO_PRIVATE_API_KEY,
@@ -224,7 +280,8 @@ router.post('/verify-payment', async (req, res) => {
 
         console.warn(`Instamojo credentials rejected during verification on ${INSTAMOJO_BASE_URL}. Retrying with alternative URL: ${ALT_BASE_URL}`);
 
-        const altResponse = await fetch(`${ALT_BASE_URL}/payment-requests/${paymentRequestId}/`, {
+        const altResponse = await httpsRequest({
+          url: `${ALT_BASE_URL}/payment-requests/${paymentRequestId}/`,
           method: 'GET',
           headers: {
             'X-Api-Key': process.env.INSTAMOJO_PRIVATE_API_KEY,
@@ -318,7 +375,8 @@ router.post('/verify-payment', async (req, res) => {
 
   // Handle Cashfree verification
   try {
-    const cashfreeResponse = await fetch(`${CASHFREE_BASE_URL}/orders/${orderId}`, {
+    const cashfreeResponse = await httpsRequest({
+      url: `${CASHFREE_BASE_URL}/orders/${orderId}`,
       method: 'GET',
       headers: {
         'x-client-id': process.env.CASHFREE_APP_ID,
