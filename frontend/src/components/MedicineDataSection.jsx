@@ -63,46 +63,60 @@ export default function MedicineDataSection() {
           </p>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-[2.5rem] lg:rounded-[3.5rem] p-8 lg:p-12 shadow-xl grid grid-cols-1 md:grid-cols-12 gap-8 lg:gap-12 items-center">
+        <div className="bg-white border border-slate-200 rounded-[2.5rem] lg:rounded-[3.5rem] p-8 lg:p-12 shadow-xl grid grid-cols-1 md:grid-cols-12 gap-10">
           {/* Details */}
-          <div className="md:col-span-7 space-y-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-teal-50 rounded-xl text-teal-650 shrink-0">
+          <div className="md:col-span-7">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-600">
                 <FileSpreadsheet className="w-6 h-6" />
               </div>
-              <div>
-                <h3 className="font-bold text-lg text-slate-900 font-outfit">
-                  Top selling products in Pharmacies
-                </h3>
-                <p className="text-xs text-slate-400 font-medium">
-                  Updated for current financial quarter
-                </p>
-              </div>
-            </div>
 
-            <div className="space-y-3 pt-2">
-              {features.map((feat, idx) => (
-                <div key={idx} className="flex gap-2.5 items-start">
-                  <CheckCircle2 className="w-5 h-5 text-teal-600 shrink-0 mt-0.5" />
-                  <span className="text-xs md:text-sm font-bold text-slate-700 leading-relaxed">
-                    {feat}
-                  </span>
+              <div className="space-y-6">
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                      Perfect Fit For
+                    </span>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      <span className="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-extrabold bg-teal-50 border border-teal-100 text-teal-700 select-none shadow-sm transition-all hover:scale-[1.03]">
+                        New Pharmacy Owners
+                      </span>
+                      <span className="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-extrabold bg-indigo-50 border border-indigo-100 text-indigo-700 select-none shadow-sm transition-all hover:scale-[1.03]">
+                        Low-Performing Pharmacies
+                      </span>
+                      <span className="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-extrabold bg-sky-50 border border-sky-100 text-sky-700 select-none shadow-sm transition-all hover:scale-[1.03]">
+                        Students & Learners
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              ))}
+
+                <div className="space-y-4">
+                  {features.map((feat, idx) => (
+                    <div key={idx} className="flex items-start gap-3">
+                      <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-teal-600" />
+                      <span className="text-sm font-medium leading-relaxed text-slate-700">
+                        {feat}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Pricing & CTA */}
-          <div className="md:col-span-5 border-t md:border-t-0 md:border-l border-slate-100 pt-8 md:pt-0 md:pl-8 lg:pl-12 flex flex-col items-center md:items-start text-center md:text-left space-y-6">
+          <div className="md:col-span-5 md:border-l border-slate-200 md:pl-12 pt-8 md:pt-0 flex flex-col justify-center">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
                 One-Time Download Fee
               </p>
-              <div className="flex items-baseline gap-1.5 justify-center md:justify-start">
-                <span className="text-4xl lg:text-5xl font-black text-slate-900 font-outfit">
+
+              <div className="mt-2 flex items-end gap-2">
+                <span className="text-5xl font-black text-slate-900 font-outfit">
                   ₹{price}
                 </span>
-                <span className="text-xs font-bold text-slate-450 uppercase">
+                <span className="mb-1 text-sm font-semibold uppercase text-slate-500">
                   INR
                 </span>
               </div>
@@ -110,10 +124,10 @@ export default function MedicineDataSection() {
 
             <Link
               to="/medicine-data"
-              className="w-full btn-primary py-4 flex items-center justify-center gap-2 group rounded-xl lg:rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-md shadow-teal-500/10 hover:scale-105 active:scale-95 transition-transform"
+              className="mt-8 w-full btn-primary py-4 rounded-2xl flex items-center justify-center gap-2 group font-bold uppercase tracking-wider shadow-md transition-transform hover:scale-[1.02] active:scale-[0.98]"
             >
               <span>Get Access Now</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
             </Link>
           </div>
         </div>

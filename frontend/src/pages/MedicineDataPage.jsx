@@ -445,11 +445,11 @@ export default function MedicineDataPage() {
   };
 
   const bundleHighlights = [
-    "500+ most sold medicines in pharmacies with salt profiles.",
-    "Comprehensive pricing structures (MRP, PTS, PTR) & profit margin details.",
-    "Manufacturer, therapeutic class, and market share statistics.",
-    "Fully structured dataset with indications and drug salt mappings.",
-    "Verified data matching active retail and wholesale order books.",
+    "1000+ top-selling items in pharmacies",
+    "Detailed categories includes 300+ Medicines, rest are OTC cosmetics and other products",
+    "Frequent updates to the dataset to ensure you have the latest information",
+    "You get 1 time consultation with krishna on G-Meet to understand the data and how to use it for your business and other queries",
+    "Secure OTP based access to your dataset",
   ];
 
   return (
@@ -590,47 +590,96 @@ export default function MedicineDataPage() {
                   </div>
                 ) : (
                   <>
-                    <table className="min-w-full divide-y divide-slate-100 text-left text-sm select-none relative">
-                      <thead className="sticky top-0 z-20 shadow-sm bg-slate-50">
-                        <tr className="text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-100 bg-slate-50 whitespace-nowrap">
-                          <th className="px-6 py-4 bg-slate-50 sticky top-0 whitespace-nowrap">
-                            Category
-                          </th>
-                          <th className="px-6 py-4 bg-slate-50 sticky top-0 whitespace-nowrap">
-                            Brand Name
-                          </th>
-                          <th className="px-6 py-4 bg-slate-50 sticky top-0 whitespace-nowrap">
-                            Salt / Composition
-                          </th>
-                          <th className="px-6 py-4 bg-slate-50 sticky top-0 whitespace-nowrap">
-                            Indications / Usage
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 font-medium text-slate-700 bg-white">
-                        {data.map((row, idx) => (
-                          <tr
-                            key={idx}
-                            className="hover:bg-slate-50/50 transition-colors border-b border-slate-50"
-                          >
-                            <td className="px-6 py-4 font-bold text-xs uppercase tracking-wider text-teal-700 shrink-0 whitespace-nowrap">
-                              <span className="bg-teal-50 border border-teal-100 px-2 py-1 rounded-md whitespace-nowrap">
-                                {row["CATEGORY"] || "N/A"}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 font-extrabold text-slate-900 font-outfit">
-                              {row["BRAND NAME"] || "N/A"}
-                            </td>
-                            <td className="px-6 py-4 text-xs font-bold font-mono text-slate-650 max-w-xs truncate">
-                              {row["SALT / COMPOSITION"] || "N/A"}
-                            </td>
-                            <td className="px-6 py-4 text-xs text-slate-500 font-bold max-w-sm leading-relaxed font-sans">
-                              {row["DETAILS / USAGE"] || "N/A"}
-                            </td>
+                    {/* Desktop View: Table */}
+                    <div className="hidden md:block">
+                      <table className="min-w-full divide-y divide-slate-100 text-left text-sm select-none relative">
+                        <thead className="sticky top-0 z-20 shadow-sm bg-slate-50">
+                          <tr className="text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-100 bg-slate-50 whitespace-nowrap">
+                            <th className="px-6 py-4 bg-slate-50 sticky top-0 whitespace-nowrap">
+                              Category
+                            </th>
+                            <th className="px-6 py-4 bg-slate-50 sticky top-0 whitespace-nowrap">
+                              Brand Name
+                            </th>
+                            <th className="px-6 py-4 bg-slate-50 sticky top-0 whitespace-nowrap">
+                              Salt / Composition
+                            </th>
+                            <th className="px-6 py-4 bg-slate-50 sticky top-0 whitespace-nowrap">
+                              Indications / Usage
+                            </th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-medium text-slate-700 bg-white">
+                          {data.map((row, idx) => (
+                            <tr
+                              key={idx}
+                              className="hover:bg-slate-50/50 transition-colors border-b border-slate-50"
+                            >
+                              <td className="px-6 py-4 font-bold text-xs uppercase tracking-wider text-teal-700 shrink-0 whitespace-nowrap">
+                                <span className="bg-teal-50 border border-teal-100 px-2 py-1 rounded-md whitespace-nowrap">
+                                  {row["CATEGORY"] || "N/A"}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 font-extrabold text-slate-900 font-outfit">
+                                {row["BRAND NAME"] || "N/A"}
+                              </td>
+                              <td className="px-6 py-4 text-xs font-bold font-mono text-slate-650 max-w-xs truncate">
+                                {row["SALT / COMPOSITION"] || "N/A"}
+                              </td>
+                              <td className="px-6 py-4 text-xs text-slate-500 font-bold max-w-sm leading-relaxed font-sans">
+                                {row["DETAILS / USAGE"] || "N/A"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Mobile View: Stacked Cards with Framer Motion animations */}
+                    <div className="block md:hidden p-4 space-y-4 bg-slate-50/30">
+                      {data.map((row, idx) => (
+                        <motion.div
+                          key={idx}
+                          initial={{ opacity: 0, y: 15 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{
+                            duration: 0.35,
+                            delay: Math.min((idx % 8) * 0.05, 0.4),
+                          }}
+                          className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-3 active:scale-[0.99] transition-all"
+                        >
+                          <div className="flex items-start justify-between">
+                            <span className="bg-teal-50 border border-teal-100 text-teal-700 font-extrabold text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-lg whitespace-nowrap">
+                              {row["CATEGORY"] || "N/A"}
+                            </span>
+                          </div>
+
+                          <h4 className="text-sm font-extrabold font-outfit text-slate-900 leading-snug">
+                            {row["BRAND NAME"] || "N/A"}
+                          </h4>
+
+                          <div className="space-y-2.5 pt-2 border-t border-slate-50">
+                            <div className="flex flex-col">
+                              <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider">
+                                Salt / Composition
+                              </span>
+                              <span className="text-[11px] font-bold font-mono text-slate-650 mt-0.5 leading-tight">
+                                {row["SALT / COMPOSITION"] || "N/A"}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-col">
+                              <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider">
+                                Indications / Usage
+                              </span>
+                              <span className="text-xs text-slate-500 font-semibold mt-0.5 leading-relaxed">
+                                {row["DETAILS / USAGE"] || "N/A"}
+                              </span>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
 
                     {dataLoading && page > 1 && (
                       <div className="flex justify-center items-center py-4 border-t border-slate-100 bg-white sticky bottom-0 z-10 shadow-md">
@@ -666,9 +715,10 @@ export default function MedicineDataPage() {
                   </span>
                 </div>
                 <h1 className="text-4xl lg:text-5xl font-black font-outfit leading-tight tracking-tight text-slate-900">
-                  Popular Medicine <br />
+                  Top-Selling Items
+                  <br />
                   <span className="text-gradient bg-gradient-to-r from-teal-600 to-sky-600 italic">
-                    Market Intel Bundle
+                    in Pharmacies
                   </span>
                 </h1>
                 <p className="text-base lg:text-lg text-slate-650 mt-4 leading-relaxed font-medium">
@@ -678,30 +728,52 @@ export default function MedicineDataPage() {
                 </p>
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-md space-y-6">
-                <div className="flex items-center gap-4 border-b border-slate-100 pb-4">
-                  <div className="w-12 h-12 bg-teal-50 rounded-2xl flex items-center justify-center text-teal-600 shrink-0">
+              <div className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-md">
+                <div className="flex items-start gap-4 pb-4">
+                  <div className="w-12 h-12 bg-teal-50 rounded-2xl flex items-center justify-center text-teal-600 shrink-0 mt-1">
                     <FileSpreadsheet className="w-6 h-6" />
                   </div>
-                  <div>
-                    <h3 className="font-bold text-lg text-slate-900 font-outfit">
-                      Structured Intel Database
-                    </h3>
-                    <p className="text-xs text-slate-500 font-medium">
-                      Instant secure access via email OTP login
-                    </p>
+                  
+                  <div className="space-y-4 flex-1">
+                    <div>
+                      <h3 className="font-bold text-lg text-slate-900 font-outfit">
+                        Structured Intel Database
+                      </h3>
+                      <p className="text-xs text-slate-500 font-medium">
+                        Instant secure access via email OTP login
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+                        Perfect Fit For
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        <span className="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-extrabold bg-teal-50 border border-teal-100 text-teal-700 select-none shadow-sm transition-all hover:scale-[1.03]">
+                          New Pharmacy Owners
+                        </span>
+                        <span className="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-extrabold bg-indigo-50 border border-indigo-100 text-indigo-700 select-none shadow-sm transition-all hover:scale-[1.03]">
+                          Low-Performing Pharmacies
+                        </span>
+                        <span className="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-extrabold bg-sky-50 border border-sky-100 text-sky-700 select-none shadow-sm transition-all hover:scale-[1.03]">
+                          Students & Learners
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  {bundleHighlights.map((item, idx) => (
-                    <div key={idx} className="flex gap-3 items-start">
-                      <CheckCircle2 className="w-5 h-5 text-teal-600 shrink-0 mt-0.5" />
-                      <span className="text-sm font-bold text-slate-700 leading-relaxed">
-                        {item}
-                      </span>
-                    </div>
-                  ))}
+                <div className="border-t border-slate-100 pt-6 mt-2 pl-0 md:pl-16">
+                  <div className="space-y-4">
+                    {bundleHighlights.map((item, idx) => (
+                      <div key={idx} className="flex gap-3 items-start">
+                        <CheckCircle2 className="w-5 h-5 text-teal-600 shrink-0 mt-0.5" />
+                        <span className="text-sm font-bold text-slate-700 leading-relaxed">
+                          {item}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
