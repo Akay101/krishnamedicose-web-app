@@ -66,7 +66,7 @@ api.interceptors.response.use(
     }
 
     // Handle other errors (like 403 Forbidden which might also mean logout)
-    if (error.response?.status === 403) {
+    if (error.response?.status === 403 && !originalRequest.url?.includes('/medicine-bundle')) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/admin/login';
