@@ -9,7 +9,9 @@ const {
   sendBundlePurchaseConfirmation, 
   sendBundleAdminNotification,
   sendBundleOtpEmail,
-  sendBundleUpdateNotification
+  sendBundleUpdateNotification,
+  sendBundleUpiRequestNotification,
+  sendBundleActivationCodeEmail
 } = require('../services/emailService');
 const { authMiddleware } = require('../middleware/authMiddleware');
 
@@ -77,177 +79,60 @@ router.get('/config', (req, res) => {
   res.status(200).json({ amount, link });
 });
 
-// Create Cashfree Order
+// Create Bundle Registration (Disconnected Payment Gateway)
 router.post('/create-order', async (req, res) => {
   const { name, email, mobile } = req.body;
   if (!name || !email || !mobile) {
     return res.status(400).json({ message: 'Name, email, and mobile number are required' });
   }
 
-  const amount = Number(process.env.BUNDLE_AMOUNT || 999);
-  const orderId = 'order_bundle_' + Date.now();
+  const normalizedEmail = email.trim().toLowerCase();
 
-  const origin = req.headers.referer || req.headers.origin || 'http://localhost:5173';
-  // Strip trailing slash if present
-  let returnUrl = `${origin.replace(/\/$/, '')}/medicine-data/verify-payment?order_id={order_id}`;
-
-  // Cashfree production API strictly requires HTTPS return_url
-  if (isProduction && returnUrl.startsWith('http://')) {
-    returnUrl = returnUrl.replace(/^http:\/\//, 'https://');
-  }
-
-  // Attempt Cashfree order creation first
   try {
-    const cashfreeResponse = await httpsRequest({
-      url: `${CASHFREE_BASE_URL}/orders`,
-      method: 'POST',
-      headers: {
-        'x-client-id': process.env.CASHFREE_APP_ID,
-        'x-client-secret': process.env.CASHFREE_SECRET_KEY,
-        'x-api-version': '2023-08-01',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        order_id: orderId,
-        order_amount: amount,
-        order_currency: 'INR',
-        customer_details: {
-          customer_id: 'cust_' + Date.now(),
-          customer_name: name,
-          customer_email: email,
-          customer_phone: mobile
-        },
-        order_meta: {
-          return_url: returnUrl
-        }
-      })
-    });
-
-    const cashfreeData = await cashfreeResponse.json();
-
-    if (cashfreeResponse.ok && cashfreeData.payment_session_id) {
-      // Save pending purchase record
-      const purchase = new BundlePurchase({
-        orderId,
-        name,
-        email,
-        mobile,
-        amount,
-        paymentStatus: 'pending'
-      });
-      await purchase.save();
-
-      return res.status(200).json({
-        gateway: 'CASHFREE',
-        orderId,
-        paymentSessionId: cashfreeData.payment_session_id,
-        amount,
-        isProduction
-      });
-    } else {
-      console.warn('Cashfree order creation rejected/unsupported. Initiating Instamojo fallback...', cashfreeData);
-      throw new Error(cashfreeData.message || 'Cashfree gateway unavailable');
-    }
-  } catch (cashfreeError) {
-    console.error('Cashfree transaction initiation failed, falling back to Instamojo:', cashfreeError.message);
-
-    // Fallback to Instamojo
-    try {
-      if (!process.env.INSTAMOJO_PRIVATE_API_KEY || !process.env.INSTAMOJO_PRIVATE_AUTH_TOKEN) {
-        throw new Error('Instamojo API Key or Auth Token is not configured in the server environment variables.');
+    // Check if user already exists
+    let purchase = await BundlePurchase.findOne({ email: normalizedEmail });
+    if (purchase) {
+      if (purchase.paymentStatus === 'paid') {
+        return res.status(400).json({ 
+          message: 'This email is already registered and activated. Please switch to the Secure Login tab.' 
+        });
       }
-
-      let instamojoReturnUrl = `${origin.replace(/\/$/, '')}/medicine-data/verify-payment`;
       
-      const instamojoParams = new URLSearchParams();
-      instamojoParams.append('amount', amount.toFixed(2));
-      instamojoParams.append('purpose', 'Medicine Data Bundle');
-      instamojoParams.append('buyer_name', name);
-      instamojoParams.append('email', email.trim().toLowerCase());
-      instamojoParams.append('phone', mobile);
-      instamojoParams.append('redirect_url', instamojoReturnUrl);
-      instamojoParams.append('send_email', 'false');
-      instamojoParams.append('send_sms', 'false');
-      instamojoParams.append('allow_repeated_payments', 'false');
-
-      const INSTAMOJO_BASE_URL = isProduction
-        ? 'https://www.instamojo.com/api/1.1'
-        : 'https://test.instamojo.com/api/1.1';
-
-      let instamojoResponse = await httpsRequest({
-        url: `${INSTAMOJO_BASE_URL}/payment-requests/`,
-        method: 'POST',
-        headers: {
-          'X-Api-Key': process.env.INSTAMOJO_PRIVATE_API_KEY,
-          'X-Auth-Token': process.env.INSTAMOJO_PRIVATE_AUTH_TOKEN,
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: instamojoParams.toString()
-      });
-
-      let instamojoData = await instamojoResponse.json();
-
-      // If unauthorized or invalid token, automatically try the alternative (sandbox vs production) environment
-      if (!instamojoResponse.ok && (instamojoData.message === 'Invalid Auth Token.' || instamojoData.message === 'Invalid API Key.' || instamojoResponse.status === 401)) {
-        const ALT_BASE_URL = INSTAMOJO_BASE_URL.includes('test')
-          ? 'https://www.instamojo.com/api/1.1'
-          : 'https://test.instamojo.com/api/1.1';
-        
-        console.warn(`Instamojo credentials rejected on ${INSTAMOJO_BASE_URL}. Retrying request with alternative gateway URL: ${ALT_BASE_URL}`);
-        
-        const altResponse = await httpsRequest({
-          url: `${ALT_BASE_URL}/payment-requests/`,
-          method: 'POST',
-          headers: {
-            'X-Api-Key': process.env.INSTAMOJO_PRIVATE_API_KEY,
-            'X-Auth-Token': process.env.INSTAMOJO_PRIVATE_AUTH_TOKEN,
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          body: instamojoParams.toString()
-        });
-
-        const altData = await altResponse.json();
-        if (altResponse.ok) {
-          instamojoResponse = altResponse;
-          instamojoData = altData;
-        }
-      }
-
-      if (!instamojoResponse.ok) {
-        console.error('Instamojo creation failure response:', instamojoData);
-        return res.status(instamojoResponse.status || 500).json({
-          message: 'Failed to initiate payment session with both Cashfree and Instamojo',
-          cashfreeError: cashfreeError.message,
-          instamojoError: instamojoData
-        });
-      }
-
-      // Save pending purchase record with Instamojo request ID
-      const purchase = new BundlePurchase({
-        orderId: orderId,
-        name,
-        email,
-        mobile,
-        amount,
-        paymentStatus: 'pending',
-        cashfreeReferenceId: instamojoData.payment_request.id // Store Instamojo Payment Request ID
-      });
+      // If purchase exists but pending, update details and generate new order ID
+      purchase.name = name;
+      purchase.mobile = mobile;
+      purchase.orderId = 'order_bundle_' + Date.now();
       await purchase.save();
-
+      
       return res.status(200).json({
-        gateway: 'INSTAMOJO',
-        orderId,
-        paymentUrl: instamojoData.payment_request.longurl,
-        amount
-      });
-    } catch (mojoErr) {
-      console.error('Instamojo fallback initialization crashed:', mojoErr);
-      return res.status(500).json({
-        message: 'Both Cashfree and Instamojo payment gateways failed to initialize.',
-        cashfreeError: cashfreeError.message,
-        instamojoError: mojoErr.message
+        status: 'pending',
+        orderId: purchase.orderId,
+        email: purchase.email
       });
     }
+
+    // Create new purchase record
+    const orderId = 'order_bundle_' + Date.now();
+    const amount = Number(process.env.BUNDLE_AMOUNT || 999);
+
+    purchase = new BundlePurchase({
+      orderId,
+      name,
+      email: normalizedEmail,
+      mobile,
+      amount,
+      paymentStatus: 'pending'
+    });
+    await purchase.save();
+
+    res.status(200).json({
+      status: 'pending',
+      orderId,
+      email: purchase.email
+    });
+  } catch (err) {
+    console.error('Error during bundle registration:', err);
+    res.status(500).json({ message: 'Internal Server Error', error: err.message });
   }
 });
 
@@ -475,13 +360,296 @@ router.post('/verify-payment', async (req, res) => {
 // Admin endpoint: List purchases
 router.get('/purchases', authMiddleware, async (req, res) => {
   try {
-    const purchases = await BundlePurchase.find({ paymentStatus: 'paid' }).sort({ createdAt: -1 });
+    const purchases = await BundlePurchase.find({ 
+      paymentStatus: { $in: ['paid', 'pending'] } 
+    }).sort({ createdAt: -1 });
     res.status(200).json(purchases);
   } catch (err) {
     console.error('Failed to fetch purchases:', err);
     res.status(500).json({ message: 'Failed to fetch purchases' });
   }
 });
+
+// Submit UPI Verification Request
+router.post('/verify-upi', async (req, res) => {
+  const { orderId, utr } = req.body;
+  if (!orderId || !utr) {
+    return res.status(400).json({ message: 'Order ID and UTR reference code are required.' });
+  }
+
+  try {
+    const purchase = await BundlePurchase.findOne({ orderId });
+    if (!purchase) {
+      return res.status(404).json({ message: 'Order details not found.' });
+    }
+
+    purchase.paymentStatus = 'pending_verification';
+    purchase.cashfreeReferenceId = utr.trim();
+    await purchase.save();
+
+    // Trigger alert email to the admin
+    try {
+      await sendBundleUpiRequestNotification({
+        orderId: purchase.orderId,
+        userName: purchase.name,
+        userEmail: purchase.email,
+        userMobile: purchase.mobile,
+        amount: purchase.amount,
+        utr: utr.trim()
+      });
+    } catch (mailErr) {
+      console.error('Admin UPI notification email failed to trigger:', mailErr);
+    }
+
+    res.status(200).json({ status: 'PENDING_VERIFICATION', message: 'Verification request submitted successfully.' });
+  } catch (err) {
+    console.error('Error submitting UPI UTR verification:', err);
+    res.status(500).json({ message: 'Internal Server Error', error: err.message });
+  }
+});
+
+// Admin endpoint: Approve UPI Purchase Request
+router.post('/approve-purchase', authMiddleware, async (req, res) => {
+  const { purchaseId } = req.body;
+  if (!purchaseId) {
+    return res.status(400).json({ message: 'Purchase ID is required' });
+  }
+
+  try {
+    const purchase = await BundlePurchase.findById(purchaseId);
+    if (!purchase) {
+      return res.status(404).json({ message: 'Purchase record not found.' });
+    }
+
+    if (purchase.paymentStatus === 'paid') {
+      return res.status(200).json({ message: 'Purchase is already marked as paid.' });
+    }
+
+    let sessionId = purchase.activeSessionId;
+    if (!sessionId) {
+      sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10);
+      purchase.activeSessionId = sessionId;
+    }
+    purchase.sessionExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    purchase.paymentStatus = 'paid';
+    purchase.paidAt = new Date();
+    await purchase.save();
+
+    // Trigger emails to customer and admin
+    try {
+      await sendBundlePurchaseConfirmation(purchase.email, {
+        orderId: purchase.orderId,
+        userName: purchase.name,
+        amount: purchase.amount
+      });
+      await sendBundleAdminNotification({
+        orderId: purchase.orderId,
+        userName: purchase.name,
+        userEmail: purchase.email,
+        userMobile: purchase.mobile,
+        amount: purchase.amount
+      });
+    } catch (mailErr) {
+      console.error('Emails failed to trigger on UPI approval:', mailErr);
+    }
+
+    res.status(200).json({ message: 'Purchase approved and access emails sent.' });
+  } catch (err) {
+    console.error('Error approving UPI purchase:', err);
+    res.status(500).json({ message: 'Internal Server Error', error: err.message });
+  }
+});
+
+// Admin endpoint: Reject UPI Purchase Request
+router.post('/reject-purchase', authMiddleware, async (req, res) => {
+  const { purchaseId } = req.body;
+  if (!purchaseId) {
+    return res.status(400).json({ message: 'Purchase ID is required' });
+  }
+
+  try {
+    const purchase = await BundlePurchase.findById(purchaseId);
+    if (!purchase) {
+      return res.status(404).json({ message: 'Purchase record not found.' });
+    }
+
+    purchase.paymentStatus = 'failed';
+    await purchase.save();
+
+    res.status(200).json({ message: 'Purchase verification request rejected.' });
+  } catch (err) {
+    console.error('Error rejecting purchase request:', err);
+    res.status(500).json({ message: 'Internal Server Error', error: err.message });
+  }
+});
+
+// Submit User Activation Code
+router.post('/activate', async (req, res) => {
+  const { email, code } = req.body;
+  if (!email || !code) {
+    return res.status(400).json({ message: 'Email and 6-digit activation code are required.' });
+  }
+
+  try {
+    const purchase = await BundlePurchase.findOne({ 
+      email: email.trim().toLowerCase(), 
+      activationCode: code.trim() 
+    });
+
+    if (!purchase) {
+      return res.status(400).json({ message: 'Invalid activation code.' });
+    }
+
+    let sessionId = purchase.activeSessionId;
+    if (!sessionId) {
+      sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10);
+      purchase.activeSessionId = sessionId;
+    }
+    purchase.sessionExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    purchase.paymentStatus = 'paid';
+    purchase.paidAt = new Date();
+    await purchase.save();
+
+    // Trigger access emails
+    try {
+      await sendBundlePurchaseConfirmation(purchase.email, {
+        orderId: purchase.orderId,
+        userName: purchase.name,
+        amount: purchase.amount
+      });
+      await sendBundleAdminNotification({
+        orderId: purchase.orderId,
+        userName: purchase.name,
+        userEmail: purchase.email,
+        userMobile: purchase.mobile,
+        amount: purchase.amount
+      });
+    } catch (mailErr) {
+      console.error('Access verification emails failed to trigger on activation:', mailErr);
+    }
+
+    const token = jwt.sign(
+      { purchaseId: purchase._id, email: purchase.email, sessionId },
+      process.env.JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
+    res.status(200).json({ 
+      status: 'SUCCESS', 
+      token,
+      user: {
+        name: purchase.name,
+        email: purchase.email
+      }
+    });
+  } catch (err) {
+    console.error('Error verifying activation code:', err);
+    res.status(500).json({ message: 'Internal Server Error', error: err.message });
+  }
+});
+
+// Admin endpoint: Generate Activation Code
+router.post('/generate-activation-code', authMiddleware, async (req, res) => {
+  const { purchaseId, sendEmail } = req.body;
+  if (!purchaseId) {
+    return res.status(400).json({ message: 'Purchase ID is required.' });
+  }
+
+  try {
+    const purchase = await BundlePurchase.findById(purchaseId);
+    if (!purchase) {
+      return res.status(404).json({ message: 'User record not found.' });
+    }
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    purchase.activationCode = code;
+    await purchase.save();
+
+    if (sendEmail) {
+      try {
+        await sendBundleActivationCodeEmail(purchase.email, purchase.name, code);
+      } catch (mailErr) {
+        console.error('Failed to email activation code to user:', mailErr);
+      }
+    }
+
+    res.status(200).json({ 
+      message: 'Activation code generated successfully.', 
+      code 
+    });
+  } catch (err) {
+    console.error('Error generating activation code:', err);
+    res.status(500).json({ message: 'Internal Server Error', error: err.message });
+  }
+});
+
+// Admin endpoint: Activate Manually
+router.post('/activate-manually', authMiddleware, async (req, res) => {
+  const { purchaseId } = req.body;
+  if (!purchaseId) {
+    return res.status(400).json({ message: 'Purchase ID is required.' });
+  }
+
+  try {
+    const purchase = await BundlePurchase.findById(purchaseId);
+    if (!purchase) {
+      return res.status(404).json({ message: 'User record not found.' });
+    }
+
+    purchase.paymentStatus = 'paid';
+    purchase.paidAt = new Date();
+    await purchase.save();
+
+    // Trigger access emails
+    try {
+      await sendBundlePurchaseConfirmation(purchase.email, {
+        orderId: purchase.orderId,
+        userName: purchase.name,
+        amount: purchase.amount
+      });
+      await sendBundleAdminNotification({
+        orderId: purchase.orderId,
+        userName: purchase.name,
+        userEmail: purchase.email,
+        userMobile: purchase.mobile,
+        amount: purchase.amount
+      });
+    } catch (mailErr) {
+      console.error('Access verification emails failed to trigger on manual activation:', mailErr);
+    }
+
+    res.status(200).json({ message: 'User activated manually.' });
+  } catch (err) {
+    console.error('Error manually activating user:', err);
+    res.status(500).json({ message: 'Internal Server Error', error: err.message });
+  }
+});
+
+// Admin endpoint: Deactivate User (Revokes access and resets status to pending)
+router.post('/deactivate', authMiddleware, async (req, res) => {
+  const { purchaseId } = req.body;
+  if (!purchaseId) {
+    return res.status(400).json({ message: 'Purchase ID is required.' });
+  }
+
+  try {
+    const purchase = await BundlePurchase.findById(purchaseId);
+    if (!purchase) {
+      return res.status(404).json({ message: 'User record not found.' });
+    }
+
+    purchase.paymentStatus = 'pending';
+    purchase.activeSessionId = null;
+    purchase.sessionExpiresAt = null;
+    await purchase.save();
+
+    res.status(200).json({ message: 'User deactivated successfully. Access has been revoked.' });
+  } catch (err) {
+    console.error('Error deactivating user:', err);
+    res.status(500).json({ message: 'Internal Server Error', error: err.message });
+  }
+});
+
 
 // Helper to parse CSV row
 function parseCSVRow(line) {
@@ -800,6 +968,88 @@ router.get('/data', async (req, res) => {
     res.status(500).json({ message: 'Failed to load secure data.', error: err.message });
   }
 });
+
+// Public preview endpoint (no auth needed)
+router.get('/preview', async (req, res) => {
+  try {
+    const csvPath = path.resolve(__dirname, '../../assets/data.csv');
+    if (!fs.existsSync(csvPath)) {
+      return res.status(200).json({
+        data: [
+          { 'CATEGORY': 'Antibiotics', 'BRAND NAME': 'AMOXICILLIN 500', 'SALT / COMPOSITION': 'Amoxicillin 500mg', 'DETAILS / USAGE': 'Used to treat bacterial infections' },
+          { 'CATEGORY': 'Analgesics', 'BRAND NAME': 'PARACETAMOL 650', 'SALT / COMPOSITION': 'Paracetamol 650mg', 'DETAILS / USAGE': 'Pain relief and fever reduction' },
+          { 'CATEGORY': 'Antacids', 'BRAND NAME': 'PANTOCID 40', 'SALT / COMPOSITION': 'Pantoprazole 40mg', 'DETAILS / USAGE': 'Acidity and stomach ulcer treatment' },
+          { 'CATEGORY': 'Antiallergics', 'BRAND NAME': 'CETRIZINE 10', 'SALT / COMPOSITION': 'Cetirizine 10mg', 'DETAILS / USAGE': 'Allergy symptoms relief' },
+          { 'CATEGORY': 'Antidiabetic', 'BRAND NAME': 'METFORMIN 500', 'SALT / COMPOSITION': 'Metformin 500mg', 'DETAILS / USAGE': 'Blood sugar level management' }
+        ]
+      });
+    }
+
+    const csvContent = fs.readFileSync(csvPath, 'utf8');
+    const lines = csvContent.split(/\r?\n/);
+    const parsedData = [];
+    const rawHeaders = lines[0] ? parseCSVRow(lines[0]).map(h => h.replace(/^--- | ---$/g, '').trim()) : [];
+    const mapping = autoMapHeaders(rawHeaders);
+
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line.trim()) continue;
+      const row = parseCSVRow(line);
+      
+      const mappedRow = {
+        'CATEGORY': mapping.category ? (row[rawHeaders.indexOf(mapping.category)] || '') : '',
+        'BRAND NAME': mapping.brandName ? (row[rawHeaders.indexOf(mapping.brandName)] || '') : '',
+        'SALT / COMPOSITION': mapping.saltComposition ? (row[rawHeaders.indexOf(mapping.saltComposition)] || '') : '',
+        'DETAILS / USAGE': mapping.detailsUsage ? (row[rawHeaders.indexOf(mapping.detailsUsage)] || '') : ''
+      };
+
+      if (mappedRow['CATEGORY'] && mappedRow['CATEGORY'].startsWith('====') && !mappedRow['BRAND NAME']) {
+        continue;
+      }
+      parsedData.push(mappedRow);
+      if (parsedData.length >= 5) break;
+    }
+
+    if (parsedData.length === 0) {
+      parsedData.push(
+        { 'CATEGORY': 'Antibiotics', 'BRAND NAME': 'AMOXICILLIN 500', 'SALT / COMPOSITION': 'Amoxicillin 500mg', 'DETAILS / USAGE': 'Used to treat bacterial infections' }
+      );
+    }
+
+    res.status(200).json({ data: parsedData });
+  } catch (err) {
+    console.error('Error fetching preview data:', err);
+    res.status(500).json({ message: 'Internal Server Error', error: err.message });
+  }
+});
+
+// Logout Session (Clears active session on database)
+router.post('/logout', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(200).json({ success: true, message: 'Logged out successfully.' });
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'krishna_medicose_secret_7788');
+    const purchase = await BundlePurchase.findById(decoded.purchaseId);
+    
+    if (purchase) {
+      purchase.activeSessionId = null;
+      purchase.sessionExpiresAt = null;
+      await purchase.save();
+    }
+
+    res.status(200).json({ success: true, message: 'Logged out successfully.' });
+  } catch (err) {
+    console.error('Logout error:', err);
+    res.status(200).json({ success: true, message: 'Logged out successfully.' });
+  }
+});
+
+
 
 // Configure multer storage to write directly to backend/assets/medicineBundle.csv
 const storage = multer.diskStorage({

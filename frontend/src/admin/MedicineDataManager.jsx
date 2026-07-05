@@ -1,36 +1,50 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { 
-  FileSpreadsheet, Upload, Users, ShieldCheck, Mail, Phone, Calendar, 
-  IndianRupee, Lock, Search, RefreshCw 
-} from 'lucide-react';
-import api from '../utils/api';
-import { useModal } from '../context/ModalContext';
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import {
+  FileSpreadsheet,
+  Upload,
+  Users,
+  ShieldCheck,
+  Mail,
+  Phone,
+  Calendar,
+  IndianRupee,
+  Lock,
+  Search,
+  RefreshCw,
+} from "lucide-react";
+import api from "../utils/api";
+import { useModal } from "../context/ModalContext";
 
 export default function MedicineDataManager() {
   const { showModal } = useModal();
   const [purchases, setPurchases] = useState([]);
-  const [analytics, setAnalytics] = useState({ totalPurchases: 0, totalRevenue: 0, activeSessions: 0 });
+  const [analytics, setAnalytics] = useState({
+    totalPurchases: 0,
+    totalRevenue: 0,
+    activeSessions: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
+  const [sendEmailMap, setSendEmailMap] = useState({});
 
   // Fetch Purchases list and Analytics stats
   const fetchData = async () => {
     try {
       const [purchasesResp, analyticsResp] = await Promise.all([
-        api.get('/medicine-bundle/purchases'),
-        api.get('/medicine-bundle/analytics')
+        api.get("/medicine-bundle/purchases"),
+        api.get("/medicine-bundle/analytics"),
       ]);
       setPurchases(purchasesResp.data);
       setAnalytics(analyticsResp.data);
     } catch (err) {
-      console.error('Failed to fetch data for medicine bundle manager:', err);
+      console.error("Failed to fetch data for medicine bundle manager:", err);
       showModal({
-        title: 'Fetch Error',
-        message: 'Could not retrieve medicine data bundle statistics.',
-        type: 'error'
+        title: "Fetch Error",
+        message: "Could not retrieve medicine data bundle statistics.",
+        type: "error",
       });
     } finally {
       setLoading(false);
@@ -44,14 +58,14 @@ export default function MedicineDataManager() {
   // Handle CSV file selection
   const handleFileChange = (e) => {
     const file = e.target.files[0];
-    if (file && (file.type === 'text/csv' || file.name.endsWith('.csv'))) {
+    if (file && (file.type === "text/csv" || file.name.endsWith(".csv"))) {
       setSelectedFile(file);
     } else {
       setSelectedFile(null);
       showModal({
-        title: 'Invalid File Format',
-        message: 'Please select a valid CSV file (.csv) to upload.',
-        type: 'error'
+        title: "Invalid File Format",
+        message: "Please select a valid CSV file (.csv) to upload.",
+        type: "error",
       });
     }
   };
@@ -62,46 +76,130 @@ export default function MedicineDataManager() {
     if (!selectedFile) return;
 
     showModal({
-      title: 'Confirm Dataset Update',
-      message: 'Uploading this file will replace the active medicine bundle database. All customers will instantly receive an automated email notification regarding this update. Do you wish to proceed?',
-      type: 'confirm',
-      confirmText: 'Upload & Notify',
+      title: "Confirm Dataset Update",
+      message:
+        "Uploading this file will replace the active medicine bundle database. All customers will instantly receive an automated email notification regarding this update. Do you wish to proceed?",
+      type: "confirm",
+      confirmText: "Upload & Notify",
       onConfirm: async () => {
         setUploading(true);
         const data = new FormData();
-        data.append('file', selectedFile);
+        data.append("file", selectedFile);
 
         try {
-          const resp = await api.post('/medicine-bundle/upload', data, {
-            headers: { 'Content-Type': 'multipart/form-data' }
+          const resp = await api.post("/medicine-bundle/upload", data, {
+            headers: { "Content-Type": "multipart/form-data" },
           });
           setSelectedFile(null);
           showModal({
-            title: 'Upload Successful',
-            message: resp.data.message || 'Dataset updated and customers notified!',
-            type: 'success'
+            title: "Upload Successful",
+            message:
+              resp.data.message || "Dataset updated and customers notified!",
+            type: "success",
           });
           fetchData();
         } catch (err) {
-          console.error('Failed to upload CSV:', err);
+          console.error("Failed to upload CSV:", err);
           showModal({
-            title: 'Upload Failed',
-            message: err.response?.data?.message || 'Failed to upload dataset file.',
-            type: 'error'
+            title: "Upload Failed",
+            message:
+              err.response?.data?.message || "Failed to upload dataset file.",
+            type: "error",
           });
         } finally {
           setUploading(false);
         }
-      }
+      },
+    });
+  };
+  const handleGenerateCode = async (purchaseId) => {
+    const emailCode = sendEmailMap[purchaseId] !== false;
+    try {
+      const resp = await api.post("/medicine-bundle/generate-activation-code", {
+        purchaseId,
+        sendEmail: emailCode,
+      });
+
+      showModal({
+        title: "Activation Code Generated",
+        message: `Code: ${resp.data.code}${emailCode ? " (Sent to user email address successfully)" : ""}`,
+        type: "success",
+      });
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      showModal({
+        title: "Error",
+        message: err.response?.data?.message || "Failed to generate code.",
+        type: "error",
+      });
+    }
+  };
+
+  const handleActivateManually = async (purchaseId) => {
+    showModal({
+      title: "Confirm Manual Activation",
+      message:
+        "Are you sure you want to activate this user manually? They will instantly gain access without needing to enter an activation code.",
+      type: "confirm",
+      confirmText: "Activate User",
+      onConfirm: async () => {
+        try {
+          await api.post("/medicine-bundle/activate-manually", { purchaseId });
+          showModal({
+            title: "User Activated",
+            message: "User account has been activated successfully.",
+            type: "success",
+          });
+          fetchData();
+        } catch (err) {
+          console.error(err);
+          showModal({
+            title: "Error",
+            message: err.response?.data?.message || "Failed to activate user.",
+            type: "error",
+          });
+        }
+      },
     });
   };
 
+  const handleDeactivate = async (purchaseId) => {
+    showModal({
+      title: "Confirm Deactivation",
+      message:
+        "Are you sure you want to deactivate this user? Their active session will be terminated instantly and they will lose access until activated again.",
+      type: "confirm",
+      confirmText: "Deactivate User",
+      onConfirm: async () => {
+        try {
+          await api.post("/medicine-bundle/deactivate", { purchaseId });
+          showModal({
+            title: "User Deactivated",
+            message: "User access has been successfully revoked.",
+            type: "success",
+          });
+          fetchData();
+        } catch (err) {
+          console.error(err);
+          showModal({
+            title: "Error",
+            message:
+              err.response?.data?.message || "Failed to deactivate user.",
+            type: "error",
+          });
+        }
+      },
+    });
+  };
   // Filter purchases by search query
-  const filteredPurchases = purchases.filter(item => {
-    return (item.name || '').toLowerCase().includes(search.toLowerCase()) ||
-           (item.email || '').toLowerCase().includes(search.toLowerCase()) ||
-           (item.mobile || '').toLowerCase().includes(search.toLowerCase()) ||
-           (item.orderId || '').toLowerCase().includes(search.toLowerCase());
+  const filteredPurchases = purchases.filter((item) => {
+    return (
+      (item.name || "").toLowerCase().includes(search.toLowerCase()) ||
+      (item.email || "").toLowerCase().includes(search.toLowerCase()) ||
+      (item.mobile || "").toLowerCase().includes(search.toLowerCase()) ||
+      (item.orderId || "").toLowerCase().includes(search.toLowerCase())
+    );
   });
 
   return (
@@ -114,12 +212,13 @@ export default function MedicineDataManager() {
             Medicine Dataset Manager
           </h1>
           <p className="text-slate-500 font-bold text-sm mt-1">
-            Manage your popular medicine CSV bundle, view customer session analytics, and release updates.
+            Manage your Top selling products CSV bundle, view customer session
+            analytics, and release updates.
           </p>
         </div>
 
-        <button 
-          onClick={fetchData} 
+        <button
+          onClick={fetchData}
           className="p-4 bg-white border border-slate-200 rounded-2xl text-teal-650 hover:bg-slate-50 shadow-sm flex items-center gap-2 font-bold text-sm select-none active:scale-95 transition-all self-start md:self-auto"
         >
           <RefreshCw className="w-4 h-4" /> Refresh Data
@@ -134,8 +233,12 @@ export default function MedicineDataManager() {
             <Users className="w-8 h-8" />
           </div>
           <div>
-            <p className="text-[10px] font-black text-slate-450 uppercase tracking-widest">Total Sales</p>
-            <h3 className="text-3xl font-black font-outfit text-slate-900 mt-1">{analytics.totalPurchases}</h3>
+            <p className="text-[10px] font-black text-slate-450 uppercase tracking-widest">
+              Total Sales
+            </p>
+            <h3 className="text-3xl font-black font-outfit text-slate-900 mt-1">
+              {analytics.totalPurchases}
+            </h3>
             <p className="text-xs text-slate-400 font-bold">Paid purchases</p>
           </div>
         </div>
@@ -146,9 +249,15 @@ export default function MedicineDataManager() {
             <IndianRupee className="w-8 h-8" />
           </div>
           <div>
-            <p className="text-[10px] font-black text-slate-450 uppercase tracking-widest">Total Revenue</p>
-            <h3 className="text-3xl font-black font-outfit text-slate-900 mt-1">₹{analytics.totalRevenue}</h3>
-            <p className="text-xs text-slate-400 font-bold">Gross income generated</p>
+            <p className="text-[10px] font-black text-slate-450 uppercase tracking-widest">
+              Total Revenue
+            </p>
+            <h3 className="text-3xl font-black font-outfit text-slate-900 mt-1">
+              ₹{analytics.totalRevenue}
+            </h3>
+            <p className="text-xs text-slate-400 font-bold">
+              Gross income generated
+            </p>
           </div>
         </div>
 
@@ -158,9 +267,15 @@ export default function MedicineDataManager() {
             <ShieldCheck className="w-8 h-8" />
           </div>
           <div>
-            <p className="text-[10px] font-black text-slate-450 uppercase tracking-widest">Active Sessions</p>
-            <h3 className="text-3xl font-black font-outfit text-slate-900 mt-1">{analytics.activeSessions}</h3>
-            <p className="text-xs text-slate-400 font-bold">Devices logged in currently</p>
+            <p className="text-[10px] font-black text-slate-450 uppercase tracking-widest">
+              Active Sessions
+            </p>
+            <h3 className="text-3xl font-black font-outfit text-slate-900 mt-1">
+              {analytics.activeSessions}
+            </h3>
+            <p className="text-xs text-slate-400 font-bold">
+              Devices logged in currently
+            </p>
           </div>
         </div>
       </div>
@@ -173,11 +288,16 @@ export default function MedicineDataManager() {
             Release Dataset Update
           </h2>
           <p className="text-xs text-slate-400 font-bold mt-1">
-            Upload an updated CSV file to replace the dataset served on the user secure viewer portal. All paid customers will be emailed immediately.
+            Upload an updated CSV file to replace the dataset served on the user
+            secure viewer portal. All paid customers will be emailed
+            immediately.
           </p>
         </div>
 
-        <form onSubmit={handleUploadSubmit} className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+        <form
+          onSubmit={handleUploadSubmit}
+          className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center"
+        >
           <div className="md:col-span-8">
             <div className="relative border-2 border-dashed border-slate-200 hover:border-teal-400 bg-slate-50/50 rounded-2xl p-6 transition-all duration-300">
               <input
@@ -192,10 +312,14 @@ export default function MedicineDataManager() {
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-slate-800">
-                    {selectedFile ? selectedFile.name : 'Choose dataset CSV file'}
+                    {selectedFile
+                      ? selectedFile.name
+                      : "Choose dataset CSV file"}
                   </h4>
                   <p className="text-xs text-slate-400 font-medium mt-0.5">
-                    {selectedFile ? `${(selectedFile.size / 1024).toFixed(2)} KB` : 'Click or drag a .csv format file here'}
+                    {selectedFile
+                      ? `${(selectedFile.size / 1024).toFixed(2)} KB`
+                      : "Click or drag a .csv format file here"}
                   </p>
                 </div>
               </div>
@@ -228,8 +352,13 @@ export default function MedicineDataManager() {
       <div className="bg-white border border-slate-200/80 rounded-[2.5rem] p-8 lg:p-10 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h2 className="text-xl font-bold font-outfit text-slate-900">Paid Customers</h2>
-            <p className="text-xs text-slate-450 font-bold mt-1">List of all individuals who have purchased and unlocked dataset access.</p>
+            <h2 className="text-xl font-bold font-outfit text-slate-900">
+              Paid Customers
+            </h2>
+            <p className="text-xs text-slate-450 font-bold mt-1">
+              List of all individuals who have purchased and unlocked dataset
+              access.
+            </p>
           </div>
 
           <div className="relative group w-full sm:w-72">
@@ -260,17 +389,33 @@ export default function MedicineDataManager() {
                   <th className="px-6 py-4">Customer</th>
                   <th className="px-6 py-4">Contact Info</th>
                   <th className="px-6 py-4">Order Details</th>
-                  <th className="px-6 py-4 text-center">Session DRM</th>
+                  <th className="px-6 py-4 text-center">Status / Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredPurchases.map((purchase) => {
-                  const isSessionActive = purchase.activeSessionId && purchase.sessionExpiresAt && new Date(purchase.sessionExpiresAt) > new Date();
+                  const isPending = purchase.paymentStatus === "pending";
+                  const isSessionActive =
+                    purchase.activeSessionId &&
+                    purchase.sessionExpiresAt &&
+                    new Date(purchase.sessionExpiresAt) > new Date();
                   return (
-                    <tr key={purchase._id} className="hover:bg-slate-50/50 transition-colors">
+                    <tr
+                      key={purchase._id}
+                      className={`transition-colors ${isPending ? "bg-amber-50/20 hover:bg-amber-50/40 font-medium" : "hover:bg-slate-50/50"}`}
+                    >
                       <td className="px-6 py-4">
-                        <p className="font-black text-slate-900 text-sm font-outfit">{purchase.name}</p>
-                        <p className="text-[10px] text-slate-400 font-bold font-mono mt-0.5">{purchase.orderId}</p>
+                        <p className="font-black text-slate-900 text-sm font-outfit">
+                          {purchase.name}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-bold font-mono mt-0.5">
+                          {purchase.orderId}
+                        </p>
+                        {purchase.activationCode && (
+                          <p className="text-[10px] text-teal-650 font-black font-mono mt-1 px-1.5 py-0.5 bg-teal-50 border border-teal-100 rounded inline-block">
+                            Code: {purchase.activationCode}
+                          </p>
+                        )}
                       </td>
                       <td className="px-6 py-4 space-y-1">
                         <p className="flex items-center gap-2 text-slate-650">
@@ -283,30 +428,88 @@ export default function MedicineDataManager() {
                         </p>
                       </td>
                       <td className="px-6 py-4 space-y-1">
-                        <p className="text-teal-600 font-extrabold">₹{purchase.amount} INR</p>
-                        <p className="flex items-center gap-2 text-[10px] text-slate-400">
-                          <Calendar className="w-3.5 h-3.5 text-slate-350 shrink-0" />
-                          <span>Paid {new Date(purchase.paidAt || purchase.createdAt).toLocaleDateString()}</span>
+                        <p className="text-teal-600 font-extrabold text-sm">
+                          ₹{purchase.amount} INR
                         </p>
+                        {isPending ? (
+                          <span className="inline-block bg-amber-100 text-amber-800 text-[9px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-md">
+                            Pending Activation
+                          </span>
+                        ) : (
+                          <p className="flex items-center gap-2 text-[10px] text-slate-400 font-bold">
+                            <Calendar className="w-3.5 h-3.5 text-slate-350 shrink-0" />
+                            <span>
+                              Paid{" "}
+                              {new Date(
+                                purchase.paidAt || purchase.createdAt,
+                              ).toLocaleDateString()}
+                            </span>
+                          </p>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] uppercase tracking-wider font-extrabold ${
-                          isSessionActive 
-                            ? 'bg-emerald-100 text-emerald-800' 
-                            : 'bg-slate-100 text-slate-400'
-                        }`}>
-                          {isSessionActive ? (
-                            <>
-                              <ShieldCheck className="w-3.5 h-3.5" />
-                              <span>Active</span>
-                            </>
-                          ) : (
-                            <>
-                              <Lock className="w-3.5 h-3.5" />
-                              <span>Offline</span>
-                            </>
-                          )}
-                        </span>
+                        {isPending ? (
+                          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                            <div className="flex flex-col items-center gap-1">
+                              <button
+                                onClick={() => handleGenerateCode(purchase._id)}
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] uppercase font-black tracking-wider shadow-sm active:scale-95 transition-all w-28 text-center"
+                              >
+                                Generate Code
+                              </button>
+                              <label className="flex items-center gap-1.5 cursor-pointer text-[10px] text-slate-450 font-bold select-none mt-1">
+                                <input
+                                  type="checkbox"
+                                  checked={sendEmailMap[purchase._id] !== false}
+                                  onChange={(e) =>
+                                    setSendEmailMap({
+                                      ...sendEmailMap,
+                                      [purchase._id]: e.target.checked,
+                                    })
+                                  }
+                                  className="rounded text-teal-600 focus:ring-teal-500 border-slate-300 w-3 h-3"
+                                />
+                                <span>Email Code</span>
+                              </label>
+                            </div>
+                            <button
+                              onClick={() =>
+                                handleActivateManually(purchase._id)
+                              }
+                              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] uppercase font-black tracking-wider shadow-sm active:scale-95 transition-all w-28 text-center"
+                            >
+                              Activate Manually
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] uppercase tracking-wider font-extrabold ${
+                                isSessionActive
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-slate-100 text-slate-400"
+                              }`}
+                            >
+                              {isSessionActive ? (
+                                <>
+                                  <ShieldCheck className="w-3.5 h-3.5" />
+                                  <span>Logged In</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Lock className="w-3.5 h-3.5" />
+                                  <span>Offline</span>
+                                </>
+                              )}
+                            </span>
+                            <button
+                              onClick={() => handleDeactivate(purchase._id)}
+                              className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-[10px] uppercase font-black tracking-wider shadow-sm active:scale-95 transition-all w-24 text-center"
+                            >
+                              Deactivate
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );

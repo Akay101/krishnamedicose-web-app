@@ -1,7 +1,12 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { FileSpreadsheet, CheckCircle2, ArrowRight, Sparkles } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
+import {
+  FileSpreadsheet,
+  CheckCircle2,
+  ArrowRight,
+  Sparkles,
+} from "lucide-react";
 
 export default function MedicineDataSection() {
   const [price, setPrice] = useState(999);
@@ -9,7 +14,9 @@ export default function MedicineDataSection() {
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/medicine-bundle/config`);
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL}/medicine-bundle/config`,
+        );
         if (response.ok) {
           const data = await response.json();
           setPrice(data.amount);
@@ -22,29 +29,37 @@ export default function MedicineDataSection() {
   }, []);
 
   const features = [
-    "500+ most sold medicines in Indian pharmacies",
-    "Detailed pricing structures (MRP, PTS, PTR) & profit margins",
-    "Therapeutic classification and chemical salt mappings",
-    "Downloadable instant Excel (.xlsx) file format"
+    "1000+ top-selling items in pharmacies",
+    "Detailed categories includes 300+ Medicines, rest are OTC cosmetics and other products",
+    "Frequent updates to the dataset to ensure you have the latest information",
+    "You get 1 time consultation with krishna on G-Meet to understand the data and how to use it for your business and other queries",
+    "Secure OTP based access to your dataset",
   ];
 
   return (
-    <section id="medicine-data" className="section-padding bg-slate-100/50 border-t border-slate-200/85 relative overflow-hidden">
+    <section
+      id="medicine-data"
+      className="section-padding bg-slate-100/50 border-t border-slate-200/85 relative overflow-hidden"
+    >
       {/* Background radial glows */}
       <div className="absolute top-1/2 left-1/4 w-96 h-96 bg-teal-500/5 blur-[120px] rounded-full -z-10" />
       <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-sky-500/5 blur-[100px] rounded-full -z-10" />
 
       <div className="max-w-5xl mx-auto">
         <div className="text-center max-w-2xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-teal-50 border border-teal-200/60 rounded-full mb-6">
+          {/* <div className="inline-flex items-center gap-2 px-4 py-2 bg-teal-50 border border-teal-200/60 rounded-full mb-6">
             <Sparkles className="w-4 h-4 text-teal-650 animate-pulse" />
-            <span className="text-xs font-extrabold uppercase tracking-widest text-teal-700 font-outfit">Pharmacy Insights</span>
-          </div>
+            <span className="text-xs font-extrabold uppercase tracking-widest text-teal-700 font-outfit">
+              Pharmacy Insights
+            </span>
+          </div> */}
           <h2 className="text-3xl md:text-4xl font-black font-outfit mb-4 text-slate-900">
-            Popular Medicine <span className="text-teal-650 italic">Market Intel</span>
+            Top Selling Items{" "}
+            <span className="text-teal-650 italic">For Pharmacies</span>
           </h2>
           <p className="text-sm md:text-base text-slate-500 font-bold leading-relaxed">
-            Instant analytical access to the best-selling medicine datasets in Indian pharmacies.
+            Instant analytical access to the best-selling medicine datasets in
+            pharmacies.
           </p>
         </div>
 
@@ -56,8 +71,12 @@ export default function MedicineDataSection() {
                 <FileSpreadsheet className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="font-bold text-lg text-slate-900 font-outfit">Excel Database Bundle</h3>
-                <p className="text-xs text-slate-400 font-medium">Updated for current financial quarter</p>
+                <h3 className="font-bold text-lg text-slate-900 font-outfit">
+                  Top selling products in Pharmacies
+                </h3>
+                <p className="text-xs text-slate-400 font-medium">
+                  Updated for current financial quarter
+                </p>
               </div>
             </div>
 
@@ -65,7 +84,9 @@ export default function MedicineDataSection() {
               {features.map((feat, idx) => (
                 <div key={idx} className="flex gap-2.5 items-start">
                   <CheckCircle2 className="w-5 h-5 text-teal-600 shrink-0 mt-0.5" />
-                  <span className="text-xs md:text-sm font-bold text-slate-700 leading-relaxed">{feat}</span>
+                  <span className="text-xs md:text-sm font-bold text-slate-700 leading-relaxed">
+                    {feat}
+                  </span>
                 </div>
               ))}
             </div>
@@ -74,10 +95,16 @@ export default function MedicineDataSection() {
           {/* Pricing & CTA */}
           <div className="md:col-span-5 border-t md:border-t-0 md:border-l border-slate-100 pt-8 md:pt-0 md:pl-8 lg:pl-12 flex flex-col items-center md:items-start text-center md:text-left space-y-6">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1">One-Time Download Fee</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1">
+                One-Time Download Fee
+              </p>
               <div className="flex items-baseline gap-1.5 justify-center md:justify-start">
-                <span className="text-4xl lg:text-5xl font-black text-slate-900 font-outfit">₹{price}</span>
-                <span className="text-xs font-bold text-slate-450 uppercase">INR</span>
+                <span className="text-4xl lg:text-5xl font-black text-slate-900 font-outfit">
+                  ₹{price}
+                </span>
+                <span className="text-xs font-bold text-slate-450 uppercase">
+                  INR
+                </span>
               </div>
             </div>
 

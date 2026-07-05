@@ -48,6 +48,9 @@ const BundlePurchaseSchema = new mongoose.Schema({
   },
   sessionExpiresAt: {
     type: Date
+  },
+  activationCode: {
+    type: String
   }
 });
 

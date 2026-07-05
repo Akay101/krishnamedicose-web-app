@@ -166,7 +166,7 @@ const sendEmail = async ({ to, subject, html }) => {
   } catch (error) {
     console.error(
       "Error sending email:",
-      error.response?.body || error.message
+      error.response?.body || error.message,
     );
 
     throw error;
@@ -361,7 +361,7 @@ const sendOfferLeadToAdmin = async (data) => {
           ${value}
         </td>
       </tr>
-    `
+    `,
     )
     .join("");
 
@@ -405,7 +405,8 @@ const sendOfferLeadToAdmin = async (data) => {
 const sendBundlePurchaseConfirmation = async (to, data) => {
   const html = createEmailLayout({
     title: "Medicine Data Bundle Purchased Successfully!",
-    subtitle: "Thank you for your purchase. You now have access to the Popular Medicine Data Bundle.",
+    subtitle:
+      "Thank you for your purchase. You now have access to the Top Selling Products Data Bundle.",
     content: `
       <div style="
         background:linear-gradient(135deg,#ecfeff,#f0fdfa);
@@ -443,7 +444,7 @@ const sendBundlePurchaseConfirmation = async (to, data) => {
           <br/><br/>
           <strong>Amount Paid:</strong> ₹${data.amount}
           <br/><br/>
-          <strong>Popular Medicine Data Bundle Access:</strong>
+          <strong>Top Selling Products Data Bundle Access:</strong>
           <br/>
           For data security and anti-theft compliance, direct downloads are disabled. You can securely access and query the dataset on-screen through our interactive viewer.
           <br/><br/>
@@ -484,7 +485,8 @@ const sendBundlePurchaseConfirmation = async (to, data) => {
 const sendBundleOtpEmail = async (to, otp) => {
   const html = createEmailLayout({
     title: "Secure Access OTP",
-    subtitle: "Use this one-time password to securely access the Popular Medicine Data Bundle.",
+    subtitle:
+      "Use this one-time password to securely access the Top Selling Products Data Bundle.",
     content: `
       <div style="
         background:#f8fafc;
@@ -536,7 +538,8 @@ const sendBundleOtpEmail = async (to, otp) => {
 const sendBundleAdminNotification = async (data) => {
   const html = createEmailLayout({
     title: "New Medicine Bundle Purchase Received",
-    subtitle: "A customer has successfully bought the Popular Medicine Data Bundle.",
+    subtitle:
+      "A customer has successfully bought the Top Selling Products Data Bundle.",
     content: `
       <table style="
         width:100%;
@@ -592,7 +595,8 @@ module.exports = {
 const sendBundleUpdateNotification = async (to, userName) => {
   const html = createEmailLayout({
     title: "Medicine Dataset Updated!",
-    subtitle: "We have released a new update for the Popular Medicine Data Bundle.",
+    subtitle:
+      "We have released a new update for the Top Selling Products Data Bundle.",
     content: `
       <div style="
         background:#f8fafc;
@@ -608,7 +612,7 @@ const sendBundleUpdateNotification = async (to, userName) => {
         ">
           Hello ${userName || "Valued Customer"},
           <br/><br/>
-          An updated version of the **Popular Medicine Data Bundle** has been successfully uploaded to our secure database.
+          An updated version of the **Top Selling Products Data Bundle** has been successfully uploaded to our secure database.
           <br/><br/>
           You can immediately view and search the new dataset by logging into your secure viewer portal on our website.
         </p>
@@ -641,6 +645,82 @@ const sendBundleUpdateNotification = async (to, userName) => {
   });
 };
 
+const sendBundleUpiRequestNotification = async (data) => {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background-color: #ffffff;">
+      <h2 style="color: #0d9488; border-bottom: 2px solid #f0fdfa; padding-bottom: 10px;">New UPI Payment Verification</h2>
+      <p style="font-size: 14px; color: #475569; line-height: 1.6;">
+        Hello Admin,<br><br>
+        A customer has submitted a manual UPI transfer verification request for the <b>Medicine Market Intel Bundle</b> (₹${data.amount} INR).
+      </p>
+      <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin: 20px 0;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <tr>
+            <td style="padding: 6px 0; color: #64748b; font-weight: bold;">CUSTOMER NAME:</td>
+            <td style="padding: 6px 0; color: #1e293b; text-align: right;">${data.userName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #64748b; font-weight: bold;">EMAIL ADDRESS:</td>
+            <td style="padding: 6px 0; color: #1e293b; text-align: right; font-family: monospace;">${data.userEmail}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #64748b; font-weight: bold;">MOBILE PHONE:</td>
+            <td style="padding: 6px 0; color: #1e293b; text-align: right;">${data.userMobile}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #64748b; font-weight: bold;">UPI UTR / REF NO:</td>
+            <td style="padding: 6px 0; color: #0f766e; font-weight: 900; text-align: right; font-family: monospace; font-size: 14px;">${data.utr}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #64748b; font-weight: bold;">ORDER ID:</td>
+            <td style="padding: 6px 0; color: #1e293b; text-align: right; font-family: monospace;">${data.orderId}</td>
+          </tr>
+        </table>
+      </div>
+      <p style="font-size: 14px; color: #475569; line-height: 1.6;">
+        <b>Action Required:</b> Please log in to your Admin Panel, check your bank account statement for a matching deposit of ₹${data.amount} from this customer/UTR, and approve or reject the request.
+      </p>
+      <div style="text-align: center; margin: 30px 0 10px;">
+        <a href="https://www.krishnamedicose.in/admin/medicine-data" style="background-color: #0d9488; color: #ffffff; text-decoration: none; padding: 12px 30px; border-radius: 8px; font-weight: bold; font-size: 14px; display: inline-block;">Open Admin Panel</a>
+      </div>
+    </div>
+  `;
+
+  return sendEmail({
+    to: process.env.ADMIN_EMAIL || "amanyadavu65@gmail.com",
+    subject: `[ACTION REQUIRED] New UPI Verification - UTR: ${data.utr}`,
+    html,
+  });
+};
+
+const sendBundleActivationCodeEmail = async (email, name, code) => {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background-color: #ffffff;">
+      <h2 style="color: #0d9488; border-bottom: 2px solid #f0fdfa; padding-bottom: 10px;">Activate Your Medicine Dataset Access</h2>
+      <p style="font-size: 14px; color: #475569; line-height: 1.6;">
+        Hello ${name},<br><br>
+        Your account for the <b>Medicine Market Intel Bundle</b> has been approved!
+      </p>
+      <div style="background-color: #f0fdfa; border: 1px dashed #0d9488; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
+        <p style="margin: 0; font-size: 12px; color: #0f766e; font-weight: bold; text-transform: uppercase; tracking-wider;">YOUR 6-DIGIT ACTIVATION CODE</p>
+        <h1 style="margin: 10px 0 0; font-size: 36px; color: #0d9488; letter-spacing: 6px; font-family: monospace; font-weight: 900;">${code}</h1>
+      </div>
+      <p style="font-size: 14px; color: #475569; line-height: 1.6;">
+        Copy the activation code above, return to your checkout activation window on our website, and submit it to unlock your access.
+      </p>
+      <div style="text-align: center; margin: 30px 0 10px;">
+        <a href="https://www.krishnamedicose.in/medicine-data" style="background-color: #0d9488; color: #ffffff; text-decoration: none; padding: 12px 30px; border-radius: 8px; font-weight: bold; font-size: 14px; display: inline-block;">Go to Activation Page</a>
+      </div>
+    </div>
+  `;
+
+  return sendEmail({
+    to: email,
+    subject: `Activation Code: ${code} - Krishna Medicose`,
+    html,
+  });
+};
+
 module.exports = {
   sendEmail,
   sendConfirmationEmail,
@@ -651,5 +731,6 @@ module.exports = {
   sendBundleAdminNotification,
   sendBundleOtpEmail,
   sendBundleUpdateNotification,
+  sendBundleUpiRequestNotification,
+  sendBundleActivationCodeEmail,
 };
-

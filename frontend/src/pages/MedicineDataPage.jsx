@@ -37,6 +37,13 @@ export default function MedicineDataPage() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
 
+  // Account Activation States (Disconnected Payment Gateway Flow)
+  const [showActivationForm, setShowActivationForm] = useState(false);
+  const [activationEmail, setActivationEmail] = useState("");
+  const [activationCodeInput, setActivationCodeInput] = useState("");
+  const [activationLoading, setActivationLoading] = useState(false);
+  const [activationError, setActivationError] = useState("");
+
   // Login & Verification States
   const [loginEmail, setLoginEmail] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
@@ -67,6 +74,10 @@ export default function MedicineDataPage() {
   const [dataError, setDataError] = useState("");
   const [isBlurred, setIsBlurred] = useState(false);
 
+  // Public Preview States
+  const [previewData, setPreviewData] = useState([]);
+  const [previewLoading, setPreviewLoading] = useState(true);
+
   // Fetch dynamic bundle price from backend config
   useEffect(() => {
     const fetchConfig = async () => {
@@ -82,6 +93,23 @@ export default function MedicineDataPage() {
     };
     fetchConfig();
   }, []);
+
+  // Fetch public preview data (runs when token is not present)
+  useEffect(() => {
+    if (!token) {
+      const fetchPreview = async () => {
+        try {
+          const resp = await api.get("/medicine-bundle/preview");
+          setPreviewData(resp.data.data);
+        } catch (err) {
+          console.error("Failed to load preview:", err);
+        } finally {
+          setPreviewLoading(false);
+        }
+      };
+      fetchPreview();
+    }
+  }, [token]);
 
   // Dynamically load Cashfree SDK on mount
   useEffect(() => {
@@ -108,7 +136,11 @@ export default function MedicineDataPage() {
           headers: { Authorization: `Bearer ${token}` },
           params: { search, page, limit },
         });
-        setData(resp.data.data);
+        if (page === 1) {
+          setData(resp.data.data);
+        } else {
+          setData((prev) => [...prev, ...resp.data.data]);
+        }
         setPagination(resp.data.pagination);
       } catch (err) {
         console.error("Failed to fetch dataset:", err);
@@ -145,18 +177,30 @@ export default function MedicineDataPage() {
   useEffect(() => {
     if (!token) return;
 
-    // 1. Blur table when window loses focus or user switches tab
+    // 1. Blur table when window loses focus, user switches tab, or system overlay appears
     const handleBlur = () => setIsBlurred(true);
-    const handleFocus = () => setIsBlurred(false);
+    const handleFocus = () => {
+      if (document.hasFocus()) {
+        setIsBlurred(false);
+      }
+    };
     const handleVisibilityChange = () => {
-      if (document.hidden) {
+      if (document.hidden || !document.hasFocus()) {
         setIsBlurred(true);
       }
     };
 
     window.addEventListener("blur", handleBlur);
     window.addEventListener("focus", handleFocus);
+    window.addEventListener("focusout", handleBlur);
     document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Active polling interval to check document focus (forces blur if Snipping Tool or overlay steals focus)
+    const focusCheckInterval = setInterval(() => {
+      if (!document.hasFocus()) {
+        setIsBlurred(true);
+      }
+    }, 200);
 
     // 2. Block right-click / context menu
     const handleContextMenu = (e) => {
@@ -168,6 +212,17 @@ export default function MedicineDataPage() {
     const handleKeyDown = (e) => {
       const isCtrl = e.ctrlKey || e.metaKey;
       const isShift = e.shiftKey;
+
+      // Intercept Windows Key, PrintScreen, Command, or OS hotkeys to instantly blur screen (prevents Snipping Tool overlay)
+      if (
+        e.key === "PrintScreen" ||
+        e.key === "Meta" ||
+        e.key === "Win" ||
+        e.key === "OS" ||
+        (isCtrl && isShift && (e.key === "s" || e.key === "S"))
+      ) {
+        setIsBlurred(true);
+      }
 
       // Ctrl+C (Copy), Ctrl+S (Save), Ctrl+P (Print)
       if (
@@ -219,8 +274,10 @@ export default function MedicineDataPage() {
     document.addEventListener("dragstart", blockClipboard);
 
     return () => {
+      clearInterval(focusCheckInterval);
       window.removeEventListener("blur", handleBlur);
       window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("focusout", handleBlur);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       document.removeEventListener("contextmenu", handleContextMenu);
       document.removeEventListener("keydown", handleKeyDown);
@@ -229,6 +286,49 @@ export default function MedicineDataPage() {
       document.removeEventListener("dragstart", blockClipboard);
     };
   }, [token]);
+
+  const handleActivationSubmit = async (e) => {
+    e.preventDefault();
+    if (activationCodeInput.length !== 6) {
+      setActivationError("Please enter a valid 6-digit activation code.");
+      return;
+    }
+
+    setActivationLoading(true);
+    setActivationError("");
+
+    try {
+      const resp = await api.post("/medicine-bundle/activate", {
+        email: activationEmail,
+        code: activationCodeInput,
+      });
+
+      const { token: bundleToken, user } = resp.data;
+
+      localStorage.setItem("bundle_token", bundleToken);
+      setToken(bundleToken);
+
+      showModal({
+        title: "Activation Successful",
+        message: `Welcome, ${user.name || "User"}! Your Medicine Market Intel Bundle is now activated.`,
+        type: "success",
+        onConfirm: () => {
+          setShowActivationForm(false);
+          setActivationEmail("");
+          setActivationCodeInput("");
+          fetchData();
+        },
+      });
+    } catch (err) {
+      console.error(err);
+      setActivationError(
+        err.response?.data?.message ||
+          "Invalid activation code. Please try again.",
+      );
+    } finally {
+      setActivationLoading(false);
+    }
+  };
 
   // Checkout Initiation (Pay and Register)
   const handleCheckout = async (e) => {
@@ -241,33 +341,14 @@ export default function MedicineDataPage() {
         "/medicine-bundle/create-order",
         checkoutForm,
       );
-      const { gateway, paymentSessionId, orderId, paymentUrl, isProduction } = resp.data;
+      const { status, email } = resp.data;
 
-      if (gateway === 'INSTAMOJO' || paymentUrl) {
-        // Redirect directly to Instamojo payment request url
-        window.location.href = paymentUrl;
+      if (status === "pending") {
+        setActivationEmail(email);
+        setShowActivationForm(true);
+        setCheckoutLoading(false);
         return;
       }
-
-      if (!window.Cashfree) {
-        throw new Error(
-          "Cashfree SDK failed to load. Please refresh the page and try again.",
-        );
-      }
-
-      const cashfree = window.Cashfree({
-        mode: isProduction ? "production" : "sandbox",
-      });
-
-      let clientReturnUrl = `${window.location.origin}/medicine-data/verify-payment?order_id=${orderId}`;
-      if (isProduction && clientReturnUrl.startsWith("http://")) {
-        clientReturnUrl = clientReturnUrl.replace(/^http:\/\//, "https://");
-      }
-
-      cashfree.checkout({
-        paymentSessionId,
-        returnUrl: clientReturnUrl,
-      });
     } catch (err) {
       console.error(err);
       setCheckoutError(
@@ -326,7 +407,23 @@ export default function MedicineDataPage() {
   };
 
   // Logout Session
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      if (token) {
+        await api.post(
+          "/medicine-bundle/logout",
+          {},
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        );
+      }
+    } catch (err) {
+      console.error("Failed to notify backend logout:", err);
+    }
+
     localStorage.removeItem("bundle_token");
     localStorage.removeItem("bundle_user");
     setToken("");
@@ -337,8 +434,18 @@ export default function MedicineDataPage() {
     setData([]);
   };
 
+  // Infinite Scroll Trigger
+  const handleScroll = (e) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (scrollHeight - scrollTop <= clientHeight + 100) {
+      if (!dataLoading && pagination.page < pagination.pages) {
+        setPage((prevPage) => prevPage + 1);
+      }
+    }
+  };
+
   const bundleHighlights = [
-    "500+ most sold medicines in Indian pharmacies with salt profiles.",
+    "500+ most sold medicines in pharmacies with salt profiles.",
     "Comprehensive pricing structures (MRP, PTS, PTR) & profit margin details.",
     "Manufacturer, therapeutic class, and market share statistics.",
     "Fully structured dataset with indications and drug salt mappings.",
@@ -453,10 +560,13 @@ export default function MedicineDataPage() {
               </AnimatePresence>
 
               {/* Data Table */}
-              <div className="overflow-x-auto relative rounded-2xl border border-slate-100">
-                {dataLoading ? (
+              <div
+                onScroll={handleScroll}
+                className="overflow-auto relative rounded-2xl border border-slate-100 max-h-[650px] custom-scrollbar bg-white"
+              >
+                {dataLoading && page === 1 ? (
                   <div className="flex flex-col items-center justify-center py-32 space-y-4">
-                    <Loader2 className="w-12 h-12 text-teal-600 animate-spin" />
+                    <Loader2 className="w-12 h-12 text-teal-650 animate-spin" />
                     <p className="text-sm font-bold text-slate-500">
                       Decrypting secure dataset...
                     </p>
@@ -479,89 +589,68 @@ export default function MedicineDataPage() {
                     No matching medicine records found.
                   </div>
                 ) : (
-                  <table className="min-w-full divide-y divide-slate-100 text-left text-sm select-none">
-                    <thead>
-                      <tr className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-100">
-                        <th className="px-6 py-4">Category</th>
-                        <th className="px-6 py-4">Brand Name</th>
-                        <th className="px-6 py-4">Salt / Composition</th>
-                        <th className="px-6 py-4">Indications / Usage</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                      {data.map((row, idx) => (
-                        <tr
-                          key={idx}
-                          className="hover:bg-slate-50/50 transition-colors border-b border-slate-50"
-                        >
-                          <td className="px-6 py-4 font-bold text-xs uppercase tracking-wider text-teal-700 shrink-0">
-                            <span className="bg-teal-50 border border-teal-100 px-2 py-1 rounded-md">
-                              {row["CATEGORY"] || "N/A"}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 font-extrabold text-slate-900 font-outfit">
-                            {row["BRAND NAME"] || "N/A"}
-                          </td>
-                          <td className="px-6 py-4 text-xs font-bold font-mono text-slate-600 max-w-xs truncate">
-                            {row["SALT / COMPOSITION"] || "N/A"}
-                          </td>
-                          <td className="px-6 py-4 text-xs text-slate-500 font-bold max-w-sm leading-relaxed font-sans">
-                            {row["DETAILS / USAGE"] || "N/A"}
-                          </td>
+                  <>
+                    <table className="min-w-full divide-y divide-slate-100 text-left text-sm select-none relative">
+                      <thead className="sticky top-0 z-20 shadow-sm bg-slate-50">
+                        <tr className="text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-100 bg-slate-50 whitespace-nowrap">
+                          <th className="px-6 py-4 bg-slate-50 sticky top-0 whitespace-nowrap">
+                            Category
+                          </th>
+                          <th className="px-6 py-4 bg-slate-50 sticky top-0 whitespace-nowrap">
+                            Brand Name
+                          </th>
+                          <th className="px-6 py-4 bg-slate-50 sticky top-0 whitespace-nowrap">
+                            Salt / Composition
+                          </th>
+                          <th className="px-6 py-4 bg-slate-50 sticky top-0 whitespace-nowrap">
+                            Indications / Usage
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-medium text-slate-700 bg-white">
+                        {data.map((row, idx) => (
+                          <tr
+                            key={idx}
+                            className="hover:bg-slate-50/50 transition-colors border-b border-slate-50"
+                          >
+                            <td className="px-6 py-4 font-bold text-xs uppercase tracking-wider text-teal-700 shrink-0 whitespace-nowrap">
+                              <span className="bg-teal-50 border border-teal-100 px-2 py-1 rounded-md whitespace-nowrap">
+                                {row["CATEGORY"] || "N/A"}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 font-extrabold text-slate-900 font-outfit">
+                              {row["BRAND NAME"] || "N/A"}
+                            </td>
+                            <td className="px-6 py-4 text-xs font-bold font-mono text-slate-650 max-w-xs truncate">
+                              {row["SALT / COMPOSITION"] || "N/A"}
+                            </td>
+                            <td className="px-6 py-4 text-xs text-slate-500 font-bold max-w-sm leading-relaxed font-sans">
+                              {row["DETAILS / USAGE"] || "N/A"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    {dataLoading && page > 1 && (
+                      <div className="flex justify-center items-center py-4 border-t border-slate-100 bg-white sticky bottom-0 z-10 shadow-md">
+                        <Loader2 className="w-5 h-5 text-teal-600 animate-spin mr-2" />
+                        <span className="text-xs font-bold text-slate-500">
+                          Loading more medicines...
+                        </span>
+                      </div>
+                    )}
+
+                    {!dataLoading &&
+                      page === pagination.pages &&
+                      data.length > 0 && (
+                        <div className="text-center text-[10px] font-extrabold text-slate-400 py-4 border-t border-slate-100 bg-slate-50/50 uppercase tracking-widest">
+                          All medicines loaded successfully
+                        </div>
+                      )}
+                  </>
                 )}
               </div>
-
-              {/* Pagination Controls */}
-              {!dataLoading && !dataError && pagination.pages > 1 && (
-                <div className="flex items-center justify-between border-t border-slate-100 pt-8 mt-6">
-                  <p className="text-xs text-slate-500 font-bold">
-                    Showing{" "}
-                    <span className="text-slate-800 font-black">
-                      {(pagination.page - 1) * pagination.limit + 1}
-                    </span>{" "}
-                    to{" "}
-                    <span className="text-slate-800 font-black">
-                      {Math.min(
-                        pagination.page * pagination.limit,
-                        pagination.total,
-                      )}
-                    </span>{" "}
-                    of{" "}
-                    <span className="text-slate-800 font-black">
-                      {pagination.total}
-                    </span>{" "}
-                    items
-                  </p>
-
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => setPage((p) => Math.max(p - 1, 1))}
-                      disabled={page === 1}
-                      className="px-5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-650 hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none active:scale-95 transition-all"
-                    >
-                      Previous
-                    </button>
-
-                    <span className="text-xs font-extrabold text-slate-700">
-                      Page {page} of {pagination.pages}
-                    </span>
-
-                    <button
-                      onClick={() =>
-                        setPage((p) => Math.min(p + 1, pagination.pages))
-                      }
-                      disabled={page === pagination.pages}
-                      className="px-5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-650 hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none active:scale-95 transition-all"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           </motion.div>
         ) : (
@@ -584,7 +673,7 @@ export default function MedicineDataPage() {
                 </h1>
                 <p className="text-base lg:text-lg text-slate-650 mt-4 leading-relaxed font-medium">
                   Gain competitive intelligence on pharmaceuticals sold most in
-                  Indian pharmacies. Build models, optimize stock, and check
+                  pharmacies. Build models, optimize stock, and check
                   distributor wholesale rates.
                 </p>
               </div>
@@ -660,112 +749,209 @@ export default function MedicineDataPage() {
                 </div>
 
                 {/* TAB 1: PURCHASE / CHECKOUT */}
-                {activeTab === "purchase" && (
-                  <div className="space-y-6">
-                    <div className="text-center pb-6 border-b border-slate-100">
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2">
-                        Lifetime Access
-                      </p>
-                      <div className="flex items-baseline justify-center gap-2">
-                        <span className="text-5xl font-black text-slate-900 font-outfit">
-                          ₹{price}
-                        </span>
-                        <span className="text-sm font-bold text-slate-400">
-                          one-time payment
-                        </span>
+                {activeTab === "purchase" &&
+                  (showActivationForm ? (
+                    <div className="space-y-6">
+                      <div className="text-center pb-6 border-b border-slate-100">
+                        <Lock className="w-8 h-8 text-amber-500 mx-auto mb-2 animate-pulse" />
+                        <h3 className="font-black font-outfit text-slate-900 text-lg">
+                          Activation Pending
+                        </h3>
+                        <p className="text-[11px] text-slate-500 font-bold mt-1 max-w-[240px] mx-auto leading-relaxed">
+                          Your account has been registered. Enter the 6-digit
+                          activation code to unlock.
+                        </p>
                       </div>
-                    </div>
 
-                    <form onSubmit={handleCheckout} className="space-y-5">
-                      <div>
-                        <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-600 mb-2 ml-2">
-                          Your Name
-                        </label>
-                        <div className="relative group">
-                          <User className="absolute left-5 top-1/2 -translate-y-1/2 w-4 lg:w-5 h-4 lg:h-5 text-slate-400 group-focus-within:text-teal-650 transition-colors" />
+                      <form
+                        onSubmit={handleActivationSubmit}
+                        className="space-y-5"
+                      >
+                        <div>
+                          <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-650 mb-2 ml-2">
+                            6-Digit Activation Code
+                          </label>
                           <input
                             type="text"
                             required
-                            placeholder="John Doe"
-                            value={checkoutForm.name}
+                            maxLength={6}
+                            minLength={6}
+                            placeholder="Enter Code (e.g. 123456)"
+                            value={activationCodeInput}
                             onChange={(e) =>
-                              setCheckoutForm({
-                                ...checkoutForm,
-                                name: e.target.value,
-                              })
+                              setActivationCodeInput(
+                                e.target.value.replace(/[^0-9]/g, ""),
+                              )
                             }
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 pl-12 pr-6 focus:outline-none focus:border-teal-500 focus:bg-white transition-all font-bold text-slate-800 text-sm"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 px-6 focus:outline-none focus:border-teal-500 focus:bg-white transition-all font-mono font-bold text-center text-slate-800 text-sm tracking-[0.2em]"
                           />
                         </div>
-                      </div>
 
-                      <div>
-                        <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-600 mb-2 ml-2">
-                          Email Address
-                        </label>
-                        <div className="relative group">
-                          <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-4 lg:w-5 h-4 lg:h-5 text-slate-400 group-focus-within:text-teal-650 transition-colors" />
-                          <input
-                            type="email"
-                            required
-                            placeholder="john@example.com"
-                            value={checkoutForm.email}
-                            onChange={(e) =>
-                              setCheckoutForm({
-                                ...checkoutForm,
-                                email: e.target.value,
-                              })
-                            }
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 pl-12 pr-6 focus:outline-none focus:border-teal-500 focus:bg-white transition-all font-bold text-slate-800 text-sm"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-600 mb-2 ml-2">
-                          Mobile Number
-                        </label>
-                        <div className="relative group">
-                          <Phone className="absolute left-5 top-1/2 -translate-y-1/2 w-4 lg:w-5 h-4 lg:h-5 text-slate-400 group-focus-within:text-teal-650 transition-colors" />
-                          <input
-                            type="tel"
-                            required
-                            placeholder="9999999999"
-                            value={checkoutForm.mobile}
-                            onChange={(e) =>
-                              setCheckoutForm({
-                                ...checkoutForm,
-                                mobile: e.target.value,
-                              })
-                            }
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 pl-12 pr-6 focus:outline-none focus:border-teal-500 focus:bg-white transition-all font-bold text-slate-800 text-sm"
-                          />
-                        </div>
-                      </div>
-
-                      {checkoutError && (
-                        <div className="p-4 bg-red-50 border border-red-200 text-red-700 text-xs font-bold rounded-xl text-center">
-                          {checkoutError}
-                        </div>
-                      )}
-
-                      <button
-                        type="submit"
-                        disabled={checkoutLoading}
-                        className="w-full btn-primary py-4 mt-2 flex items-center justify-center gap-2 group relative overflow-hidden rounded-xl lg:rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-md transition-transform active:scale-95 disabled:opacity-50"
-                      >
-                        {checkoutLoading ? (
-                          <Loader2 className="w-5 h-5 animate-spin" />
-                        ) : (
-                          <>
-                            <span>Pay & Unlock Bundle</span>
-                            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                          </>
+                        {activationError && (
+                          <div className="p-4 bg-red-50 border border-red-200 text-red-700 text-xs font-bold rounded-xl text-center">
+                            {activationError}
+                          </div>
                         )}
-                      </button>
-                    </form>
-                  </div>
-                )}
+
+                        <button
+                          type="submit"
+                          disabled={activationLoading}
+                          className="w-full btn-primary py-4 mt-2 flex items-center justify-center gap-2 group relative overflow-hidden rounded-xl lg:rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-md transition-transform active:scale-95 disabled:opacity-50"
+                        >
+                          {activationLoading ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                          ) : (
+                            <>
+                              <span>Activate Account</span>
+                              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                            </>
+                          )}
+                        </button>
+                      </form>
+
+                      <div className="pt-6 border-t border-slate-100 space-y-4">
+                        <div className="text-center">
+                          <p className="text-[11px] text-slate-450 font-bold">
+                            Don't have an activation code yet?
+                          </p>
+                        </div>
+                        <a
+                          href={`https://wa.me/918882948667?text=${encodeURIComponent(
+                            `Hello! I am interested in purchasing the Medicine Market Intel Bundle. My email is ${activationEmail}. Please coordinate with me for the payment so I can get my activation code.`,
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full flex items-center justify-center gap-2.5 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl lg:rounded-2xl font-black uppercase text-[10px] tracking-[0.15em] shadow-lg shadow-emerald-600/10 active:scale-95 transition-all text-center select-none cursor-pointer"
+                        >
+                          <svg
+                            className="w-5 h-5"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.003 5.156 5.156.003 11.471.003c3.062.001 5.939 1.19 8.106 3.359 2.168 2.168 3.359 5.048 3.358 8.111-.002 6.312-5.154 11.466-11.47 11.466-2.002-.001-3.973-.523-5.717-1.517L0 24zm6.59-4.846c1.66.986 3.288 1.48 4.877 1.48 5.27 0 9.553-4.285 9.555-9.554.001-2.553-.993-4.954-2.797-6.76C16.48 2.513 14.083 1.518 11.53 1.518c-5.271 0-9.555 4.286-9.557 9.557-.001 1.698.455 3.35 1.322 4.793L2.25 19.8l4.397-1.155.003.003.002.001-.002-.003zm9.73-5.28c-.266-.134-1.576-.78-1.82-.866-.24-.09-.417-.134-.593.134-.176.265-.68.866-.83.1.042-.153.15-.386-.118-.52-2.617-1.306-4.526-3.13-5.197-4.287-.193-.332-.02-.511.147-.677.15-.15.33-.386.495-.578.165-.192.22-.32.33-.53.11-.21.05-.39-.025-.536-.076-.147-.594-1.442-.815-1.97-.215-.52-.43-.45-.59-.458-.152-.007-.326-.008-.5-.008s-.456.067-.695.32c-.24.256-.913.896-.913 2.186 0 1.29.938 2.533 1.07 2.71 1.3 1.76 2.853 3.1 4.73 3.82.448.172.797.275 1.07.362.45.142.86.122 1.18.075.36-.052 1.116-.458 1.272-.9.156-.442.156-.82.11-1-.048-.178-.178-.266-.445-.4l-.004-.002z" />
+                          </svg>
+                          <span>Get Activation Code</span>
+                        </a>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowActivationForm(false);
+                            setActivationEmail("");
+                            setActivationCodeInput("");
+                          }}
+                          className="w-full py-3.5 bg-slate-50 border border-slate-250 text-slate-650 hover:bg-slate-100 rounded-xl lg:rounded-2xl font-bold uppercase text-[9px] tracking-wider transition-all"
+                        >
+                          Change Registration Info
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      <div className="text-center pb-6 border-b border-slate-100">
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2">
+                          Lifetime Access
+                        </p>
+                        <div className="flex items-baseline justify-center gap-2">
+                          <span className="text-5xl font-black text-slate-900 font-outfit">
+                            ₹{price}
+                          </span>
+                          <span className="text-sm font-bold text-slate-400">
+                            one-time payment
+                          </span>
+                        </div>
+                      </div>
+
+                      <form onSubmit={handleCheckout} className="space-y-5">
+                        <div>
+                          <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-600 mb-2 ml-2">
+                            Your Name
+                          </label>
+                          <div className="relative group">
+                            <User className="absolute left-5 top-1/2 -translate-y-1/2 w-4 lg:w-5 h-4 lg:h-5 text-slate-400 group-focus-within:text-teal-650 transition-colors" />
+                            <input
+                              type="text"
+                              required
+                              placeholder="John Doe"
+                              value={checkoutForm.name}
+                              onChange={(e) =>
+                                setCheckoutForm({
+                                  ...checkoutForm,
+                                  name: e.target.value,
+                                })
+                              }
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 pl-12 pr-6 focus:outline-none focus:border-teal-500 focus:bg-white transition-all font-bold text-slate-800 text-sm"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-600 mb-2 ml-2">
+                            Email Address
+                          </label>
+                          <div className="relative group">
+                            <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-4 lg:w-5 h-4 lg:h-5 text-slate-400 group-focus-within:text-teal-650 transition-colors" />
+                            <input
+                              type="email"
+                              required
+                              placeholder="john@example.com"
+                              value={checkoutForm.email}
+                              onChange={(e) =>
+                                setCheckoutForm({
+                                  ...checkoutForm,
+                                  email: e.target.value,
+                                })
+                              }
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 pl-12 pr-6 focus:outline-none focus:border-teal-500 focus:bg-white transition-all font-bold text-slate-800 text-sm"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-600 mb-2 ml-2">
+                            Mobile Number
+                          </label>
+                          <div className="relative group">
+                            <Phone className="absolute left-5 top-1/2 -translate-y-1/2 w-4 lg:w-5 h-4 lg:h-5 text-slate-400 group-focus-within:text-teal-650 transition-colors" />
+                            <input
+                              type="tel"
+                              required
+                              placeholder="9999999999"
+                              value={checkoutForm.mobile}
+                              onChange={(e) =>
+                                setCheckoutForm({
+                                  ...checkoutForm,
+                                  mobile: e.target.value,
+                                })
+                              }
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 pl-12 pr-6 focus:outline-none focus:border-teal-500 focus:bg-white transition-all font-bold text-slate-800 text-sm"
+                            />
+                          </div>
+                        </div>
+
+                        {checkoutError && (
+                          <div className="p-4 bg-red-50 border border-red-200 text-red-700 text-xs font-bold rounded-xl text-center">
+                            {checkoutError}
+                          </div>
+                        )}
+
+                        <button
+                          type="submit"
+                          disabled={checkoutLoading}
+                          className="w-full btn-primary py-4 mt-2 flex items-center justify-center gap-2 group relative overflow-hidden rounded-xl lg:rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-md transition-transform active:scale-95 disabled:opacity-50"
+                        >
+                          {checkoutLoading ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                          ) : (
+                            <>
+                              <span>Register & Unlock Bundle</span>
+                              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                            </>
+                          )}
+                        </button>
+                      </form>
+                    </div>
+                  ))}
 
                 {/* TAB 2: SECURE OTP LOGIN */}
                 {activeTab === "login" && (
@@ -885,6 +1071,87 @@ export default function MedicineDataPage() {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* PUBLIC DATASET PREVIEW SECTION */}
+            <div className="lg:col-span-12 bg-white border border-slate-200 rounded-[2.5rem] p-6 lg:p-8 shadow-lg space-y-6 mt-12">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-teal-50 rounded-xl flex items-center justify-center text-teal-650 shrink-0">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-base lg:text-lg text-slate-900 font-outfit">
+                      Free Dataset Preview (Sample Data)
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium">
+                      Inspect a sample of the pharmaceutical entries provided in
+                      the bundle
+                    </p>
+                  </div>
+                </div>
+                <span className="self-start sm:self-center px-3 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-800 font-extrabold text-[10px] uppercase tracking-wider rounded-lg">
+                  Public Preview
+                </span>
+              </div>
+
+              {previewLoading ? (
+                <div className="flex justify-center items-center py-16">
+                  <Loader2 className="w-8 h-8 text-teal-650 animate-spin" />
+                </div>
+              ) : (
+                <div className="relative rounded-2xl border border-slate-150 overflow-hidden bg-slate-50/50">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-slate-150 text-left text-xs select-none">
+                      <thead>
+                        <tr className="bg-slate-100/80 text-[9px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-150">
+                          <th className="px-4 py-3">Category</th>
+                          <th className="px-4 py-3">Brand Name</th>
+                          <th className="px-4 py-3">Salt / Composition</th>
+                          <th className="px-4 py-3">Indications / Usage</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-150 font-medium text-slate-650 bg-white">
+                        {previewData.map((row, idx) => (
+                          <tr
+                            key={idx}
+                            className="hover:bg-slate-50/50 transition-colors"
+                          >
+                            <td className="px-4 py-3.5 whitespace-nowrap font-bold text-slate-800">
+                              {row["CATEGORY"] || "N/A"}
+                            </td>
+                            <td className="px-4 py-3.5 whitespace-nowrap font-extrabold text-teal-700 font-outfit">
+                              {row["BRAND NAME"] || "N/A"}
+                            </td>
+                            <td className="px-4 py-3.5 text-slate-700 font-mono text-[11px]">
+                              {row["SALT / COMPOSITION"] || "N/A"}
+                            </td>
+                            <td className="px-4 py-3.5 text-[11px] leading-relaxed max-w-xs truncate">
+                              {row["DETAILS / USAGE"] || "N/A"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Teaser CTA overlay at the bottom */}
+                  <div className="absolute bottom-0 inset-x-0 h-28 bg-gradient-to-t from-white via-white/95 to-transparent flex flex-col items-center justify-end pb-4 pt-10">
+                    <p className="text-[11px] font-extrabold text-slate-700 mb-2">
+                      Showing 5 of 10,000+ active medicine records.
+                    </p>
+                    <button
+                      onClick={() => {
+                        setActiveTab("purchase");
+                        window.scrollTo({ top: 300, behavior: "smooth" });
+                      }}
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-black uppercase text-[9px] tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
+                    >
+                      Unlock Full Intel Access
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -77,7 +77,7 @@ export default function CustomModal({
                     </button>
                     <button
                       onClick={() => { onConfirm(); onClose(); }}
-                      className="flex-1 py-4 rounded-2xl bg-teal-650 text-white font-extrabold uppercase tracking-widest hover:bg-teal-700 transition-all shadow-md"
+                      className="flex-1 py-4 rounded-2xl bg-teal-600 text-white font-extrabold uppercase tracking-widest hover:bg-teal-700 transition-all shadow-md"
                     >
                       {confirmText}
                     </button>
