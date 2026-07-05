@@ -117,7 +117,7 @@ router.post('/create-order', async (req, res) => {
         ? 'https://www.instamojo.com/api/1.1'
         : 'https://test.instamojo.com/api/1.1';
 
-      const instamojoResponse = await fetch(`${INSTAMOJO_BASE_URL}/payment-requests/`, {
+      let instamojoResponse = await fetch(`${INSTAMOJO_BASE_URL}/payment-requests/`, {
         method: 'POST',
         headers: {
           'X-Api-Key': process.env.INSTAMOJO_PRIVATE_API_KEY,
@@ -127,7 +127,32 @@ router.post('/create-order', async (req, res) => {
         body: instamojoParams.toString()
       });
 
-      const instamojoData = await instamojoResponse.json();
+      let instamojoData = await instamojoResponse.json();
+
+      // If unauthorized or invalid token, automatically try the alternative (sandbox vs production) environment
+      if (!instamojoResponse.ok && (instamojoData.message === 'Invalid Auth Token.' || instamojoData.message === 'Invalid API Key.' || instamojoResponse.status === 401)) {
+        const ALT_BASE_URL = INSTAMOJO_BASE_URL.includes('test')
+          ? 'https://www.instamojo.com/api/1.1'
+          : 'https://test.instamojo.com/api/1.1';
+        
+        console.warn(`Instamojo credentials rejected on ${INSTAMOJO_BASE_URL}. Retrying request with alternative gateway URL: ${ALT_BASE_URL}`);
+        
+        const altResponse = await fetch(`${ALT_BASE_URL}/payment-requests/`, {
+          method: 'POST',
+          headers: {
+            'X-Api-Key': process.env.INSTAMOJO_PRIVATE_API_KEY,
+            'X-Auth-Token': process.env.INSTAMOJO_PRIVATE_AUTH_TOKEN,
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: instamojoParams.toString()
+        });
+
+        const altData = await altResponse.json();
+        if (altResponse.ok) {
+          instamojoResponse = altResponse;
+          instamojoData = altData;
+        }
+      }
 
       if (!instamojoResponse.ok) {
         console.error('Instamojo creation failure response:', instamojoData);
@@ -181,7 +206,7 @@ router.post('/verify-payment', async (req, res) => {
         ? 'https://www.instamojo.com/api/1.1'
         : 'https://test.instamojo.com/api/1.1';
 
-      const imResponse = await fetch(`${INSTAMOJO_BASE_URL}/payment-requests/${paymentRequestId}/`, {
+      let imResponse = await fetch(`${INSTAMOJO_BASE_URL}/payment-requests/${paymentRequestId}/`, {
         method: 'GET',
         headers: {
           'X-Api-Key': process.env.INSTAMOJO_PRIVATE_API_KEY,
@@ -189,7 +214,30 @@ router.post('/verify-payment', async (req, res) => {
         }
       });
 
-      const imData = await imResponse.json();
+      let imData = await imResponse.json();
+
+      // If unauthorized, retry verification with the alternative environment URL
+      if (!imResponse.ok && (imData.message === 'Invalid Auth Token.' || imData.message === 'Invalid API Key.' || imResponse.status === 401)) {
+        const ALT_BASE_URL = INSTAMOJO_BASE_URL.includes('test')
+          ? 'https://www.instamojo.com/api/1.1'
+          : 'https://test.instamojo.com/api/1.1';
+
+        console.warn(`Instamojo credentials rejected during verification on ${INSTAMOJO_BASE_URL}. Retrying with alternative URL: ${ALT_BASE_URL}`);
+
+        const altResponse = await fetch(`${ALT_BASE_URL}/payment-requests/${paymentRequestId}/`, {
+          method: 'GET',
+          headers: {
+            'X-Api-Key': process.env.INSTAMOJO_PRIVATE_API_KEY,
+            'X-Auth-Token': process.env.INSTAMOJO_PRIVATE_AUTH_TOKEN
+          }
+        });
+
+        const altData = await altResponse.json();
+        if (altResponse.ok) {
+          imResponse = altResponse;
+          imData = altData;
+        }
+      }
 
       if (!imResponse.ok) {
         console.error('Instamojo verification error:', imData);
