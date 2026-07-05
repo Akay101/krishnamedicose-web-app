@@ -153,6 +153,10 @@ router.post('/create-order', async (req, res) => {
 
     // Fallback to Instamojo
     try {
+      if (!process.env.INSTAMOJO_PRIVATE_API_KEY || !process.env.INSTAMOJO_PRIVATE_AUTH_TOKEN) {
+        throw new Error('Instamojo API Key or Auth Token is not configured in the server environment variables.');
+      }
+
       let instamojoReturnUrl = `${origin.replace(/\/$/, '')}/medicine-data/verify-payment`;
       
       const instamojoParams = new URLSearchParams();
