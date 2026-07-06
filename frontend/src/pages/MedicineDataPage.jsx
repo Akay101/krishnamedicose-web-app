@@ -15,7 +15,9 @@ import {
   Key,
   LogOut,
   RefreshCw,
-  AlertTriangle,
+  SlidersHorizontal,
+  Filter,
+  X,
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import InteractiveBackground from "../components/InteractiveBackground";
@@ -55,12 +57,17 @@ export default function MedicineDataPage() {
 
   // Secure Session & Data States
   const [token, setToken] = useState(
-    localStorage.getItem("bundle_token") || "",
+    localStorage.getItem("bundle_token") || ""
   );
   const [currentUser, setCurrentUser] = useState(
-    JSON.parse(localStorage.getItem("bundle_user")) || null,
+    JSON.parse(localStorage.getItem("bundle_user")) || null
   );
   const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [brandNameFilter, setBrandNameFilter] = useState("");
+  const [saltFilter, setSaltFilter] = useState("");
+  const [categories, setCategories] = useState([]);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [page, setPage] = useState(1);
   const [limit] = useState(50);
   const [data, setData] = useState([]);
@@ -87,7 +94,7 @@ export default function MedicineDataPage() {
       } catch (err) {
         console.error(
           "Failed to fetch medicine bundle configuration amount:",
-          err,
+          err
         );
       }
     };
@@ -124,7 +131,7 @@ export default function MedicineDataPage() {
     };
   }, []);
 
-  // Fetch secure dataset (runs when token changes or page/search changes)
+  // Fetch secure dataset (runs when token changes or search/filter parameters change)
   useEffect(() => {
     if (!token) return;
 
@@ -134,12 +141,22 @@ export default function MedicineDataPage() {
       try {
         const resp = await api.get("/medicine-bundle/data", {
           headers: { Authorization: `Bearer ${token}` },
-          params: { search, page, limit },
+          params: {
+            search,
+            category: categoryFilter,
+            brandName: brandNameFilter,
+            saltComposition: saltFilter,
+            page,
+            limit,
+          },
         });
         if (page === 1) {
           setData(resp.data.data);
         } else {
           setData((prev) => [...prev, ...resp.data.data]);
+        }
+        if (resp.data.categories) {
+          setCategories(resp.data.categories);
         }
         setPagination(resp.data.pagination);
       } catch (err) {
@@ -163,15 +180,16 @@ export default function MedicineDataPage() {
       }
     };
 
+    const isTyping = search || brandNameFilter || saltFilter;
     const delayDebounce = setTimeout(
       () => {
         fetchDataset();
       },
-      search ? 400 : 0,
+      isTyping ? 400 : 0
     ); // Debounce search requests
 
     return () => clearTimeout(delayDebounce);
-  }, [token, search, page]);
+  }, [token, search, categoryFilter, brandNameFilter, saltFilter, page]);
 
   // Anti-Theft Event Handlers (Focus Loss, Keydown, Right-click)
   useEffect(() => {
@@ -192,15 +210,16 @@ export default function MedicineDataPage() {
 
     window.addEventListener("blur", handleBlur);
     window.addEventListener("focus", handleFocus);
-    window.addEventListener("focusout", handleBlur);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
-    // Active polling interval to check document focus (forces blur if Snipping Tool or overlay steals focus)
+    // Active polling interval to check document focus (forces blur if Snipping Tool or overlay steals focus, restores focus when active)
     const focusCheckInterval = setInterval(() => {
-      if (!document.hasFocus()) {
+      if (document.hasFocus()) {
+        setIsBlurred(false);
+      } else {
         setIsBlurred(true);
       }
-    }, 200);
+    }, 250);
 
     // 2. Block right-click / context menu
     const handleContextMenu = (e) => {
@@ -277,7 +296,6 @@ export default function MedicineDataPage() {
       clearInterval(focusCheckInterval);
       window.removeEventListener("blur", handleBlur);
       window.removeEventListener("focus", handleFocus);
-      window.removeEventListener("focusout", handleBlur);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       document.removeEventListener("contextmenu", handleContextMenu);
       document.removeEventListener("keydown", handleKeyDown);
@@ -323,7 +341,7 @@ export default function MedicineDataPage() {
       console.error(err);
       setActivationError(
         err.response?.data?.message ||
-          "Invalid activation code. Please try again.",
+          "Invalid activation code. Please try again."
       );
     } finally {
       setActivationLoading(false);
@@ -339,7 +357,7 @@ export default function MedicineDataPage() {
     try {
       const resp = await api.post(
         "/medicine-bundle/create-order",
-        checkoutForm,
+        checkoutForm
       );
       const { status, email } = resp.data;
 
@@ -354,7 +372,7 @@ export default function MedicineDataPage() {
       setCheckoutError(
         err.response?.data?.message ||
           err.message ||
-          "Payment initiation failed. Please try again.",
+          "Payment initiation failed. Please try again."
       );
       setCheckoutLoading(false);
     }
@@ -399,7 +417,7 @@ export default function MedicineDataPage() {
     } catch (err) {
       console.error(err);
       setVerificationError(
-        err.response?.data?.message || "Verification failed.",
+        err.response?.data?.message || "Verification failed."
       );
     } finally {
       setVerificationLoading(false);
@@ -417,7 +435,7 @@ export default function MedicineDataPage() {
             headers: {
               Authorization: `Bearer ${token}`,
             },
-          },
+          }
         );
       }
     } catch (err) {
@@ -475,31 +493,43 @@ export default function MedicineDataPage() {
             className="space-y-6"
           >
             {/* Control Dashboard */}
-            <div className="bg-white border border-slate-200 rounded-[2rem] p-6 lg:p-8 shadow-lg flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-teal-50 rounded-2xl flex items-center justify-center text-teal-600 shrink-0">
-                  <ShieldCheck className="w-6 h-6 animate-pulse" />
+            <div className="bg-white border border-slate-200 rounded-[2rem] p-6 lg:p-8 shadow-lg space-y-6">
+              {/* Top Row: User details and Exit */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-100 pb-5">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-teal-50 rounded-2xl flex items-center justify-center text-teal-600 shrink-0">
+                    <ShieldCheck className="w-6 h-6 animate-pulse" />
+                  </div>
+                  <div>
+                    <h2 className="font-black text-xl font-outfit text-slate-900 flex items-center gap-2">
+                      Secure Viewer
+                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-800 font-bold uppercase tracking-wider">
+                        Active Session
+                      </span>
+                    </h2>
+                    <p className="text-xs text-slate-500 font-bold">
+                      Authenticated User:{" "}
+                      <span className="text-slate-800 font-extrabold">
+                        {currentUser.email}
+                      </span>
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="font-black text-xl font-outfit text-slate-900 flex items-center gap-2">
-                    Secure Viewer
-                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-800 font-bold uppercase tracking-wider">
-                      Active Session
-                    </span>
-                  </h2>
-                  <p className="text-xs text-slate-500 font-bold">
-                    Authenticated User:{" "}
-                    <span className="text-slate-800 font-extrabold">
-                      {currentUser.email}
-                    </span>
-                  </p>
-                </div>
+
+                <button
+                  onClick={handleLogout}
+                  className="w-full md:w-auto px-6 py-3 rounded-2xl border border-red-200 text-red-650 hover:bg-red-50 font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-95 shrink-0"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Exit Session</span>
+                </button>
               </div>
 
-              {/* Search & Actions */}
-              <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
-                <div className="relative w-full sm:w-80 group">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-teal-600 transition-colors" />
+              {/* Filters Row */}
+              <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-4">
+                {/* General Search */}
+                <div className="relative flex-1 group">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-teal-650 transition-colors" />
                   <input
                     type="text"
                     value={search}
@@ -507,19 +537,170 @@ export default function MedicineDataPage() {
                       setSearch(e.target.value);
                       setPage(1);
                     }}
-                    placeholder="Search medicines or composition..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 pl-11 pr-4 focus:outline-none focus:border-teal-500 focus:bg-white transition-all font-bold text-slate-800 text-sm"
+                    placeholder="Search brand, composition or usage..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 pl-11 pr-4 focus:outline-none focus:border-teal-500 focus:bg-white transition-all font-bold text-slate-800 text-sm shadow-sm"
                   />
                 </div>
 
-                <button
-                  onClick={handleLogout}
-                  className="w-full sm:w-auto px-6 py-3 rounded-2xl border border-red-200 text-red-600 hover:bg-red-50 font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-95"
+                {/* Category Filter */}
+                <div className="relative w-full lg:w-72">
+                  <Filter className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => {
+                      setCategoryFilter(e.target.value);
+                      setPage(1);
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 pl-11 pr-10 focus:outline-none focus:border-teal-500 focus:bg-white transition-all font-bold text-slate-850 text-sm appearance-none cursor-pointer shadow-sm"
+                  >
+                    <option value="">All Categories</option>
+                    {categories.map((cat, idx) => (
+                      <option key={idx} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none w-4 h-4 text-slate-400 flex items-center justify-center">
+                    <span className="text-[10px]">▼</span>
+                  </div>
+                </div>
+
+                {/* Advanced toggle */}
+                {/* <button
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  className={`px-5 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 border transition-all active:scale-95 ${
+                    showAdvancedFilters
+                      ? "bg-teal-50 border-teal-200 text-teal-700 shadow-sm"
+                      : "bg-white border-slate-200 text-slate-650 hover:bg-slate-50"
+                  }`}
                 >
-                  <LogOut className="w-4 h-4" />
-                  <span>Exit Session</span>
-                </button>
+                  <SlidersHorizontal className="w-4 h-4" />
+                  <span>Filters</span>
+                </button> */}
               </div>
+
+              {/* Advanced Filter Inputs */}
+              <AnimatePresence>
+                {showAdvancedFilters && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-100">
+                      <div>
+                        <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-650 mb-2 ml-2">
+                          Filter by Brand Name
+                        </label>
+                        <input
+                          type="text"
+                          value={brandNameFilter}
+                          onChange={(e) => {
+                            setBrandNameFilter(e.target.value);
+                            setPage(1);
+                          }}
+                          placeholder="e.g. Paracetamol, Amoxicillin..."
+                          className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-4 focus:outline-none focus:border-teal-500 focus:bg-white transition-all font-bold text-slate-800 text-sm shadow-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-650 mb-2 ml-2">
+                          Filter by Salt / Composition
+                        </label>
+                        <input
+                          type="text"
+                          value={saltFilter}
+                          onChange={(e) => {
+                            setSaltFilter(e.target.value);
+                            setPage(1);
+                          }}
+                          placeholder="e.g. Ibuprofen, Calcium..."
+                          className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-4 focus:outline-none focus:border-teal-500 focus:bg-white transition-all font-bold text-slate-800 text-sm shadow-sm"
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Active Badges */}
+              {(search || categoryFilter || brandNameFilter || saltFilter) && (
+                <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-slate-100">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mr-2">
+                    Active Filters:
+                  </span>
+                  {search && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs">
+                      <span>Search: {search}</span>
+                      <button
+                        onClick={() => {
+                          setSearch("");
+                          setPage(1);
+                        }}
+                        className="w-3.5 h-3.5 rounded-full hover:bg-slate-200 flex items-center justify-center text-slate-500"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </span>
+                  )}
+                  {categoryFilter && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-50 text-teal-700 border border-teal-200/50 font-bold text-xs">
+                      <span>Category: {categoryFilter}</span>
+                      <button
+                        onClick={() => {
+                          setCategoryFilter("");
+                          setPage(1);
+                        }}
+                        className="w-3.5 h-3.5 rounded-full hover:bg-teal-200/50 flex items-center justify-center text-teal-650"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </span>
+                  )}
+                  {brandNameFilter && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-100 font-bold text-xs">
+                      <span>Brand: {brandNameFilter}</span>
+                      <button
+                        onClick={() => {
+                          setBrandNameFilter("");
+                          setPage(1);
+                        }}
+                        className="w-3.5 h-3.5 rounded-full hover:bg-indigo-100 flex items-center justify-center text-indigo-500"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </span>
+                  )}
+                  {saltFilter && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50 text-sky-700 border border-sky-100 font-bold text-xs">
+                      <span>Composition: {saltFilter}</span>
+                      <button
+                        onClick={() => {
+                          setSaltFilter("");
+                          setPage(1);
+                        }}
+                        className="w-3.5 h-3.5 rounded-full hover:bg-sky-100 flex items-center justify-center text-sky-500"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </span>
+                  )}
+                  <button
+                    onClick={() => {
+                      setSearch("");
+                      setCategoryFilter("");
+                      setBrandNameFilter("");
+                      setSaltFilter("");
+                      setPage(1);
+                    }}
+                    className="text-xs font-black text-red-600 hover:text-red-700 underline uppercase tracking-wider ml-auto cursor-pointer"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Secure Data Grid Container */}
@@ -543,7 +724,13 @@ export default function MedicineDataPage() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl z-40 flex flex-col items-center justify-center text-center p-8 select-none"
+                    onClick={() => {
+                      window.focus();
+                      if (document.hasFocus()) {
+                        setIsBlurred(false);
+                      }
+                    }}
+                    className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl z-40 flex flex-col items-center justify-center text-center p-8 select-none cursor-pointer"
                   >
                     <div className="w-16 h-16 bg-white/10 rounded-full border border-white/20 flex items-center justify-center text-white mb-4">
                       <Lock className="w-8 h-8 animate-bounce" />
@@ -733,7 +920,7 @@ export default function MedicineDataPage() {
                   <div className="w-12 h-12 bg-teal-50 rounded-2xl flex items-center justify-center text-teal-600 shrink-0 mt-1">
                     <FileSpreadsheet className="w-6 h-6" />
                   </div>
-                  
+
                   <div className="space-y-4 flex-1">
                     <div>
                       <h3 className="font-bold text-lg text-slate-900 font-outfit">
@@ -852,7 +1039,7 @@ export default function MedicineDataPage() {
                             value={activationCodeInput}
                             onChange={(e) =>
                               setActivationCodeInput(
-                                e.target.value.replace(/[^0-9]/g, ""),
+                                e.target.value.replace(/[^0-9]/g, "")
                               )
                             }
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 px-6 focus:outline-none focus:border-teal-500 focus:bg-white transition-all font-mono font-bold text-center text-slate-800 text-sm tracking-[0.2em]"
@@ -889,7 +1076,7 @@ export default function MedicineDataPage() {
                         </div>
                         <a
                           href={`https://wa.me/918882948667?text=${encodeURIComponent(
-                            `Hello! I am interested in purchasing the Medicine Market Intel Bundle. My email is ${activationEmail}. Please coordinate with me for the payment so I can get my activation code.`,
+                            `Hello! I am interested in purchasing the Medicine Market Intel Bundle. My email is ${activationEmail}. Please coordinate with me for the payment so I can get my activation code.`
                           )}`}
                           target="_blank"
                           rel="noopener noreferrer"

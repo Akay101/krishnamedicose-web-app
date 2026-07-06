@@ -12,6 +12,9 @@ import {
   Lock,
   Search,
   RefreshCw,
+  SlidersHorizontal,
+  Filter,
+  X,
 } from "lucide-react";
 import api from "../utils/api";
 import { useModal } from "../context/ModalContext";
@@ -29,6 +32,72 @@ export default function MedicineDataManager() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [search, setSearch] = useState("");
   const [sendEmailMap, setSendEmailMap] = useState({});
+
+  // Medicine Preview States
+  const [medicineData, setMedicineData] = useState([]);
+  const [medicineCategories, setMedicineCategories] = useState([]);
+  const [medicineSearch, setMedicineSearch] = useState("");
+  const [medicineCategoryFilter, setMedicineCategoryFilter] = useState("");
+  const [medicineBrandFilter, setMedicineBrandFilter] = useState("");
+  const [medicineSaltFilter, setMedicineSaltFilter] = useState("");
+  const [medicinePage, setMedicinePage] = useState(1);
+  const [medicinePagination, setMedicinePagination] = useState({
+    page: 1,
+    limit: 50,
+    total: 0,
+    pages: 1,
+  });
+  const [medicineLoading, setMedicineLoading] = useState(false);
+  const [medicineError, setMedicineError] = useState("");
+  const [showMedicineFilters, setShowMedicineFilters] = useState(false);
+
+  const fetchMedicineData = async () => {
+    setMedicineLoading(true);
+    setMedicineError("");
+    try {
+      const resp = await api.get("/medicine-bundle/admin/data", {
+        params: {
+          search: medicineSearch,
+          category: medicineCategoryFilter,
+          brandName: medicineBrandFilter,
+          saltComposition: medicineSaltFilter,
+          page: medicinePage,
+          limit: 50,
+        },
+      });
+      setMedicineData(resp.data.data);
+      if (resp.data.categories) {
+        setMedicineCategories(resp.data.categories);
+      }
+      setMedicinePagination(resp.data.pagination);
+    } catch (err) {
+      console.error("Failed to fetch medicine dataset:", err);
+      setMedicineError(
+        err.response?.data?.message || "Failed to load dataset preview.",
+      );
+    } finally {
+      setMedicineLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const isTyping =
+      medicineSearch || medicineBrandFilter || medicineSaltFilter;
+    const delayDebounce = setTimeout(
+      () => {
+        fetchMedicineData();
+      },
+      isTyping ? 400 : 0,
+    );
+
+    return () => clearTimeout(delayDebounce);
+  }, [
+    medicineSearch,
+    medicineCategoryFilter,
+    medicineBrandFilter,
+    medicineSaltFilter,
+    medicinePage,
+  ]);
 
   // Fetch Purchases list and Analytics stats
   const fetchData = async () => {
@@ -98,6 +167,8 @@ export default function MedicineDataManager() {
             type: "success",
           });
           fetchData();
+          setMedicinePage(1);
+          fetchMedicineData();
         } catch (err) {
           console.error("Failed to upload CSV:", err);
           showModal({
@@ -516,6 +587,277 @@ export default function MedicineDataManager() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+      </div>
+
+      {/* Medicine Dataset Preview */}
+      <div className="bg-white border border-slate-200/80 rounded-[2.5rem] p-8 lg:p-10 shadow-sm space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-5">
+          <div>
+            <h2 className="text-xl font-bold font-outfit text-slate-900 flex items-center gap-2">
+              <FileSpreadsheet className="w-5 h-5 text-teal-650" />
+              Medicine Dataset Preview
+            </h2>
+            <p className="text-xs text-slate-450 font-bold mt-1">
+              Verify headers mapping and inspect medicines dynamically parsed from your uploaded CSV.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowMedicineFilters(!showMedicineFilters)}
+              className={`px-4 py-2 border rounded-xl text-xs font-bold flex items-center gap-2 transition-all active:scale-95 ${
+                showMedicineFilters
+                  ? "bg-teal-50 border-teal-200 text-teal-700 font-extrabold shadow-sm"
+                  : "bg-white border-slate-200 text-slate-650 hover:bg-slate-50 font-extrabold"
+              }`}
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              <span>Filter Panel</span>
+            </button>
+
+            <button
+              onClick={fetchMedicineData}
+              className="p-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-all cursor-pointer"
+              title="Refresh Medicine List"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Filter Toolbar */}
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col md:flex-row gap-4 items-stretch">
+            {/* General Search */}
+            <div className="relative group flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-teal-650 transition-colors" />
+              <input
+                type="text"
+                value={medicineSearch}
+                onChange={(e) => {
+                  setMedicineSearch(e.target.value);
+                  setMedicinePage(1);
+                }}
+                placeholder="General search (brand, category, composition)..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 pl-11 pr-4 focus:outline-none focus:border-teal-500 focus:bg-white transition-all font-bold text-slate-800 text-xs"
+              />
+            </div>
+
+            {/* Category Dropdown */}
+            <div className="relative w-full md:w-64">
+              <Filter className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <select
+                value={medicineCategoryFilter}
+                onChange={(e) => {
+                  setMedicineCategoryFilter(e.target.value);
+                  setMedicinePage(1);
+                }}
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 pl-11 pr-10 focus:outline-none focus:border-teal-500 focus:bg-white transition-all font-bold text-slate-850 text-xs appearance-none cursor-pointer"
+              >
+                <option value="">All Categories</option>
+                {medicineCategories.map((cat, idx) => (
+                  <option key={idx} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none w-4 h-4 text-slate-400 flex items-center justify-center">
+                <span className="text-[10px]">▼</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Advanced Inputs */}
+          {showMedicineFilters && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
+              <div>
+                <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-550 mb-2 ml-2">
+                  Specific Brand Name Filter
+                </label>
+                <input
+                  type="text"
+                  value={medicineBrandFilter}
+                  onChange={(e) => {
+                    setMedicineBrandFilter(e.target.value);
+                    setMedicinePage(1);
+                  }}
+                  placeholder="e.g. Paracetamol..."
+                  className="w-full bg-white border border-slate-200 rounded-xl py-2 px-4 focus:outline-none focus:border-teal-500 transition-all font-bold text-slate-800 text-xs shadow-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-550 mb-2 ml-2">
+                  Specific Salt / Composition Filter
+                </label>
+                <input
+                  type="text"
+                  value={medicineSaltFilter}
+                  onChange={(e) => {
+                    setMedicineSaltFilter(e.target.value);
+                    setMedicinePage(1);
+                  }}
+                  placeholder="e.g. Amoxicillin..."
+                  className="w-full bg-white border border-slate-200 rounded-xl py-2 px-4 focus:outline-none focus:border-teal-500 transition-all font-bold text-slate-800 text-xs shadow-sm"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Active Badges */}
+          {(medicineSearch || medicineCategoryFilter || medicineBrandFilter || medicineSaltFilter) && (
+            <div className="flex flex-wrap items-center gap-2 pt-2">
+              <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider mr-2">
+                Applied Filters:
+              </span>
+              {medicineSearch && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 text-slate-700 font-bold text-[10px]">
+                  <span>Search: {medicineSearch}</span>
+                  <button
+                    onClick={() => {
+                      setMedicineSearch("");
+                      setMedicinePage(1);
+                    }}
+                    className="w-3.5 h-3.5 rounded-full hover:bg-slate-200 flex items-center justify-center text-slate-500"
+                  >
+                    <X className="w-2 h-2" />
+                  </button>
+                </span>
+              )}
+              {medicineCategoryFilter && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-teal-50 text-teal-700 border border-teal-200/50 font-bold text-[10px]">
+                  <span>Category: {medicineCategoryFilter}</span>
+                  <button
+                    onClick={() => {
+                      setMedicineCategoryFilter("");
+                      setMedicinePage(1);
+                    }}
+                    className="w-3.5 h-3.5 rounded-full hover:bg-teal-200/50 flex items-center justify-center text-teal-650"
+                  >
+                    <X className="w-2 h-2" />
+                  </button>
+                </span>
+              )}
+              {medicineBrandFilter && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-100 font-bold text-[10px]">
+                  <span>Brand: {medicineBrandFilter}</span>
+                  <button
+                    onClick={() => {
+                      setMedicineBrandFilter("");
+                      setMedicinePage(1);
+                    }}
+                    className="w-3.5 h-3.5 rounded-full hover:bg-indigo-100 flex items-center justify-center text-indigo-500"
+                  >
+                    <X className="w-2 h-2" />
+                  </button>
+                </span>
+              )}
+              {medicineSaltFilter && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-sky-50 text-sky-700 border border-sky-100 font-bold text-[10px]">
+                  <span>Composition: {medicineSaltFilter}</span>
+                  <button
+                    onClick={() => {
+                      setMedicineSaltFilter("");
+                      setMedicinePage(1);
+                    }}
+                    className="w-3.5 h-3.5 rounded-full hover:bg-sky-100 flex items-center justify-center text-sky-500"
+                  >
+                    <X className="w-2 h-2" />
+                  </button>
+                </span>
+              )}
+              <button
+                onClick={() => {
+                  setMedicineSearch("");
+                  setMedicineCategoryFilter("");
+                  setMedicineBrandFilter("");
+                  setMedicineSaltFilter("");
+                  setMedicinePage(1);
+                }}
+                className="text-[10px] font-black text-red-600 hover:text-red-700 underline uppercase tracking-wider ml-auto cursor-pointer"
+              >
+                Clear All
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Medicines Table */}
+        {medicineLoading ? (
+          <div className="flex justify-center py-20">
+            <RefreshCw className="w-8 h-8 text-teal-650 animate-spin" />
+          </div>
+        ) : medicineError ? (
+          <div className="p-10 text-center text-red-650 font-bold text-xs">
+            {medicineError}
+          </div>
+        ) : medicineData.length === 0 ? (
+          <div className="text-center py-20 text-slate-400 font-bold text-xs bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+            No medicine records found. Apply different filter criteria or upload a valid CSV.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="overflow-x-auto rounded-2xl border border-slate-100">
+              <table className="min-w-full divide-y divide-slate-100 text-left text-xs font-medium text-slate-700 bg-white">
+                <thead className="bg-slate-50 uppercase tracking-widest text-[9px] text-slate-450 border-b border-slate-100">
+                  <tr>
+                    <th className="px-6 py-3.5">Category</th>
+                    <th className="px-6 py-3.5">Brand Name</th>
+                    <th className="px-6 py-3.5">Salt / Composition</th>
+                    <th className="px-6 py-3.5">Indications / Usage</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {medicineData.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-6 py-3">
+                        <span className="bg-teal-50 border border-teal-100 text-teal-700 font-extrabold text-[9px] uppercase tracking-wider px-2 py-0.5 rounded">
+                          {row["CATEGORY"] || "N/A"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3 font-extrabold text-slate-900 font-outfit">
+                        {row["BRAND NAME"] || "N/A"}
+                      </td>
+                      <td className="px-6 py-3 text-[10px] font-mono text-slate-500 font-bold">
+                        {row["SALT / COMPOSITION"] || "N/A"}
+                      </td>
+                      <td className="px-6 py-3 text-[10px] text-slate-450 font-bold max-w-xs truncate" title={row["DETAILS / USAGE"]}>
+                        {row["DETAILS / USAGE"] || "N/A"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            {medicinePagination.pages > 1 && (
+              <div className="flex items-center justify-between border-t border-slate-100 pt-4 flex-col sm:flex-row gap-4">
+                <span className="text-[10px] text-slate-450 font-bold">
+                  Showing page <span className="text-slate-800 font-black">{medicinePagination.page}</span> of{" "}
+                  <span className="text-slate-800 font-black">{medicinePagination.pages}</span> (Total{" "}
+                  <span className="text-slate-800 font-black">{medicinePagination.total}</span> records)
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    disabled={medicinePagination.page === 1}
+                    onClick={() => setMedicinePage((p) => p - 1)}
+                    className="px-3 py-1.5 border border-slate-200 hover:border-slate-300 rounded-lg text-[10px] font-black uppercase text-slate-650 disabled:opacity-50 disabled:cursor-not-allowed select-none active:scale-95 transition-all cursor-pointer"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    disabled={medicinePagination.page === medicinePagination.pages}
+                    onClick={() => setMedicinePage((p) => p + 1)}
+                    className="px-3 py-1.5 border border-slate-200 hover:border-slate-300 rounded-lg text-[10px] font-black uppercase text-slate-650 disabled:opacity-50 disabled:cursor-not-allowed select-none active:scale-95 transition-all cursor-pointer"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

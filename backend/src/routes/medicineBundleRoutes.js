@@ -783,6 +783,72 @@ function autoMapHeaders(csvHeaders) {
   return mapping;
 }
 
+// Helper to get parsed, filtered medicine data and unique categories list
+function getMedicineData({ searchQuery, categoryQuery, brandNameQuery, saltQuery }) {
+  const csvPath = path.resolve(__dirname, '../../assets/medicineBundle.csv');
+  if (!fs.existsSync(csvPath)) {
+    throw new Error('Medicine dataset file not found on server.');
+  }
+
+  const csvContent = fs.readFileSync(csvPath, 'utf8');
+  const lines = csvContent.split(/\r?\n/);
+  const parsedData = [];
+  const rawHeaders = lines[0] ? parseCSVRow(lines[0]).map(h => h.replace(/^--- | ---$/g, '').trim()) : [];
+  const mapping = autoMapHeaders(rawHeaders);
+
+  lines.forEach((line, index) => {
+    if (index === 0 || !line.trim()) return;
+    const row = parseCSVRow(line);
+    
+    const mappedRow = {
+      'CATEGORY': mapping.category ? (row[rawHeaders.indexOf(mapping.category)] || '') : '',
+      'BRAND NAME': mapping.brandName ? (row[rawHeaders.indexOf(mapping.brandName)] || '') : '',
+      'SALT / COMPOSITION': mapping.saltComposition ? (row[rawHeaders.indexOf(mapping.saltComposition)] || '') : '',
+      'DETAILS / USAGE': mapping.detailsUsage ? (row[rawHeaders.indexOf(mapping.detailsUsage)] || '') : ''
+    };
+    
+    // Skip boundary comments or divider headers
+    if (mappedRow['CATEGORY'] && mappedRow['CATEGORY'].startsWith('====') && !mappedRow['BRAND NAME']) {
+      return;
+    }
+    parsedData.push(mappedRow);
+  });
+
+  // Get unique categories list from entire parsed data
+  const categories = Array.from(new Set(parsedData.map(item => item['CATEGORY']).filter(Boolean))).sort();
+
+  let filteredData = parsedData;
+
+  if (categoryQuery) {
+    filteredData = filteredData.filter(item => 
+      (item['CATEGORY'] || '').toLowerCase() === categoryQuery.toLowerCase()
+    );
+  }
+
+  if (brandNameQuery) {
+    filteredData = filteredData.filter(item => 
+      (item['BRAND NAME'] || '').toLowerCase().includes(brandNameQuery.toLowerCase())
+    );
+  }
+
+  if (saltQuery) {
+    filteredData = filteredData.filter(item => 
+      (item['SALT / COMPOSITION'] || '').toLowerCase().includes(saltQuery.toLowerCase())
+    );
+  }
+
+  if (searchQuery) {
+    filteredData = filteredData.filter(item => {
+      return (item['BRAND NAME'] || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+             (item['SALT / COMPOSITION'] || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+             (item['CATEGORY'] || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+             (item['DETAILS / USAGE'] || '').toLowerCase().includes(searchQuery.toLowerCase());
+    });
+  }
+
+  return { filteredData, categories };
+}
+
 // 1. Request access OTP
 router.post('/login', async (req, res) => {
   const { email } = req.body;
@@ -899,48 +965,18 @@ router.get('/data', async (req, res) => {
       });
     }
 
-    // Read and parse CSV
-    const csvPath = path.resolve(__dirname, '../../assets/medicineBundle.csv');
-    if (!fs.existsSync(csvPath)) {
-      return res.status(404).json({ message: 'Medicine dataset file not found on server.' });
-    }
+    // Handle Search, Filtering and Pagination
+    const searchQuery = (req.query.search || '');
+    const categoryQuery = (req.query.category || '');
+    const brandNameQuery = (req.query.brandName || '');
+    const saltQuery = (req.query.saltComposition || '');
 
-    const csvContent = fs.readFileSync(csvPath, 'utf8');
-    const lines = csvContent.split(/\r?\n/);
-    const parsedData = [];
-    const rawHeaders = lines[0] ? parseCSVRow(lines[0]).map(h => h.replace(/^--- | ---$/g, '').trim()) : [];
-    const mapping = autoMapHeaders(rawHeaders);
-
-    lines.forEach((line, index) => {
-      if (index === 0 || !line.trim()) return;
-      const row = parseCSVRow(line);
-      
-      const mappedRow = {
-        'CATEGORY': mapping.category ? (row[rawHeaders.indexOf(mapping.category)] || '') : '',
-        'BRAND NAME': mapping.brandName ? (row[rawHeaders.indexOf(mapping.brandName)] || '') : '',
-        'SALT / COMPOSITION': mapping.saltComposition ? (row[rawHeaders.indexOf(mapping.saltComposition)] || '') : '',
-        'DETAILS / USAGE': mapping.detailsUsage ? (row[rawHeaders.indexOf(mapping.detailsUsage)] || '') : ''
-      };
-      
-      // Skip boundary comments or divider headers
-      if (mappedRow['CATEGORY'] && mappedRow['CATEGORY'].startsWith('====') && !mappedRow['BRAND NAME']) {
-        return;
-      }
-      parsedData.push(mappedRow);
+    const { filteredData, categories } = getMedicineData({
+      searchQuery,
+      categoryQuery,
+      brandNameQuery,
+      saltQuery
     });
-
-    // Handle Search and Pagination
-    const searchQuery = (req.query.search || '').trim().toLowerCase();
-    let filteredData = parsedData;
-
-    if (searchQuery) {
-      filteredData = parsedData.filter(item => {
-        return (item['BRAND NAME'] || '').toLowerCase().includes(searchQuery) ||
-               (item['SALT / COMPOSITION'] || '').toLowerCase().includes(searchQuery) ||
-               (item['CATEGORY'] || '').toLowerCase().includes(searchQuery) ||
-               (item['DETAILS / USAGE'] || '').toLowerCase().includes(searchQuery);
-      });
-    }
 
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 50;
@@ -953,6 +989,7 @@ router.get('/data', async (req, res) => {
 
     res.status(200).json({
       data: paginatedRows,
+      categories,
       pagination: {
         page,
         limit,
@@ -966,6 +1003,47 @@ router.get('/data', async (req, res) => {
       return res.status(401).json({ message: 'Session token invalid or expired. Please log in again.' });
     }
     res.status(500).json({ message: 'Failed to load secure data.', error: err.message });
+  }
+});
+
+// 3.5 Admin Endpoint: Fetch Medicine Data with Filters (Protected by Admin Auth Middleware)
+router.get('/admin/data', authMiddleware, async (req, res) => {
+  try {
+    // Handle Search, Filtering and Pagination
+    const searchQuery = (req.query.search || '');
+    const categoryQuery = (req.query.category || '');
+    const brandNameQuery = (req.query.brandName || '');
+    const saltQuery = (req.query.saltComposition || '');
+
+    const { filteredData, categories } = getMedicineData({
+      searchQuery,
+      categoryQuery,
+      brandNameQuery,
+      saltQuery
+    });
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const startIndex = (page - 1) * limit;
+    const endIndex = page * limit;
+
+    const paginatedRows = filteredData.slice(startIndex, endIndex);
+    const totalRows = filteredData.length;
+    const totalPages = Math.ceil(totalRows / limit);
+
+    res.status(200).json({
+      data: paginatedRows,
+      categories,
+      pagination: {
+        page,
+        limit,
+        total: totalRows,
+        pages: totalPages
+      }
+    });
+  } catch (err) {
+    console.error('Admin data fetch error:', err);
+    res.status(500).json({ message: 'Failed to load dataset for preview.', error: err.message });
   }
 });
 
