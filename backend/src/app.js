@@ -32,15 +32,56 @@ const corsOptions = {
   allowedHeaders: ["Content-Type", "Authorization"],
 };
 
+const mongoSanitize = require("express-mongo-sanitize");
+const rateLimit = require("express-rate-limit");
+
+/* ---------------- SECURITY & RATE LIMITING ---------------- */
+
+// General API Rate Limiter
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300,
+  message: {
+    message: "Too many requests from this IP, please try again later.",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Strict Auth Rate Limiter (Login, Forgot Password, Verification)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Max 10 attempts per 15 minutes
+  message: {
+    message:
+      "Too many authentication attempts. Please try again after 15 minutes.",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 /* ---------------- MIDDLEWARES ---------------- */
 
 // CORS (must be first)
 app.use(cors(corsOptions));
 
-// Handle preflight requests
-app.use(cors(corsOptions));
 app.use(cookieParser());
 app.use(express.json());
+
+// Express 5 compatible NoSQL input sanitizer
+app.use((req, res, next) => {
+  if (req.body) mongoSanitize.sanitize(req.body);
+  if (req.params) mongoSanitize.sanitize(req.params);
+  if (req.query) mongoSanitize.sanitize(req.query);
+  next();
+});
+
+// Apply rate limiters
+app.use("/api/", apiLimiter);
+app.use("/api/auth/login", authLimiter);
+app.use("/api/auth/forgot-password", authLimiter);
+app.use("/api/auth/verify-otp", authLimiter);
+app.use("/api/auth/reset-password", authLimiter);
 
 // Static uploads
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
@@ -64,7 +105,6 @@ app.use("/api/assets", assetRoutes);
 app.use("/api/offers", offerRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/medicine-bundle", medicineBundleRoutes);
-
 
 /* ---------------- HEALTH CHECK ---------------- */
 

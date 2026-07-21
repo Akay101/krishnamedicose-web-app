@@ -533,6 +533,58 @@ const sendBundleOtpEmail = async (to, otp) => {
 };
 
 /**
+ * ADMIN / USER PASSWORD RESET OTP EMAIL
+ */
+const sendOTPEmail = async (to, otp) => {
+  const html = createEmailLayout({
+    title: "Password Reset One-Time Password",
+    subtitle: "Use the code below to reset your password. If you did not request this, please secure your account immediately.",
+    content: `
+      <div style="
+        background:#f8fafc;
+        border:1px solid #e2e8f0;
+        border-radius:18px;
+        padding:30px;
+        text-align:center;
+      ">
+        <p style="
+          margin:0;
+          color:#64748b;
+          font-size:12px;
+          text-transform:uppercase;
+          letter-spacing:2px;
+          font-weight:bold;
+        ">
+          Password Reset OTP
+        </p>
+        <h1 style="
+          margin:15px 0;
+          color:#0f172a;
+          font-size:42px;
+          letter-spacing:6px;
+          font-weight:800;
+        ">
+          ${otp}
+        </h1>
+        <p style="
+          margin:0;
+          color:#94a3b8;
+          font-size:13px;
+        ">
+          This OTP is valid for 10 minutes. Do not share it with anyone.
+        </p>
+      </div>
+    `,
+  });
+
+  return sendEmail({
+    to,
+    subject: "Security Alert: Password Reset OTP - Krishna Medicose",
+    html,
+  });
+};
+
+/**
  * BUNDLE PURCHASE NOTIFICATION FOR ADMIN
  */
 const sendBundleAdminNotification = async (data) => {
@@ -572,7 +624,7 @@ const sendBundleAdminNotification = async (data) => {
   });
 
   return sendEmail({
-    to: "amanyadavu65@gmail.com",
+    to: process.env.ADMIN_EMAIL || "admin@krishnamedicose.in",
     subject: `Success: Medicine Bundle Purchased by ${data.userName}`,
     html,
   });
@@ -687,7 +739,7 @@ const sendBundleUpiRequestNotification = async (data) => {
   `;
 
   return sendEmail({
-    to: process.env.ADMIN_EMAIL || "amanyadavu65@gmail.com",
+    to: process.env.ADMIN_EMAIL || "admin@krishnamedicose.in",
     subject: `[ACTION REQUIRED] New UPI Verification - UTR: ${data.utr}`,
     html,
   });
@@ -723,6 +775,7 @@ const sendBundleActivationCodeEmail = async (email, name, code) => {
 
 module.exports = {
   sendEmail,
+  sendOTPEmail,
   sendConfirmationEmail,
   sendAdminNotification,
   sendOfferConfirmation,

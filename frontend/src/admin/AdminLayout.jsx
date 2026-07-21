@@ -10,7 +10,7 @@ export default function AdminLayout() {
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const isRootAdmin = user.email === 'amanyadavu65@gmail.com';
+  const isRootAdmin = user.role === 'admin';
 
   // Close sidebar on navigation (mobile)
   useEffect(() => {

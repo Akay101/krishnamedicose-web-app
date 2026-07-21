@@ -1,19 +1,30 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
-import AdminLayout from './admin/AdminLayout';
-import Login from './admin/Login';
-import Dashboard from './admin/Dashboard';
-import ContentEditor from './admin/ContentEditor';
-import LeadsManager from './admin/LeadsManager';
-import UsersManager from './admin/UsersManager';
-import AssetLibraryPage from './admin/AssetLibraryPage';
-import OffersManager from './admin/OffersManager';
-import MedicineDataManager from './admin/MedicineDataManager';
 import { ModalProvider } from './context/ModalContext';
 import { useAnalytics } from './hooks/useAnalytics';
 import MedicineDataPage from './pages/MedicineDataPage';
 import PaymentVerificationPage from './pages/PaymentVerificationPage';
+import { Loader2 } from 'lucide-react';
 
+// Lazy load admin pages to decouple admin source code from public bundle
+const AdminLayout = lazy(() => import('./admin/AdminLayout'));
+const Login = lazy(() => import('./admin/Login'));
+const Dashboard = lazy(() => import('./admin/Dashboard'));
+const ContentEditor = lazy(() => import('./admin/ContentEditor'));
+const LeadsManager = lazy(() => import('./admin/LeadsManager'));
+const UsersManager = lazy(() => import('./admin/UsersManager'));
+const AssetLibraryPage = lazy(() => import('./admin/AssetLibraryPage'));
+const OffersManager = lazy(() => import('./admin/OffersManager'));
+const MedicineDataManager = lazy(() => import('./admin/MedicineDataManager'));
+
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 text-teal-600">
+      <Loader2 className="w-10 h-10 animate-spin" />
+    </div>
+  );
+}
 
 function App() {
   useAnalytics();
@@ -27,8 +38,8 @@ function App() {
     const { token, user } = getAuth();
     if (!token) return <Navigate to="/admin/login" />;
     
-    // Super Admin check
-    if (user.email === 'amanyadavu65@gmail.com') return children;
+    // Super / Root Admin role check
+    if (user.role === 'admin') return children;
     
     // Permission check
     if (permission && !user.permissions?.[permission]) {
@@ -40,72 +51,73 @@ function App() {
 
   return (
     <ModalProvider>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/medicine-data" element={<MedicineDataPage />} />
-        <Route path="/medicine-data/verify-payment" element={<PaymentVerificationPage />} />
-        {/* ... existing routes ... */}
-        <Route path="/admin/login" element={<Login />} />
-        <Route 
-          path="/admin" 
-          element={
-            <PrivateRoute>
-              <AdminLayout />
-            </PrivateRoute>
-          }
-        >
-          <Route index element={<Dashboard />} />
+      <Suspense fallback={<LoadingFallback />}>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/medicine-data" element={<MedicineDataPage />} />
+          <Route path="/medicine-data/verify-payment" element={<PaymentVerificationPage />} />
+          <Route path="/admin/login" element={<Login />} />
           <Route 
-            path="content" 
-            element={
-              <PrivateRoute permission="website">
-                <ContentEditor />
-              </PrivateRoute>
-            } 
-          />
-          <Route 
-            path="leads" 
-            element={
-              <PrivateRoute permission="leads">
-                <LeadsManager />
-              </PrivateRoute>
-            } 
-          />
-          <Route 
-            path="users" 
+            path="/admin" 
             element={
               <PrivateRoute>
-                <UsersManager />
+                <AdminLayout />
               </PrivateRoute>
-            } 
-          />
-          <Route 
-            path="assets" 
-            element={
-              <PrivateRoute>
-                <AssetLibraryPage />
-              </PrivateRoute>
-            } 
-          />
-          <Route 
-            path="offers" 
-            element={
-              <PrivateRoute>
-                <OffersManager />
-              </PrivateRoute>
-            } 
-          />
-          <Route 
-            path="medicine-data" 
-            element={
-              <PrivateRoute>
-                <MedicineDataManager />
-              </PrivateRoute>
-            } 
-          />
-        </Route>
-        <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
+            }
+          >
+            <Route index element={<Dashboard />} />
+            <Route 
+              path="content" 
+              element={
+                <PrivateRoute permission="website">
+                  <ContentEditor />
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="leads" 
+              element={
+                <PrivateRoute permission="leads">
+                  <LeadsManager />
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="users" 
+              element={
+                <PrivateRoute>
+                  <UsersManager />
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="assets" 
+              element={
+                <PrivateRoute>
+                  <AssetLibraryPage />
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="offers" 
+              element={
+                <PrivateRoute>
+                  <OffersManager />
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="medicine-data" 
+              element={
+                <PrivateRoute>
+                  <MedicineDataManager />
+                </PrivateRoute>
+              } 
+            />
+          </Route>
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+      </Suspense>
     </ModalProvider>
   );
 }

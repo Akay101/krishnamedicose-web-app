@@ -161,7 +161,7 @@ export default function UsersManager() {
                 <PermissionCard label="Leads Viewer" granted={user.role === 'admin' || user.permissions?.leads} />
               </div>
 
-              {user.email === 'amanyadavu65@gmail.com' && (
+              {user.role === 'admin' && (
                 <div className="absolute top-0 right-0 p-4">
                   <span className="px-3 py-1 bg-teal-500 text-slate-900 text-[10px] font-black uppercase rounded-bl-xl tracking-widest">Root Admin</span>
                 </div>

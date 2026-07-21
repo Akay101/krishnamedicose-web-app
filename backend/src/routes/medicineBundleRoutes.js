@@ -72,11 +72,10 @@ function httpsRequest({ url, method, headers = {}, body = null }) {
   });
 }
 
-// Get Config Details (Amount & Link)
+// Get Config Details (Amount)
 router.get('/config', (req, res) => {
   const amount = Number(process.env.BUNDLE_AMOUNT || 999);
-  const link = process.env.BUNDLE_LINK || 'https://drive.google.com';
-  res.status(200).json({ amount, link });
+  res.status(200).json({ amount });
 });
 
 // Create Bundle Registration (Disconnected Payment Gateway)
@@ -219,7 +218,7 @@ router.post('/verify-payment', async (req, res) => {
 
         const token = jwt.sign(
           { purchaseId: purchase._id, email: purchase.email, sessionId },
-          process.env.JWT_SECRET || 'krishna_medicose_secret_7788',
+          process.env.JWT_SECRET,
           { expiresIn: '1d' }
         );
 
@@ -313,7 +312,7 @@ router.post('/verify-payment', async (req, res) => {
       // Sign the secure token (expires in 24 hours)
       const token = jwt.sign(
         { purchaseId: purchase._id, email: purchase.email, sessionId },
-        process.env.JWT_SECRET || 'krishna_medicose_secret_7788',
+        process.env.JWT_SECRET,
         { expiresIn: '1d' }
       );
 
@@ -921,7 +920,7 @@ router.post('/verify-otp', async (req, res) => {
     // Sign a session JWT
     const token = jwt.sign(
       { purchaseId: purchase._id, email: purchase.email, sessionId },
-      process.env.JWT_SECRET || 'krishna_medicose_secret_7788',
+      process.env.JWT_SECRET,
       { expiresIn: '1d' }
     );
 
@@ -949,7 +948,7 @@ router.get('/data', async (req, res) => {
 
   try {
     // Verify JWT
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'krishna_medicose_secret_7788');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // Find the purchase record
     const purchase = await BundlePurchase.findById(decoded.purchaseId);
@@ -1111,7 +1110,7 @@ router.post('/logout', async (req, res) => {
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'krishna_medicose_secret_7788');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const purchase = await BundlePurchase.findById(decoded.purchaseId);
     
     if (purchase) {

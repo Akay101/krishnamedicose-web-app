@@ -1,10 +1,13 @@
 const User = require('../models/User');
 
+const isAuthorizedAdmin = (user) => {
+  return user && (user.role === 'admin' || (process.env.ADMIN_EMAIL && user.email === process.env.ADMIN_EMAIL));
+};
+
 exports.getUsers = async (req, res) => {
   try {
-    // Only Root Admin can manage users
-    if (req.user.email !== process.env.ADMIN_EMAIL) {
-      return res.status(403).json({ message: 'Forbidden: Only the primary admin can manage users' });
+    if (!isAuthorizedAdmin(req.user)) {
+      return res.status(403).json({ message: 'Forbidden: Only administrators can manage users' });
     }
 
     const users = await User.find().select('-password');
@@ -16,17 +19,22 @@ exports.getUsers = async (req, res) => {
 
 exports.createUser = async (req, res) => {
   try {
-    if (req.user.email !== process.env.ADMIN_EMAIL) {
-       return res.status(403).json({ message: 'Forbidden' });
+    if (!isAuthorizedAdmin(req.user)) {
+       return res.status(403).json({ message: 'Forbidden: Only administrators can create users' });
     }
 
     const { name, email, password, mobile, permissions } = req.body;
-    const existingUser = await User.findOne({ email });
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ message: 'Email and password must be valid strings' });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) return res.status(400).json({ message: 'User already exists' });
 
     const user = new User({
       name,
-      email,
+      email: normalizedEmail,
       password,
       mobile,
       permissions,
@@ -42,8 +50,8 @@ exports.createUser = async (req, res) => {
 
 exports.updateUser = async (req, res) => {
   try {
-    if (req.user.email !== process.env.ADMIN_EMAIL) {
-       return res.status(403).json({ message: 'Forbidden' });
+    if (!isAuthorizedAdmin(req.user)) {
+       return res.status(403).json({ message: 'Forbidden: Only administrators can update users' });
     }
 
     const { name, mobile, permissions, isActive } = req.body;
@@ -51,13 +59,10 @@ exports.updateUser = async (req, res) => {
     
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    // Prevent deactivating or changing self role if needed, 
-    // though the logic is restricted to ADMIN_EMAIL anyway.
-
     user.name = name || user.name;
     user.mobile = mobile || user.mobile;
     user.permissions = permissions || user.permissions;
-    if (isActive !== undefined) user.isActive = isActive;
+    if (isActive !== undefined) user.isActive = Boolean(isActive);
 
     await user.save();
     res.json({ message: 'User updated successfully' });
@@ -68,16 +73,16 @@ exports.updateUser = async (req, res) => {
 
 exports.deleteUser = async (req, res) => {
   try {
-    if (req.user.email !== process.env.ADMIN_EMAIL) {
-       return res.status(403).json({ message: 'Forbidden' });
+    if (!isAuthorizedAdmin(req.user)) {
+       return res.status(403).json({ message: 'Forbidden: Only administrators can delete users' });
     }
 
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    // Protect super admin
-    if (user.email === process.env.ADMIN_EMAIL) {
-      return res.status(400).json({ message: 'Cannot delete root admin' });
+    // Protect super admin / root admin
+    if (user.role === 'admin' || (process.env.ADMIN_EMAIL && user.email === process.env.ADMIN_EMAIL)) {
+      return res.status(400).json({ message: 'Cannot delete root admin account' });
     }
 
     await User.findByIdAndDelete(req.params.id);

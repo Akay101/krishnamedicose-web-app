@@ -12,15 +12,36 @@ const s3Client = new S3Client({
   },
 });
 
+const crypto = require('crypto');
+
+const ALLOWED_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/svg+xml',
+  'application/pdf',
+  'audio/mpeg'
+];
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
   },
+  fileFilter: (req, file, cb) => {
+    if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Invalid file type: ${file.mimetype}. Only images, PDFs, and MP3 audio are allowed.`), false);
+    }
+  }
 });
 
 const uploadToR2 = async (file) => {
-  const fileKey = `assets/${Date.now()}-${file.originalname.replace(/\s+/g, '-')}`;
+  const ext = path.extname(file.originalname).toLowerCase();
+  const safeBaseName = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 30);
+  const fileKey = `assets/${crypto.randomUUID()}-${safeBaseName}${ext}`;
   
   const params = {
     Bucket: process.env.R2_BUCKET_NAME,

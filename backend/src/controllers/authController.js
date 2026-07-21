@@ -5,7 +5,12 @@ const emailService = require("../services/emailService");
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ email });
+    if (typeof email !== "string" || typeof password !== "string") {
+      return res.status(400).json({ message: "Email and password must be valid strings" });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail });
 
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ message: "Invalid credentials" });
@@ -15,6 +20,11 @@ exports.login = async (req, res) => {
       return res
         .status(401)
         .json({ message: "Account is deactivated. Contact Admin." });
+    }
+
+    if (!process.env.JWT_SECRET || !process.env.REFRESH_TOKEN_SECRET) {
+      console.error("JWT secrets missing in environment configuration");
+      return res.status(500).json({ message: "Server authentication error" });
     }
 
     const accessToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
@@ -29,8 +39,8 @@ exports.login = async (req, res) => {
     // Store refresh token in HTTP-only cookie
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
-      secure: true, // MUST be true in production (HTTPS)
-      sameSite: "none", // REQUIRED for cross-origin
+      secure: process.env.NODE_ENV === "production", // Secure HTTPS in prod
+      sameSite: "strict",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -52,7 +62,7 @@ exports.login = async (req, res) => {
 exports.refreshToken = async (req, res) => {
   try {
     const refreshToken = req.cookies.refreshToken;
-    if (!refreshToken)
+    if (!refreshToken || typeof refreshToken !== "string")
       return res.status(401).json({ message: "Refresh token missing" });
 
     jwt.verify(
@@ -83,9 +93,15 @@ exports.logout = (req, res) => {
 exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
-    const user = await User.findOne({ email });
+    if (typeof email !== "string") {
+      return res.status(400).json({ message: "Valid email address is required" });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
+      // Return 200/404 handling without giving away account existence enumeration if preferred, but for now standard response
       return res.status(404).json({ message: "User not found" });
     }
 
@@ -95,7 +111,7 @@ exports.forgotPassword = async (req, res) => {
     user.otpExpires = Date.now() + 10 * 60 * 1000; // 10 mins
     await user.save();
 
-    await emailService.sendOTPEmail(email, otp);
+    await emailService.sendOTPEmail(normalizedEmail, otp);
     res.json({ message: "OTP sent to your email" });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -105,13 +121,22 @@ exports.forgotPassword = async (req, res) => {
 exports.verifyOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
-    const user = await User.findOne({
-      email,
-      otp,
-      otpExpires: { $gt: Date.now() },
-    });
+    if (typeof email !== "string" || typeof otp !== "string") {
+      return res.status(400).json({ message: "Email and OTP must be valid strings" });
+    }
 
-    if (!user) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const cleanOtp = otp.trim();
+
+    const user = await User.findOne({ email: normalizedEmail });
+
+    if (
+      !user ||
+      !user.otp ||
+      user.otp !== cleanOtp ||
+      !user.otpExpires ||
+      user.otpExpires < Date.now()
+    ) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
@@ -124,13 +149,30 @@ exports.verifyOtp = async (req, res) => {
 exports.resetPassword = async (req, res) => {
   try {
     const { email, otp, password } = req.body;
-    const user = await User.findOne({
-      email,
-      otp,
-      otpExpires: { $gt: Date.now() },
-    });
+    if (
+      typeof email !== "string" ||
+      typeof otp !== "string" ||
+      typeof password !== "string"
+    ) {
+      return res.status(400).json({ message: "Invalid input parameters" });
+    }
 
-    if (!user) {
+    if (password.length < 8) {
+      return res.status(400).json({ message: "Password must be at least 8 characters long" });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const cleanOtp = otp.trim();
+
+    const user = await User.findOne({ email: normalizedEmail });
+
+    if (
+      !user ||
+      !user.otp ||
+      user.otp !== cleanOtp ||
+      !user.otpExpires ||
+      user.otpExpires < Date.now()
+    ) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
