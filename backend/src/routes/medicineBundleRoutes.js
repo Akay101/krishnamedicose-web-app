@@ -72,15 +72,19 @@ function httpsRequest({ url, method, headers = {}, body = null }) {
   });
 }
 
-// Get Config Details (Amount)
+// Get Config Details (Amount & Cashfree Mode)
 router.get('/config', (req, res) => {
   const amount = Number(process.env.BUNDLE_AMOUNT || 999);
-  res.status(200).json({ amount });
+  const isProduction = process.env.NODE_ENV === 'production';
+  res.status(200).json({ 
+    amount,
+    cashfreeMode: isProduction ? 'production' : 'sandbox'
+  });
 });
 
-// Create Bundle Registration (Disconnected Payment Gateway)
+// Create Bundle Registration with Cashfree Gateway Flow
 router.post('/create-order', async (req, res) => {
-  const { name, email, mobile } = req.body;
+  const { name, email, mobile, returnUrl } = req.body;
   if (!name || !email || !mobile) {
     return res.status(400).json({ message: 'Name, email, and mobile number are required' });
   }
@@ -101,34 +105,93 @@ router.post('/create-order', async (req, res) => {
       purchase.name = name;
       purchase.mobile = mobile;
       purchase.orderId = 'order_bundle_' + Date.now();
+      purchase.amount = Number(process.env.BUNDLE_AMOUNT || 999);
       await purchase.save();
-      
+    } else {
+      // Create new purchase record
+      const orderId = 'order_bundle_' + Date.now();
+      const amount = Number(process.env.BUNDLE_AMOUNT || 999);
+
+      purchase = new BundlePurchase({
+        orderId,
+        name,
+        email: normalizedEmail,
+        mobile,
+        amount,
+        paymentStatus: 'pending'
+      });
+      await purchase.save();
+    }
+
+    // Now try Cashfree order creation
+    let cashfreeSuccess = false;
+    let paymentSessionId = '';
+
+    if (process.env.CASHFREE_APP_ID && process.env.CASHFREE_SECRET_KEY) {
+      try {
+        console.log(`Attempting Cashfree order creation for ${purchase.orderId}...`);
+        
+        // Ensure a clean returnUrl
+        const resolvedReturnUrl = returnUrl || `https://krishnamedicose.in/medicine-data/verify-payment?order_id={order_id}`;
+
+        const cashfreeResponse = await httpsRequest({
+          url: `${CASHFREE_BASE_URL}/orders`,
+          method: 'POST',
+          headers: {
+            'x-client-id': process.env.CASHFREE_APP_ID,
+            'x-client-secret': process.env.CASHFREE_SECRET_KEY,
+            'x-api-version': '2023-08-01',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            order_id: purchase.orderId,
+            order_amount: purchase.amount,
+            order_currency: 'INR',
+            customer_details: {
+              customer_id: purchase.orderId,
+              customer_name: purchase.name,
+              customer_email: purchase.email,
+              customer_phone: purchase.mobile
+            },
+            order_meta: {
+              return_url: resolvedReturnUrl
+            }
+          })
+        });
+
+        const cashfreeData = await cashfreeResponse.json();
+
+        if (cashfreeResponse.ok && cashfreeData && cashfreeData.payment_session_id) {
+          paymentSessionId = cashfreeData.payment_session_id;
+          purchase.paymentSessionId = paymentSessionId;
+          await purchase.save();
+          cashfreeSuccess = true;
+          console.log(`Cashfree order created successfully. Session ID: ${paymentSessionId}`);
+        } else {
+          console.error('Cashfree order creation returned non-ok status or missing session:', cashfreeData);
+        }
+      } catch (cfErr) {
+        console.error('Failed to initiate Cashfree payment:', cfErr);
+      }
+    } else {
+      console.warn('Cashfree credentials missing in environment variables. Falling back to manual flow.');
+    }
+
+    if (cashfreeSuccess) {
       return res.status(200).json({
-        status: 'pending',
+        status: 'success',
+        paymentSessionId,
         orderId: purchase.orderId,
         email: purchase.email
       });
+    } else {
+      return res.status(200).json({
+        status: 'pending',
+        orderId: purchase.orderId,
+        email: purchase.email,
+        error: 'Cashfree payment gateway not available. Falling back to manual activation.'
+      });
     }
-
-    // Create new purchase record
-    const orderId = 'order_bundle_' + Date.now();
-    const amount = Number(process.env.BUNDLE_AMOUNT || 999);
-
-    purchase = new BundlePurchase({
-      orderId,
-      name,
-      email: normalizedEmail,
-      mobile,
-      amount,
-      paymentStatus: 'pending'
-    });
-    await purchase.save();
-
-    res.status(200).json({
-      status: 'pending',
-      orderId,
-      email: purchase.email
-    });
   } catch (err) {
     console.error('Error during bundle registration:', err);
     res.status(500).json({ message: 'Internal Server Error', error: err.message });

@@ -24,10 +24,13 @@ const BundlePurchaseSchema = new mongoose.Schema({
   },
   paymentStatus: {
     type: String,
-    enum: ['pending', 'paid', 'failed'],
+    enum: ['pending', 'paid', 'failed', 'pending_verification'],
     default: 'pending'
   },
   cashfreeReferenceId: {
+    type: String
+  },
+  paymentSessionId: {
     type: String
   },
   createdAt: {

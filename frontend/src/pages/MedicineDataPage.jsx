@@ -36,6 +36,7 @@ export default function MedicineDataPage() {
     mobile: "",
   });
   const [price, setPrice] = useState(999);
+  const [cashfreeMode, setCashfreeMode] = useState("sandbox");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
 
@@ -91,9 +92,12 @@ export default function MedicineDataPage() {
       try {
         const resp = await api.get("/medicine-bundle/config");
         setPrice(resp.data.amount);
+        if (resp.data.cashfreeMode) {
+          setCashfreeMode(resp.data.cashfreeMode);
+        }
       } catch (err) {
         console.error(
-          "Failed to fetch medicine bundle configuration amount:",
+          "Failed to fetch medicine bundle configuration:",
           err
         );
       }
@@ -355,25 +359,49 @@ export default function MedicineDataPage() {
     setCheckoutError("");
 
     try {
+      // Build the returnUrl pointing to our PaymentVerificationPage route
+      const returnUrl = `${window.location.origin}/medicine-data/verify-payment?order_id={order_id}`;
+
       const resp = await api.post(
         "/medicine-bundle/create-order",
-        checkoutForm
+        {
+          ...checkoutForm,
+          returnUrl
+        }
       );
-      const { status, email } = resp.data;
+      const { status, email, paymentSessionId } = resp.data;
 
-      if (status === "pending") {
-        setActivationEmail(email);
-        setShowActivationForm(true);
-        setCheckoutLoading(false);
-        return;
+      if (status === "success" && paymentSessionId) {
+        // Try opening Cashfree widget
+        if (window.Cashfree) {
+          try {
+            console.log(`Initializing Cashfree in ${cashfreeMode} mode...`);
+            const cashfree = window.Cashfree({
+              mode: cashfreeMode
+            });
+            
+            cashfree.checkout({
+              paymentSessionId: paymentSessionId,
+              redirectTarget: "_self" // Redirects to returnUrl in the same tab
+            });
+            return;
+          } catch (sdkErr) {
+            console.error("Cashfree SDK Checkout launch failed, falling back to manual activation:", sdkErr);
+          }
+        } else {
+          console.warn("Cashfree SDK script not fully loaded, falling back to manual activation.");
+        }
       }
+
+      // Default fallback (either status is "pending", session creation failed, or SDK failed to load)
+      setActivationEmail(email || checkoutForm.email);
+      setShowActivationForm(true);
     } catch (err) {
-      console.error(err);
-      setCheckoutError(
-        err.response?.data?.message ||
-          err.message ||
-          "Payment initiation failed. Please try again."
-      );
+      console.error("Payment registration endpoint failed, using manual fallback:", err);
+      // Fallback to manual flow in case backend failed completely or validation error
+      setActivationEmail(checkoutForm.email);
+      setShowActivationForm(true);
+    } finally {
       setCheckoutLoading(false);
     }
   };
