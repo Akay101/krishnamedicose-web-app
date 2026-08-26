@@ -14,6 +14,7 @@ export default function Navbar() {
     { name: "Products", href: isHome ? "#offers" : "/#offers" },
     { name: "The Owner", href: isHome ? "#owner" : "/#owner" },
     { name: "Medicine Data", href: isHome ? "#medicine-data" : "/#medicine-data" },
+    { name: "Links", href: "/links", isRoute: true },
   ];
 
   return (
@@ -24,7 +25,7 @@ export default function Navbar() {
         {/* Desktop Links */}
         <div className="hidden md:flex items-center gap-8">
           {navLinks.map((link) => {
-            if (!isHome) {
+            if (link.isRoute || !isHome) {
               return (
                 <Link
                   key={link.name}
@@ -71,7 +72,7 @@ export default function Navbar() {
           className="md:hidden mt-4 glass-morphism rounded-3xl p-6 flex flex-col gap-4 shadow-lg"
         >
           {navLinks.map((link) => {
-            if (!isHome) {
+            if (link.isRoute || !isHome) {
               return (
                 <Link
                   key={link.name}

@@ -96,6 +96,7 @@ const assetRoutes = require("./routes/assetRoutes");
 const offerRoutes = require("./routes/offerRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
 const medicineBundleRoutes = require("./routes/medicineBundleRoutes");
+const linkRoutes = require("./routes/linkRoutes");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/content", contentRoutes);
@@ -105,6 +106,7 @@ app.use("/api/assets", assetRoutes);
 app.use("/api/offers", offerRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/medicine-bundle", medicineBundleRoutes);
+app.use("/api/links", linkRoutes);
 
 /* ---------------- HEALTH CHECK ---------------- */
 

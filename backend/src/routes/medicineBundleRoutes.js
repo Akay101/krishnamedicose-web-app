@@ -126,6 +126,7 @@ router.post('/create-order', async (req, res) => {
     // Now try Cashfree order creation
     let cashfreeSuccess = false;
     let paymentSessionId = '';
+    let cfErrorDetails = '';
 
     if (process.env.CASHFREE_APP_ID && process.env.CASHFREE_SECRET_KEY) {
       try {
@@ -168,12 +169,15 @@ router.post('/create-order', async (req, res) => {
           cashfreeSuccess = true;
           console.log(`Cashfree order created successfully. Session ID: ${paymentSessionId}`);
         } else {
+          cfErrorDetails = cashfreeData || `HTTP status ${cashfreeResponse.status}`;
           console.error('Cashfree order creation returned non-ok status or missing session:', cashfreeData);
         }
       } catch (cfErr) {
+        cfErrorDetails = cfErr.message;
         console.error('Failed to initiate Cashfree payment:', cfErr);
       }
     } else {
+      cfErrorDetails = 'Cashfree credentials missing in environment variables.';
       console.warn('Cashfree credentials missing in environment variables. Falling back to manual flow.');
     }
 
@@ -189,7 +193,8 @@ router.post('/create-order', async (req, res) => {
         status: 'pending',
         orderId: purchase.orderId,
         email: purchase.email,
-        error: 'Cashfree payment gateway not available. Falling back to manual activation.'
+        error: 'Cashfree payment gateway not available. Falling back to manual activation.',
+        details: cfErrorDetails
       });
     }
   } catch (err) {

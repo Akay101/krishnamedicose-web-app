@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileEdit, Users, LogOut, Sparkles, Image as ImageIcon, Gift, Menu, X, FileSpreadsheet } from 'lucide-react';
+import { LayoutDashboard, FileEdit, Users, LogOut, Sparkles, Image as ImageIcon, Gift, Menu, X, FileSpreadsheet, Link2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../utils/api';
 import Logo from '../components/Logo';
@@ -29,6 +29,12 @@ export default function AdminLayout() {
       name: 'Offers & Services', 
       path: '/admin/offers', 
       icon: Gift, 
+      show: isRootAdmin || user.permissions?.website 
+    },
+    { 
+      name: 'Manage Links', 
+      path: '/admin/links', 
+      icon: Link2, 
       show: isRootAdmin || user.permissions?.website 
     },
     { 
