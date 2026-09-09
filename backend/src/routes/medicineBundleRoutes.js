@@ -75,21 +75,27 @@ function httpsRequest({ url, method, headers = {}, body = null }) {
 // Get Config Details (Amount & Cashfree Mode)
 router.get('/config', (req, res) => {
   const amount = Number(process.env.BUNDLE_AMOUNT || 999);
+  const studentAmount = Number(process.env.STUDENTS_BUNDLE_AMOUNT || 199);
   const isProduction = process.env.NODE_ENV === 'production';
   res.status(200).json({ 
     amount,
+    studentAmount,
     cashfreeMode: isProduction ? 'production' : 'sandbox'
   });
 });
 
 // Create Bundle Registration with Cashfree Gateway Flow
 router.post('/create-order', async (req, res) => {
-  const { name, email, mobile, returnUrl } = req.body;
+  const { name, email, mobile, returnUrl, bundleType } = req.body;
   if (!name || !email || !mobile) {
     return res.status(400).json({ message: 'Name, email, and mobile number are required' });
   }
 
   const normalizedEmail = email.trim().toLowerCase();
+  const selectedBundleType = bundleType === 'student' ? 'student' : 'regular';
+  const targetAmount = selectedBundleType === 'student'
+    ? Number(process.env.STUDENTS_BUNDLE_AMOUNT || 199)
+    : Number(process.env.BUNDLE_AMOUNT || 999);
 
   try {
     // Check if user already exists
@@ -105,19 +111,20 @@ router.post('/create-order', async (req, res) => {
       purchase.name = name;
       purchase.mobile = mobile;
       purchase.orderId = 'order_bundle_' + Date.now();
-      purchase.amount = Number(process.env.BUNDLE_AMOUNT || 999);
+      purchase.amount = targetAmount;
+      purchase.bundleType = selectedBundleType;
       await purchase.save();
     } else {
       // Create new purchase record
       const orderId = 'order_bundle_' + Date.now();
-      const amount = Number(process.env.BUNDLE_AMOUNT || 999);
 
       purchase = new BundlePurchase({
         orderId,
         name,
         email: normalizedEmail,
         mobile,
-        amount,
+        amount: targetAmount,
+        bundleType: selectedBundleType,
         paymentStatus: 'pending'
       });
       await purchase.save();

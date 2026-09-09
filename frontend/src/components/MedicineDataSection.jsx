@@ -10,6 +10,7 @@ import {
 
 export default function MedicineDataSection() {
   const [price, setPrice] = useState(999);
+  const [studentPrice, setStudentPrice] = useState(199);
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -19,7 +20,8 @@ export default function MedicineDataSection() {
         );
         if (response.ok) {
           const data = await response.json();
-          setPrice(data.amount);
+          if (data.amount) setPrice(data.amount);
+          if (data.studentAmount) setStudentPrice(data.studentAmount);
         }
       } catch (error) {
         console.error("Failed to fetch medicine bundle config:", error);
@@ -47,12 +49,6 @@ export default function MedicineDataSection() {
 
       <div className="max-w-5xl mx-auto">
         <div className="text-center max-w-2xl mx-auto mb-16">
-          {/* <div className="inline-flex items-center gap-2 px-4 py-2 bg-teal-50 border border-teal-200/60 rounded-full mb-6">
-            <Sparkles className="w-4 h-4 text-teal-650 animate-pulse" />
-            <span className="text-xs font-extrabold uppercase tracking-widest text-teal-700 font-outfit">
-              Pharmacy Insights
-            </span>
-          </div> */}
           <h2 className="text-3xl md:text-4xl font-black font-outfit mb-4 text-slate-900">
             Top Selling Items{" "}
             <span className="text-teal-650 italic">For Pharmacies</span>
@@ -84,8 +80,8 @@ export default function MedicineDataSection() {
                       <span className="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-extrabold bg-indigo-50 border border-indigo-100 text-indigo-700 select-none shadow-sm transition-all hover:scale-[1.03]">
                         Low-Performing Pharmacies
                       </span>
-                      <span className="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-extrabold bg-sky-50 border border-sky-100 text-sky-700 select-none shadow-sm transition-all hover:scale-[1.03]">
-                        Students & Learners
+                      <span className="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-extrabold bg-emerald-50 border border-emerald-100 text-emerald-700 select-none shadow-sm transition-all hover:scale-[1.03]">
+                        Students & Learners (₹{studentPrice})
                       </span>
                     </div>
                   </div>
@@ -109,17 +105,20 @@ export default function MedicineDataSection() {
           <div className="md:col-span-5 md:border-l border-slate-200 md:pl-12 pt-8 md:pt-0 flex flex-col justify-center">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-                One-Time Download Fee
+                Starting Access Fee
               </p>
 
               <div className="mt-2 flex items-end gap-2">
                 <span className="text-5xl font-black text-slate-900 font-outfit">
-                  ₹{price}
+                  ₹{studentPrice}
                 </span>
-                <span className="mb-1 text-sm font-semibold uppercase text-slate-500">
-                  INR
+                <span className="mb-1 text-xs font-bold uppercase text-slate-500">
+                  INR / Student Offer
                 </span>
               </div>
+              <p className="text-xs font-bold text-slate-400 mt-1">
+                Standard Pro: ₹{price} INR
+              </p>
             </div>
 
             <Link

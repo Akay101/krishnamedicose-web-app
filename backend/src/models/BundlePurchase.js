@@ -22,6 +22,11 @@ const BundlePurchaseSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  bundleType: {
+    type: String,
+    enum: ['regular', 'student'],
+    default: 'regular'
+  },
   paymentStatus: {
     type: String,
     enum: ['pending', 'paid', 'failed', 'pending_verification'],

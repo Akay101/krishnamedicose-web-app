@@ -18,6 +18,9 @@ import {
   SlidersHorizontal,
   Filter,
   X,
+  GraduationCap,
+  XCircle,
+  Check,
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import InteractiveBackground from "../components/InteractiveBackground";
@@ -36,6 +39,8 @@ export default function MedicineDataPage() {
     mobile: "",
   });
   const [price, setPrice] = useState(999);
+  const [studentPrice, setStudentPrice] = useState(199);
+  const [selectedBundle, setSelectedBundle] = useState("student"); // 'student' or 'regular'
   const [cashfreeMode, setCashfreeMode] = useState("sandbox");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
@@ -91,15 +96,13 @@ export default function MedicineDataPage() {
     const fetchConfig = async () => {
       try {
         const resp = await api.get("/medicine-bundle/config");
-        setPrice(resp.data.amount);
+        if (resp.data.amount) setPrice(resp.data.amount);
+        if (resp.data.studentAmount) setStudentPrice(resp.data.studentAmount);
         if (resp.data.cashfreeMode) {
           setCashfreeMode(resp.data.cashfreeMode);
         }
       } catch (err) {
-        console.error(
-          "Failed to fetch medicine bundle configuration:",
-          err
-        );
+        console.error("Failed to fetch medicine bundle configuration:", err);
       }
     };
     fetchConfig();
@@ -362,13 +365,11 @@ export default function MedicineDataPage() {
       // Build the returnUrl pointing to our PaymentVerificationPage route
       const returnUrl = `${window.location.origin}/medicine-data/verify-payment?order_id={order_id}`;
 
-      const resp = await api.post(
-        "/medicine-bundle/create-order",
-        {
-          ...checkoutForm,
-          returnUrl
-        }
-      );
+      const resp = await api.post("/medicine-bundle/create-order", {
+        ...checkoutForm,
+        bundleType: selectedBundle,
+        returnUrl,
+      });
       const { status, email, paymentSessionId } = resp.data;
 
       if (status === "success" && paymentSessionId) {
@@ -377,19 +378,24 @@ export default function MedicineDataPage() {
           try {
             console.log(`Initializing Cashfree in ${cashfreeMode} mode...`);
             const cashfree = window.Cashfree({
-              mode: cashfreeMode
+              mode: cashfreeMode,
             });
-            
+
             cashfree.checkout({
               paymentSessionId: paymentSessionId,
-              redirectTarget: "_self" // Redirects to returnUrl in the same tab
+              redirectTarget: "_self", // Redirects to returnUrl in the same tab
             });
             return;
           } catch (sdkErr) {
-            console.error("Cashfree SDK Checkout launch failed, falling back to manual activation:", sdkErr);
+            console.error(
+              "Cashfree SDK Checkout launch failed, falling back to manual activation:",
+              sdkErr
+            );
           }
         } else {
-          console.warn("Cashfree SDK script not fully loaded, falling back to manual activation.");
+          console.warn(
+            "Cashfree SDK script not fully loaded, falling back to manual activation."
+          );
         }
       }
 
@@ -397,7 +403,10 @@ export default function MedicineDataPage() {
       setActivationEmail(email || checkoutForm.email);
       setShowActivationForm(true);
     } catch (err) {
-      console.error("Payment registration endpoint failed, using manual fallback:", err);
+      console.error(
+        "Payment registration endpoint failed, using manual fallback:",
+        err
+      );
       // Fallback to manual flow in case backend failed completely or validation error
       setActivationEmail(checkoutForm.email);
       setShowActivationForm(true);
@@ -1031,7 +1040,7 @@ export default function MedicineDataPage() {
                         : "text-slate-550 hover:text-slate-900"
                     }`}
                   >
-                    Secure Login
+                    Already Purchased ?
                   </button>
                 </div>
 
@@ -1104,7 +1113,11 @@ export default function MedicineDataPage() {
                         </div>
                         <a
                           href={`https://wa.me/918882948667?text=${encodeURIComponent(
-                            `Hello! I am interested in purchasing the Medicine Market Intel Bundle. My email is ${activationEmail}. Please coordinate with me for the payment so I can get my activation code.`
+                            `Hello! I am interested in purchasing the ${
+                              selectedBundle === "student"
+                                ? `Students & Beginners Bundle (₹${studentPrice})`
+                                : `Standard Pro Bundle (₹${price})`
+                            }. My email is ${activationEmail}. Please coordinate with me for the payment so I can get my activation code.`
                           )}`}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -1135,21 +1148,190 @@ export default function MedicineDataPage() {
                     </div>
                   ) : (
                     <div className="space-y-6">
-                      <div className="text-center pb-6 border-b border-slate-100">
-                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2">
-                          Lifetime Access
-                        </p>
-                        <div className="flex items-baseline justify-center gap-2">
-                          <span className="text-5xl font-black text-slate-900 font-outfit">
-                            ₹{price}
+                      {/* BUNDLE SELECTION & COMPARISON */}
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between pb-1">
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                            Select Access Tier
+                          </p>
+                          <span className="text-[10px] font-extrabold text-teal-700 bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-100">
+                            2 Options Available
                           </span>
-                          <span className="text-sm font-bold text-slate-400">
-                            one-time payment
-                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4">
+                          {/* CARD 1: STUDENTS & BEGINNERS BUNDLE (WITH EXCLUSIVE RIBBON TAG) */}
+                          <div
+                            onClick={() => setSelectedBundle("student")}
+                            className={`relative overflow-hidden rounded-2xl p-5 border-2 transition-all cursor-pointer select-none ${
+                              selectedBundle === "student"
+                                ? "border-emerald-500 bg-emerald-50/40 shadow-md ring-2 ring-emerald-500/20"
+                                : "border-slate-200 bg-white hover:border-emerald-300 hover:bg-slate-50/50"
+                            }`}
+                          >
+                            {/* EXCLUSIVE RIBBON TAG */}
+                            <div className="absolute -top-1 -right-1 z-10 overflow-hidden w-36 h-36 pointer-events-none">
+                              <div className="absolute top-5 -right-9 w-40 rotate-45 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-[8px] font-black uppercase tracking-wider py-1 text-center shadow-sm border-y border-white/20">
+                                🎓 Student Offer
+                              </div>
+                            </div>
+
+                            <div className="flex items-start justify-between pr-14">
+                              <div>
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-wider mb-1.5">
+                                  <GraduationCap className="w-3.5 h-3.5" />
+                                  Students & Beginners
+                                </div>
+                                <h4 className="font-black text-slate-900 font-outfit text-base">
+                                  Students & Beginners Bundle
+                                </h4>
+                                <p className="text-[11px] font-medium text-slate-500 mt-0.5">
+                                  Exclusively for students & medicine learners
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 flex items-baseline gap-1.5">
+                              <span className="text-3xl font-black text-slate-900 font-outfit">
+                                ₹{studentPrice}
+                              </span>
+                              <span className="text-xs font-bold text-slate-400">
+                                one-time payment
+                              </span>
+                            </div>
+
+                            <div className="mt-3 pt-3 border-t border-slate-200/60 space-y-2 text-xs font-semibold">
+                              <div className="flex items-center gap-2 text-slate-700">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                <span>
+                                  1000+ top-selling pharmacy items dataset
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-slate-700">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                <span>Secure DRM OTP Viewer access</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-red-600 font-bold bg-red-50/80 p-1.5 rounded-lg border border-red-100">
+                                <XCircle className="w-4 h-4 text-red-500 shrink-0" />
+                                <span>No 1-on-1 G-Meet consultation</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-red-600 font-bold bg-red-50/80 p-1.5 rounded-lg border border-red-100">
+                                <XCircle className="w-4 h-4 text-red-500 shrink-0" />
+                                <span>No regular list updates</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-red-600 font-bold bg-red-50/80 p-1.5 rounded-lg border border-red-100">
+                                <XCircle className="w-4 h-4 text-red-500 shrink-0" />
+                                <span>
+                                  No access to upcoming exclusive offers
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="mt-4 flex items-center justify-between">
+                              <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700">
+                                {selectedBundle === "student"
+                                  ? "✓ Selected Plan"
+                                  : "Click to Select Plan"}
+                              </span>
+                              <div
+                                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                                  selectedBundle === "student"
+                                    ? "border-emerald-600 bg-emerald-600 text-white"
+                                    : "border-slate-300 bg-white"
+                                }`}
+                              >
+                                {selectedBundle === "student" && (
+                                  <Check className="w-3 h-3 stroke-[3]" />
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* CARD 2: STANDARD PRO BUNDLE */}
+                          <div
+                            onClick={() => setSelectedBundle("regular")}
+                            className={`relative overflow-hidden rounded-2xl p-5 border-2 transition-all cursor-pointer select-none ${
+                              selectedBundle === "regular"
+                                ? "border-teal-500 bg-teal-50/40 shadow-md ring-2 ring-teal-500/20"
+                                : "border-slate-200 bg-white hover:border-teal-300 hover:bg-slate-50/50"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between pr-4">
+                              <div>
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-teal-100 text-teal-800 text-[10px] font-black uppercase tracking-wider mb-1.5">
+                                  <Sparkles className="w-3.5 h-3.5" />
+                                  Standard Pro &bull; Full Access
+                                </div>
+                                <h4 className="font-black text-slate-900 font-outfit text-base">
+                                  Standard Pro Bundle
+                                </h4>
+                                <p className="text-[11px] font-medium text-slate-500 mt-0.5">
+                                  Complete dataset access with continuous
+                                  lifetime updates
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 flex items-baseline gap-1.5">
+                              <span className="text-3xl font-black text-slate-900 font-outfit">
+                                ₹{price}
+                              </span>
+                              <span className="text-xs font-bold text-slate-400">
+                                one-time payment
+                              </span>
+                            </div>
+
+                            <div className="mt-3 pt-3 border-t border-slate-200/60 space-y-2 text-xs font-semibold">
+                              <div className="flex items-center gap-2 text-slate-700">
+                                <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0" />
+                                <span>
+                                  1000+ top-selling pharmacy items dataset
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-slate-700">
+                                <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0" />
+                                <span>1-on-1 G-Meet consultation session</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-slate-700">
+                                <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0" />
+                                <span>Secure DRM OTP Viewer access</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-teal-800 font-bold bg-teal-100/60 p-1.5 rounded-lg border border-teal-200/60">
+                                <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0" />
+                                <span>Includes regular list updates</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-teal-800 font-bold bg-teal-100/60 p-1.5 rounded-lg border border-teal-200/60">
+                                <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0" />
+                                <span>Access to upcoming exclusive offers</span>
+                              </div>
+                            </div>
+
+                            <div className="mt-4 flex items-center justify-between">
+                              <span className="text-[10px] font-extrabold uppercase tracking-wider text-teal-700">
+                                {selectedBundle === "regular"
+                                  ? "✓ Selected Plan"
+                                  : "Click to Select Plan"}
+                              </span>
+                              <div
+                                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                                  selectedBundle === "regular"
+                                    ? "border-teal-600 bg-teal-600 text-white"
+                                    : "border-slate-300 bg-white"
+                                }`}
+                              >
+                                {selectedBundle === "regular" && (
+                                  <Check className="w-3 h-3 stroke-[3]" />
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
 
-                      <form onSubmit={handleCheckout} className="space-y-5">
+                      <form
+                        onSubmit={handleCheckout}
+                        className="space-y-5 pt-4 border-t border-slate-100"
+                      >
                         <div>
                           <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-600 mb-2 ml-2">
                             Your Name
@@ -1231,7 +1413,13 @@ export default function MedicineDataPage() {
                             <Loader2 className="w-5 h-5 animate-spin" />
                           ) : (
                             <>
-                              <span>Register & Unlock Bundle</span>
+                              <span>
+                                Pay ₹
+                                {selectedBundle === "student"
+                                  ? studentPrice
+                                  : price}{" "}
+                                & Unlock Bundle
+                              </span>
                               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                             </>
                           )}
