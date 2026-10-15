@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileEdit, Users, LogOut, Sparkles, Image as ImageIcon, Gift, Menu, X, FileSpreadsheet, Link2 } from 'lucide-react';
+import { LayoutDashboard, FileEdit, Users, LogOut, Sparkles, Image as ImageIcon, Gift, Menu, X, FileSpreadsheet, Link2, Briefcase } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../utils/api';
 import Logo from '../components/Logo';
@@ -19,6 +19,12 @@ export default function AdminLayout() {
 
   const menuItems = [
     { name: 'Dashboard', path: '/admin', icon: LayoutDashboard, show: true },
+    { 
+      name: 'Services and Users', 
+      path: '/admin/services', 
+      icon: Briefcase, 
+      show: isRootAdmin 
+    },
     { 
       name: 'Edit Website', 
       path: '/admin/content', 

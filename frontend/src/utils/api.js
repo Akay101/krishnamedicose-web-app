@@ -40,8 +40,8 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // If error is 401, we haven't retried yet, and the request is not for the medicine bundle
-    if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/medicine-bundle')) {
+    // If error is 401, we haven't retried yet, and the request is not for the medicine bundle or services
+    if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/medicine-bundle') && !originalRequest.url?.includes('/services')) {
       originalRequest._retry = true;
 
       try {
@@ -66,7 +66,7 @@ api.interceptors.response.use(
     }
 
     // Handle other errors (like 403 Forbidden which might also mean logout)
-    if (error.response?.status === 403 && !originalRequest.url?.includes('/medicine-bundle')) {
+    if (error.response?.status === 403 && !originalRequest.url?.includes('/medicine-bundle') && !originalRequest.url?.includes('/services')) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/admin/login';

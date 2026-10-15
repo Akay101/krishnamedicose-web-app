@@ -8,7 +8,6 @@ import InteractiveBackground from "../components/InteractiveBackground";
 import { motion, useScroll, useSpring } from "framer-motion";
 import { useState, useEffect } from "react";
 import Logo from "../components/Logo";
-import { Sparkles, Zap, ArrowRight } from "lucide-react";
 
 function LandingPage() {
   const [content, setContent] = useState(null);
@@ -51,53 +50,6 @@ function LandingPage() {
 
   return (
     <main className="relative selection:bg-teal-200 selection:text-teal-900">
-      {/* Floating Pill Launch Offer */}
-      <motion.div
-        initial={{ y: -100, x: "-50%", opacity: 0 }}
-        animate={{ y: 0, x: "-50%", opacity: 1 }}
-        transition={{ type: "spring", stiffness: 120, damping: 20, delay: 1 }}
-        className="fixed top-6 left-1/2 z-[101] w-max"
-      >
-        <motion.div
-          animate={{
-            scale: [1, 1.03, 1],
-          }}
-          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-          className="relative px-5 py-2.5 rounded-full bg-primary text-dark font-black text-[10px] md:text-xs uppercase tracking-[0.2em] flex items-center gap-4 shadow-2xl shadow-primary/30 group cursor-pointer border border-white/30 overflow-hidden"
-          onClick={() =>
-            document
-              .getElementById("offers")
-              ?.scrollIntoView({ behavior: "smooth" })
-          }
-        >
-          {/* Shimmer Effect */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-
-          <div className="flex items-center gap-2.5">
-            <Sparkles className="w-3.5 h-3.5 animate-pulse text-dark" />
-            <span className="hidden sm:inline">
-              Exclusive 50-50 Launch Offer Active!
-            </span>
-            <span className="sm:hidden">Launch Offer Active!</span>
-          </div>
-
-          <div className="h-4 w-px bg-dark/20" />
-
-          <div className="flex items-center gap-2 group/btn">
-            <span className="font-black">Claim Now</span>
-            <motion.div
-              animate={{
-                x: [0, 4, 0],
-                scale: [1, 1.2, 1],
-              }}
-              transition={{ duration: 1, repeat: Infinity }}
-            >
-              <Zap className="w-3.5 h-3.5 fill-dark" />
-            </motion.div>
-          </div>
-        </motion.div>
-      </motion.div>
-
       {/* Custom Progress Bar */}
       <motion.div
         className="fixed top-0 left-0 right-0 h-1.5 bg-primary z-[100] origin-left"

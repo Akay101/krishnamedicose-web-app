@@ -12,28 +12,43 @@ export default function Navbar() {
   const navLinks = [
     { name: "Vision", href: isHome ? "#vision" : "/#vision" },
     { name: "Products", href: isHome ? "#offers" : "/#offers" },
+    { name: "Services", href: "/services", isRoute: true, highlight: true, badge: "New" },
     { name: "The Owner", href: isHome ? "#owner" : "/#owner" },
     { name: "Medicine Data", href: isHome ? "#medicine-data" : "/#medicine-data" },
     { name: "Links", href: "/links", isRoute: true },
   ];
 
   return (
-    <nav className="fixed top-12 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-5xl">
+    <nav className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-5xl">
       <div className="glass-morphism rounded-full px-6 py-3 flex items-center justify-between">
         <Logo size="sm" />
 
         {/* Desktop Links */}
-        <div className="hidden md:flex items-center gap-8">
+        <div className="hidden md:flex items-center gap-7 lg:gap-8">
           {navLinks.map((link) => {
+            const isHighlighted = link.highlight || location.pathname === link.href;
+
             if (link.isRoute || !isHome) {
               return (
                 <Link
                   key={link.name}
                   to={link.href}
-                  className="text-sm font-extrabold text-slate-600 hover:text-slate-900 transition-colors relative group"
+                  className={`text-sm font-extrabold transition-colors relative group inline-flex items-center gap-1.5 ${
+                    isHighlighted
+                      ? "text-teal-700 hover:text-teal-900"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
                 >
-                  {link.name}
-                  <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-teal-600 transition-all group-hover:w-full" />
+                  <span>{link.name}</span>
+                  {link.badge && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-teal-500 to-emerald-600 text-white shadow-sm shadow-teal-500/25 group-hover:scale-105 transition-transform">
+                      <span className="w-1 h-1 rounded-full bg-white animate-pulse" />
+                      {link.badge}
+                    </span>
+                  )}
+                  <span className={`absolute -bottom-1 left-0 h-0.5 bg-teal-600 transition-all group-hover:w-full ${
+                    location.pathname === link.href ? "w-full" : "w-0"
+                  }`} />
                 </Link>
               );
             }
@@ -41,10 +56,16 @@ export default function Navbar() {
               <motion.a
                 key={link.name}
                 href={link.href}
-                className="text-sm font-extrabold text-slate-600 hover:text-slate-900 transition-colors relative group"
+                className="text-sm font-extrabold text-slate-600 hover:text-slate-900 transition-colors relative group inline-flex items-center gap-1.5"
                 whileHover={{ y: -1 }}
               >
-                {link.name}
+                <span>{link.name}</span>
+                {link.badge && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-teal-500 to-emerald-600 text-white shadow-sm shadow-teal-500/25 group-hover:scale-105 transition-transform">
+                    <span className="w-1 h-1 rounded-full bg-white animate-pulse" />
+                    {link.badge}
+                  </span>
+                )}
                 <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-teal-600 transition-all group-hover:w-full" />
               </motion.a>
             );
@@ -72,15 +93,27 @@ export default function Navbar() {
           className="md:hidden mt-4 glass-morphism rounded-3xl p-6 flex flex-col gap-4 shadow-lg"
         >
           {navLinks.map((link) => {
+            const isHighlighted = link.highlight || location.pathname === link.href;
+
             if (link.isRoute || !isHome) {
               return (
                 <Link
                   key={link.name}
                   to={link.href}
                   onClick={() => setIsOpen(false)}
-                  className="text-lg font-bold text-slate-700 hover:text-teal-600 transition-colors border-b border-slate-100 pb-2"
+                  className={`text-lg font-bold transition-colors border-b border-slate-100 pb-2 flex items-center justify-between ${
+                    isHighlighted
+                      ? "text-teal-700 font-black"
+                      : "text-slate-700 hover:text-teal-600"
+                  }`}
                 >
-                  {link.name}
+                  <span>{link.name}</span>
+                  {link.badge && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-teal-500 to-emerald-600 text-white shadow-sm">
+                      <span className="w-1 h-1 rounded-full bg-white animate-pulse" />
+                      {link.badge}
+                    </span>
+                  )}
                 </Link>
               );
             }
@@ -89,9 +122,9 @@ export default function Navbar() {
                 key={link.name}
                 href={link.href}
                 onClick={() => setIsOpen(false)}
-                className="text-lg font-bold text-slate-700 hover:text-teal-600 transition-colors border-b border-slate-100 pb-2"
+                className="text-lg font-bold text-slate-700 hover:text-teal-600 transition-colors border-b border-slate-100 pb-2 flex items-center justify-between"
               >
-                {link.name}
+                <span>{link.name}</span>
               </a>
             );
           })}

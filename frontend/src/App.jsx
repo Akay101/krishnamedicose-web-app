@@ -19,6 +19,8 @@ const OffersManager = lazy(() => import('./admin/OffersManager'));
 const MedicineDataManager = lazy(() => import('./admin/MedicineDataManager'));
 const UsefulLinksPage = lazy(() => import('./pages/UsefulLinksPage'));
 const LinksManager = lazy(() => import('./admin/LinksManager'));
+const ServicesPage = lazy(() => import('./pages/ServicesPage'));
+const ServicesManager = lazy(() => import('./admin/ServicesManager'));
 
 function LoadingFallback() {
   return (
@@ -56,6 +58,7 @@ function App() {
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/services" element={<ServicesPage />} />
           <Route path="/links" element={<UsefulLinksPage />} />
           <Route path="/medicine-data" element={<MedicineDataPage />} />
           <Route path="/medicine-data/verify-payment" element={<PaymentVerificationPage />} />
@@ -69,6 +72,14 @@ function App() {
             }
           >
             <Route index element={<Dashboard />} />
+            <Route 
+              path="services" 
+              element={
+                <PrivateRoute>
+                  <ServicesManager />
+                </PrivateRoute>
+              } 
+            />
             <Route 
               path="content" 
               element={
