@@ -98,6 +98,7 @@ const analyticsRoutes = require("./routes/analyticsRoutes");
 const medicineBundleRoutes = require("./routes/medicineBundleRoutes");
 const linkRoutes = require("./routes/linkRoutes");
 const serviceRoutes = require("./routes/serviceRoutes");
+const catalogRoutes = require("./routes/catalogRoutes");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/content", contentRoutes);
@@ -109,6 +110,7 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/medicine-bundle", medicineBundleRoutes);
 app.use("/api/links", linkRoutes);
 app.use("/api/services", serviceRoutes);
+app.use("/api/catalogs", catalogRoutes);
 
 /* ---------------- HEALTH CHECK ---------------- */
 
@@ -119,7 +121,7 @@ app.get("/", (req, res) => {
 /* ---------------- ERROR HANDLER ---------------- */
 
 app.use((err, req, res, next) => {
-  console.error("❌ Error:", err.message);
+  console.error("Error:", err.message);
 
   // CORS error handling (clean response instead of crash)
   if (err.message.includes("CORS")) {

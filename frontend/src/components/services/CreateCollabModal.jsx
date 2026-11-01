@@ -56,24 +56,45 @@ export default function CreateCollabModal({ isOpen, onClose, onCollabCreated, in
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    const cleanSpec = formData.specializationNeeded.trim();
+    if (cleanSpec.length < 2 || cleanSpec.length > 80) {
+      setError('Doctor specialization needed must be between 2 and 80 characters.');
+      return;
+    }
+
+    const cleanTimings = formData.preferredTimings.trim();
+    if (cleanTimings.length < 2 || cleanTimings.length > 80) {
+      setError('Preferred timings must be between 2 and 80 characters.');
+      return;
+    }
+
+    const cleanDesc = formData.description.trim();
+    if (cleanDesc.length < 10 || cleanDesc.length > 1000) {
+      setError('Description must be between 10 and 1000 characters.');
+      return;
+    }
+
     setLoading(true);
 
     try {
       const payload = {
-        pharmacyName: formData.pharmacyName,
-        clinicOrChamberName: formData.clinicOrChamberName,
-        specializationNeeded: formData.specializationNeeded,
-        preferredTimings: formData.preferredTimings,
-        consultationDays: formData.consultationDays,
-        collaborationTerms: formData.collaborationTerms,
-        chamberFacilities: formData.chamberFacilities,
-        description: formData.description,
-        visibilityRadiusKm: Number(formData.visibilityRadiusKm),
+        pharmacyName: (formData.pharmacyName || '').trim().slice(0, 120),
+        clinicOrChamberName: (formData.clinicOrChamberName || '').trim().slice(0, 120),
+        specializationNeeded: cleanSpec,
+        preferredTimings: cleanTimings,
+        consultationDays: (formData.consultationDays || '').trim().slice(0, 80),
+        collaborationTerms: (formData.collaborationTerms || '').trim().slice(0, 120),
+        chamberFacilities: formData.chamberFacilities
+          .map((f) => f.slice(0, 100))
+          .slice(0, 15),
+        description: cleanDesc,
+        visibilityRadiusKm: Math.max(5, Math.min(100, Number(formData.visibilityRadiusKm) || 30)),
         location: {
-          address: formData.address,
-          city: formData.city,
-          state: formData.state,
-          pincode: formData.pincode,
+          address: (formData.address || '').trim().slice(0, 200),
+          city: (formData.city || '').trim().slice(0, 60),
+          state: (formData.state || '').trim().slice(0, 60),
+          pincode: (formData.pincode || '').trim().slice(0, 10),
           coordinates: formData.coordinates
         }
       };
@@ -136,6 +157,7 @@ export default function CreateCollabModal({ isOpen, onClose, onCollabCreated, in
                 <label className="block text-xs font-bold text-slate-700 mb-1">Clinic / Chamber Name</label>
                 <input
                   type="text"
+                  maxLength={120}
                   value={formData.clinicOrChamberName}
                   onChange={(e) => setFormData({ ...formData, clinicOrChamberName: e.target.value })}
                   placeholder="e.g. Krishna Health Chamber"
@@ -148,6 +170,7 @@ export default function CreateCollabModal({ isOpen, onClose, onCollabCreated, in
                 <input
                   type="text"
                   required
+                  maxLength={80}
                   value={formData.specializationNeeded}
                   onChange={(e) => setFormData({ ...formData, specializationNeeded: e.target.value })}
                   placeholder="e.g. General Physician, Pediatrician, Gynecologist"
@@ -162,6 +185,7 @@ export default function CreateCollabModal({ isOpen, onClose, onCollabCreated, in
                 <input
                   type="text"
                   required
+                  maxLength={80}
                   value={formData.preferredTimings}
                   onChange={(e) => setFormData({ ...formData, preferredTimings: e.target.value })}
                   placeholder="e.g. Evening 5:00 PM - 8:30 PM"
@@ -174,6 +198,7 @@ export default function CreateCollabModal({ isOpen, onClose, onCollabCreated, in
                 <input
                   type="text"
                   required
+                  maxLength={80}
                   value={formData.consultationDays}
                   onChange={(e) => setFormData({ ...formData, consultationDays: e.target.value })}
                   placeholder="e.g. Monday to Saturday or Alternate Days"
@@ -187,6 +212,7 @@ export default function CreateCollabModal({ isOpen, onClose, onCollabCreated, in
               <input
                 type="text"
                 required
+                maxLength={120}
                 value={formData.collaborationTerms}
                 onChange={(e) => setFormData({ ...formData, collaborationTerms: e.target.value })}
                 placeholder="e.g. 70-30 Percentage Share / Monthly Chamber Rent / Fixed Patient Fee"
@@ -226,10 +252,16 @@ export default function CreateCollabModal({ isOpen, onClose, onCollabCreated, in
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Description & Local Demographics *</label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs font-bold text-slate-700">Description & Local Demographics *</label>
+                <span className="text-[11px] font-semibold text-slate-400">
+                  {formData.description.length} / 1000
+                </span>
+              </div>
               <textarea
                 rows={3}
                 required
+                maxLength={1000}
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Describe your location footfall, patient demographics in the neighborhood, chamber setup, and welcome note to doctors."

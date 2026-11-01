@@ -286,29 +286,47 @@ exports.updateUser = async (req, res) => {
     if (!user) return res.status(404).json({ message: 'User not found.' });
 
     const updates = req.body;
-    if (updates.name !== undefined) user.name = updates.name.trim();
-    if (updates.email !== undefined) user.email = updates.email.trim().toLowerCase();
-    if (updates.mobile !== undefined) user.mobile = updates.mobile.trim();
+    if (updates.name !== undefined) user.name = String(updates.name).trim().slice(0, 80);
+    if (updates.email !== undefined) user.email = String(updates.email).trim().toLowerCase().slice(0, 120);
+    if (updates.mobile !== undefined) user.mobile = String(updates.mobile).replace(/\D/g, '').slice(0, 10);
     if (updates.role !== undefined) user.role = updates.role;
     if (updates.isVerified !== undefined) user.isVerified = Boolean(updates.isVerified);
     if (updates.isBlocked !== undefined) user.isBlocked = Boolean(updates.isBlocked);
-    if (updates.blockReason !== undefined) user.blockReason = updates.blockReason;
+    if (updates.blockReason !== undefined) user.blockReason = String(updates.blockReason).trim().slice(0, 250);
 
     if (updates.location) {
-      if (updates.location.city !== undefined) user.location.city = updates.location.city;
-      if (updates.location.address !== undefined) user.location.address = updates.location.address;
-      if (updates.location.state !== undefined) user.location.state = updates.location.state;
-      if (updates.location.pincode !== undefined) user.location.pincode = updates.location.pincode;
+      if (updates.location.city !== undefined) user.location.city = String(updates.location.city).trim().slice(0, 60);
+      if (updates.location.address !== undefined) user.location.address = String(updates.location.address).trim().slice(0, 200);
+      if (updates.location.state !== undefined) user.location.state = String(updates.location.state).trim().slice(0, 60);
+      if (updates.location.pincode !== undefined) user.location.pincode = String(updates.location.pincode).trim().slice(0, 10);
     }
 
     if (updates.pharmacyDetails && user.role === 'pharmacy_owner') {
-      user.pharmacyDetails = { ...user.pharmacyDetails, ...updates.pharmacyDetails };
+      const p = updates.pharmacyDetails;
+      user.pharmacyDetails = {
+        ...user.pharmacyDetails,
+        pharmacyName: p.pharmacyName !== undefined ? String(p.pharmacyName).trim().slice(0, 120) : user.pharmacyDetails?.pharmacyName,
+        licenseNumber: p.licenseNumber !== undefined ? String(p.licenseNumber).trim().slice(0, 60) : user.pharmacyDetails?.licenseNumber
+      };
     }
     if (updates.pharmacistDetails && user.role === 'job_seeker_pharmacist') {
-      user.pharmacistDetails = { ...user.pharmacistDetails, ...updates.pharmacistDetails };
+      const ph = updates.pharmacistDetails;
+      user.pharmacistDetails = {
+        ...user.pharmacistDetails,
+        qualification: ph.qualification !== undefined ? String(ph.qualification).trim().slice(0, 60) : user.pharmacistDetails?.qualification,
+        licenseNumber: ph.licenseNumber !== undefined ? String(ph.licenseNumber).trim().slice(0, 60) : user.pharmacistDetails?.licenseNumber,
+        experienceYears: ph.experienceYears !== undefined ? Math.max(0, Math.min(50, Number(ph.experienceYears) || 0)) : user.pharmacistDetails?.experienceYears
+      };
     }
     if (updates.doctorDetails && user.role === 'doctor') {
-      user.doctorDetails = { ...user.doctorDetails, ...updates.doctorDetails };
+      const d = updates.doctorDetails;
+      user.doctorDetails = {
+        ...user.doctorDetails,
+        specialization: d.specialization !== undefined ? String(d.specialization).trim().slice(0, 80) : user.doctorDetails?.specialization,
+        qualification: d.qualification !== undefined ? String(d.qualification).trim().slice(0, 60) : user.doctorDetails?.qualification,
+        medicalRegistrationNumber: d.medicalRegistrationNumber !== undefined ? String(d.medicalRegistrationNumber).trim().slice(0, 60) : user.doctorDetails?.medicalRegistrationNumber,
+        experienceYears: d.experienceYears !== undefined ? Math.max(0, Math.min(60, Number(d.experienceYears) || 0)) : user.doctorDetails?.experienceYears
+      };
     }
 
     await user.save();

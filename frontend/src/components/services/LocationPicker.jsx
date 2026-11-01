@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MapPin, Search, Navigation, Loader2, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import servicesApi from '../../utils/servicesApi';
+import { useModal } from '../../context/ModalContext';
 
 // Common Indian place names mapping to English
 const KNOWN_PLACE_NAMES = {
@@ -217,6 +218,7 @@ export default function LocationPicker({
   showMapPreview = true,
   className = ''
 }) {
+  const { showModal } = useModal();
   const currentLang = lang || (t && t.lang) || localStorage.getItem('services_lang') || 'en';
   const isHindi = currentLang === 'hi';
 
@@ -423,11 +425,13 @@ export default function LocationPicker({
   // Browser GPS auto-detection
   const handleAutoDetect = () => {
     if (!navigator.geolocation) {
-      alert(
-        isHindi
+      showModal({
+        title: isHindi ? 'सूचना' : 'Location Notice',
+        message: isHindi
           ? 'ब्राउज़र में जियोलोकेशन समर्थित नहीं है।'
-          : 'Geolocation is not supported by your browser.'
-      );
+          : 'Geolocation is not supported by your browser.',
+        type: 'info'
+      });
       return;
     }
 
@@ -520,11 +524,13 @@ export default function LocationPicker({
       },
       (err) => {
         setDetectingGps(false);
-        alert(
-          isHindi
+        showModal({
+          title: isHindi ? 'सूचना' : 'Location Notice',
+          message: isHindi
             ? 'वर्तमान स्थान प्राप्त नहीं हो सका। कृपया अपना क्षेत्र नाम टाइप करें।'
-            : 'Could not access current location. Please type your area name.'
-        );
+            : 'Could not access current location. Please type your area name.',
+          type: 'info'
+        });
       },
       { timeout: 10000, enableHighAccuracy: true }
     );

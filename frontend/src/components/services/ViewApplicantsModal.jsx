@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { X, Users, Phone, Mail, Award, CheckCircle2, Clock, XCircle, FileText, Loader2, AlertCircle } from 'lucide-react';
 import servicesApi from '../../utils/servicesApi';
+import { useModal } from '../../context/ModalContext';
 
 export default function ViewApplicantsModal({ isOpen, onClose, job }) {
+  const { showModal } = useModal();
   const [applicants, setApplicants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -35,7 +37,11 @@ export default function ViewApplicantsModal({ isOpen, onClose, job }) {
         prev.map((app) => (app._id === appId ? { ...app, status: newStatus } : app))
       );
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update application status.');
+      showModal({
+        title: 'Status Update Failed',
+        message: err.response?.data?.message || 'Failed to update application status.',
+        type: 'error'
+      });
     } finally {
       setUpdatingId(null);
     }
@@ -53,7 +59,7 @@ export default function ViewApplicantsModal({ isOpen, onClose, job }) {
               <Users className="w-5 h-5 text-teal-200" />
             </div>
             <div>
-              <h3 className="text-base sm:text-lg font-bold font-outfit">Applicants for: {job.title}</h3>
+              <h3 className="text-base sm:text-lg font-bold font-outfit break-words break-all">Applicants for: {job.title}</h3>
               <p className="text-xs text-teal-100">
                 {applicants.length} Total Registered Candidate Application{applicants.length !== 1 ? 's' : ''}
               </p>
@@ -61,7 +67,7 @@ export default function ViewApplicantsModal({ isOpen, onClose, job }) {
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all"
+            className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all flex-shrink-0"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
@@ -93,12 +99,12 @@ export default function ViewApplicantsModal({ isOpen, onClose, job }) {
               {applicants.map((app) => (
                 <div
                   key={app._id}
-                  className="p-5 rounded-2xl border border-slate-200 bg-slate-50/50 hover:bg-white transition-all space-y-3"
+                  className="p-5 rounded-2xl border border-slate-200 bg-slate-50/50 hover:bg-white transition-all space-y-3 min-w-0"
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-slate-900 text-base">{app.applicantName}</h4>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="font-bold text-slate-900 text-base break-words break-all">{app.applicantName}</h4>
                         <span
                           className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full ${
                             app.status === 'shortlisted'
@@ -119,7 +125,7 @@ export default function ViewApplicantsModal({ isOpen, onClose, job }) {
                     </div>
 
                     {/* Action buttons */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       <button
                         onClick={() => handleStatusChange(app._id, 'shortlisted')}
                         disabled={updatingId === app._id || app.status === 'shortlisted'}
@@ -145,21 +151,21 @@ export default function ViewApplicantsModal({ isOpen, onClose, job }) {
                   </div>
 
                   {/* Qualifications & Contacts */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
-                    <div className="flex items-center gap-2 text-slate-700">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs min-w-0">
+                    <div className="flex items-center gap-2 text-slate-700 min-w-0">
                       <Award className="w-4 h-4 text-teal-600 flex-shrink-0" />
-                      <span>Degree: <strong>{app.qualification || 'B.Pharm'}</strong></span>
+                      <span className="break-words break-all">Degree: <strong>{app.qualification || 'B.Pharm'}</strong></span>
                     </div>
 
-                    <div className="flex items-center gap-2 text-slate-700">
+                    <div className="flex items-center gap-2 text-slate-700 min-w-0">
                       <Clock className="w-4 h-4 text-teal-600 flex-shrink-0" />
-                      <span>Experience: <strong>{app.experienceYears || 0} Years</strong></span>
+                      <span className="break-words break-all">Experience: <strong>{app.experienceYears || 0} Years</strong></span>
                     </div>
 
                     {app.licenseNumber && (
-                      <div className="flex items-center gap-2 text-slate-700 truncate">
+                      <div className="flex items-center gap-2 text-slate-700 min-w-0">
                         <FileText className="w-4 h-4 text-teal-600 flex-shrink-0" />
-                        <span className="truncate">License: <strong>{app.licenseNumber}</strong></span>
+                        <span className="break-words break-all">License: <strong>{app.licenseNumber}</strong></span>
                       </div>
                     )}
                   </div>
@@ -168,20 +174,20 @@ export default function ViewApplicantsModal({ isOpen, onClose, job }) {
                   <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-200/80">
                     <a
                       href={`tel:${app.applicantMobile}`}
-                      className="inline-flex items-center gap-1.5 text-xs font-bold text-teal-700 hover:text-teal-900 bg-teal-50 px-3 py-1.5 rounded-xl border border-teal-200"
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-teal-700 hover:text-teal-900 bg-teal-50 px-3 py-1.5 rounded-xl border border-teal-200 break-all"
                     >
-                      <Phone className="w-3.5 h-3.5" /> Call: {app.applicantMobile}
+                      <Phone className="w-3.5 h-3.5 flex-shrink-0" /> Call: {app.applicantMobile}
                     </a>
                     <a
                       href={`mailto:${app.applicantEmail}`}
-                      className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200"
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 break-all"
                     >
-                      <Mail className="w-3.5 h-3.5" /> {app.applicantEmail}
+                      <Mail className="w-3.5 h-3.5 flex-shrink-0" /> {app.applicantEmail}
                     </a>
                   </div>
 
                   {app.coverNote && (
-                    <div className="p-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-600 italic">
+                    <div className="p-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-600 italic break-words break-all max-h-36 overflow-y-auto">
                       "{app.coverNote}"
                     </div>
                   )}

@@ -36,46 +36,72 @@ exports.createCollabPost = async (req, res) => {
       });
     }
 
+    const cleanSpec = String(specializationNeeded).trim();
+    if (cleanSpec.length < 2 || cleanSpec.length > 80) {
+      return res.status(400).json({ message: 'Specialization needed must be between 2 and 80 characters.' });
+    }
+
+    const cleanTimings = String(preferredTimings).trim();
+    if (cleanTimings.length < 2 || cleanTimings.length > 80) {
+      return res.status(400).json({ message: 'Preferred timings must be between 2 and 80 characters.' });
+    }
+
+    const cleanDesc = String(description).trim();
+    if (cleanDesc.length < 10 || cleanDesc.length > 1000) {
+      return res.status(400).json({ message: 'Description must be between 10 and 1000 characters.' });
+    }
+
+    const cleanClinic = clinicOrChamberName ? String(clinicOrChamberName).trim().slice(0, 120) : '';
+    const cleanDays = consultationDays ? String(consultationDays).trim().slice(0, 80) : 'Monday to Saturday';
+    const cleanTerms = collaborationTerms ? String(collaborationTerms).trim().slice(0, 120) : 'Revenue Share / Negotiable';
+    const cleanRadius = Math.max(5, Math.min(100, Number(visibilityRadiusKm) || 30));
+
     const owner = await ServiceUser.findById(req.serviceUser._id);
     if (!owner) return res.status(404).json({ message: 'Owner profile not found.' });
 
     let finalLocation = {
-      address: owner.location?.address || '',
-      city: owner.location?.city || '',
-      state: owner.location?.state || '',
-      pincode: owner.location?.pincode || '',
+      address: (owner.location?.address || '').slice(0, 200),
+      city: (owner.location?.city || '').slice(0, 60),
+      state: (owner.location?.state || '').slice(0, 60),
+      pincode: (owner.location?.pincode || '').slice(0, 10),
       type: 'Point',
       coordinates: owner.location?.coordinates || [77.1025, 28.7041]
     };
 
     if (location) {
-      if (location.address) finalLocation.address = location.address;
-      if (location.city) finalLocation.city = location.city;
-      if (location.state) finalLocation.state = location.state;
-      if (location.pincode) finalLocation.pincode = location.pincode;
+      if (location.address) finalLocation.address = String(location.address).trim().slice(0, 200);
+      if (location.city) finalLocation.city = String(location.city).trim().slice(0, 60);
+      if (location.state) finalLocation.state = String(location.state).trim().slice(0, 60);
+      if (location.pincode) finalLocation.pincode = String(location.pincode).trim().slice(0, 10);
       if (location.coordinates) {
         finalLocation.coordinates = sanitizeCoordinates(location.coordinates);
       }
     }
 
-    const facilities = Array.isArray(chamberFacilities)
-      ? chamberFacilities
-      : (chamberFacilities ? [chamberFacilities] : ['Consultation Room', 'Attached Pharmacy']);
+    let facilities = ['Consultation Room', 'Attached Pharmacy'];
+    if (Array.isArray(chamberFacilities)) {
+      facilities = chamberFacilities
+        .map((f) => String(f).trim().slice(0, 100))
+        .filter((f) => f.length > 0)
+        .slice(0, 15);
+    } else if (chamberFacilities) {
+      facilities = [String(chamberFacilities).trim().slice(0, 100)];
+    }
 
     const post = new DoctorCollaborationPost({
       ownerId: owner._id,
-      pharmacyName: pharmacyName || owner.pharmacyDetails?.pharmacyName || owner.name,
-      clinicOrChamberName: clinicOrChamberName || '',
-      specializationNeeded: specializationNeeded.trim(),
+      pharmacyName: (pharmacyName || owner.pharmacyDetails?.pharmacyName || owner.name || '').slice(0, 120),
+      clinicOrChamberName: cleanClinic,
+      specializationNeeded: cleanSpec,
       chamberFacilities: facilities,
-      preferredTimings: preferredTimings.trim(),
-      consultationDays: consultationDays || 'Monday to Saturday',
-      collaborationTerms: collaborationTerms || 'Revenue Share / Negotiable',
-      description: description.trim(),
+      preferredTimings: cleanTimings,
+      consultationDays: cleanDays,
+      collaborationTerms: cleanTerms,
+      description: cleanDesc,
       contactPhone: contactPhone || owner.mobile,
       contactEmail: contactEmail || owner.email,
       location: finalLocation,
-      visibilityRadiusKm: Number(visibilityRadiusKm) || 30,
+      visibilityRadiusKm: cleanRadius,
       status: 'active'
     });
 
@@ -135,32 +161,56 @@ exports.updateCollabPost = async (req, res) => {
     }
 
     const updates = req.body;
-    const allowed = [
-      'pharmacyName',
-      'clinicOrChamberName',
-      'specializationNeeded',
-      'chamberFacilities',
-      'preferredTimings',
-      'consultationDays',
-      'collaborationTerms',
-      'description',
-      'contactPhone',
-      'contactEmail',
-      'visibilityRadiusKm',
-      'status'
-    ];
-
-    allowed.forEach((f) => {
-      if (updates[f] !== undefined) {
-        post[f] = updates[f];
+    if (updates.specializationNeeded !== undefined) {
+      const cleanSpec = String(updates.specializationNeeded).trim();
+      if (cleanSpec.length < 2 || cleanSpec.length > 80) {
+        return res.status(400).json({ message: 'Specialization needed must be between 2 and 80 characters.' });
       }
-    });
+      post.specializationNeeded = cleanSpec;
+    }
+
+    if (updates.preferredTimings !== undefined) {
+      const cleanTimings = String(updates.preferredTimings).trim();
+      if (cleanTimings.length < 2 || cleanTimings.length > 80) {
+        return res.status(400).json({ message: 'Preferred timings must be between 2 and 80 characters.' });
+      }
+      post.preferredTimings = cleanTimings;
+    }
+
+    if (updates.description !== undefined) {
+      const cleanDesc = String(updates.description).trim();
+      if (cleanDesc.length < 10 || cleanDesc.length > 1000) {
+        return res.status(400).json({ message: 'Description must be between 10 and 1000 characters.' });
+      }
+      post.description = cleanDesc;
+    }
+
+    if (updates.pharmacyName !== undefined) post.pharmacyName = String(updates.pharmacyName).trim().slice(0, 120);
+    if (updates.clinicOrChamberName !== undefined) post.clinicOrChamberName = String(updates.clinicOrChamberName).trim().slice(0, 120);
+    if (updates.consultationDays !== undefined) post.consultationDays = String(updates.consultationDays).trim().slice(0, 80);
+    if (updates.collaborationTerms !== undefined) post.collaborationTerms = String(updates.collaborationTerms).trim().slice(0, 120);
+    if (updates.visibilityRadiusKm !== undefined) post.visibilityRadiusKm = Math.max(5, Math.min(100, Number(updates.visibilityRadiusKm) || 30));
+    if (updates.status !== undefined) post.status = ['active', 'closed', 'paused'].includes(updates.status) ? updates.status : post.status;
+
+    if (updates.chamberFacilities !== undefined) {
+      if (Array.isArray(updates.chamberFacilities)) {
+        post.chamberFacilities = updates.chamberFacilities
+          .map((f) => String(f).trim().slice(0, 100))
+          .filter((f) => f.length > 0)
+          .slice(0, 15);
+      } else if (updates.chamberFacilities) {
+        post.chamberFacilities = [String(updates.chamberFacilities).trim().slice(0, 100)];
+      }
+    }
+
+    if (updates.contactPhone !== undefined) post.contactPhone = String(updates.contactPhone).trim().slice(0, 20);
+    if (updates.contactEmail !== undefined) post.contactEmail = String(updates.contactEmail).trim().slice(0, 120);
 
     if (updates.location) {
-      if (updates.location.address !== undefined) post.location.address = updates.location.address;
-      if (updates.location.city !== undefined) post.location.city = updates.location.city;
-      if (updates.location.state !== undefined) post.location.state = updates.location.state;
-      if (updates.location.pincode !== undefined) post.location.pincode = updates.location.pincode;
+      if (updates.location.address !== undefined) post.location.address = String(updates.location.address).trim().slice(0, 200);
+      if (updates.location.city !== undefined) post.location.city = String(updates.location.city).trim().slice(0, 60);
+      if (updates.location.state !== undefined) post.location.state = String(updates.location.state).trim().slice(0, 60);
+      if (updates.location.pincode !== undefined) post.location.pincode = String(updates.location.pincode).trim().slice(0, 10);
       if (updates.location.coordinates) {
         post.location.coordinates = sanitizeCoordinates(updates.location.coordinates);
       }
@@ -367,19 +417,24 @@ exports.inquireCollabPost = async (req, res) => {
 
     const { message, proposedTimings, mobile, specialization } = req.body;
 
+    const cleanMessage = message ? String(message).trim().slice(0, 500) : '';
+    const cleanProposed = proposedTimings ? String(proposedTimings).trim().slice(0, 80) : '';
+    const cleanMobile = mobile ? String(mobile).replace(/\D/g, '').slice(0, 10) : doctor.mobile;
+    const cleanSpec = specialization ? String(specialization).trim().slice(0, 80) : (doctor.doctorDetails?.specialization || 'Medical Specialist');
+
     const inquiry = new DoctorCollaborationInquiry({
       collabPostId: post._id,
       doctorId: doctor._id,
       ownerId: post.ownerId,
       doctorName: doctor.name,
-      doctorMobile: mobile || doctor.mobile,
+      doctorMobile: cleanMobile,
       doctorEmail: doctor.email,
-      specialization: specialization || doctor.doctorDetails?.specialization || 'Medical Specialist',
-      qualification: doctor.doctorDetails?.qualification || '',
-      medicalRegistrationNumber: doctor.doctorDetails?.medicalRegistrationNumber || '',
-      experienceYears: doctor.doctorDetails?.experienceYears || 0,
-      message: (message || '').trim(),
-      proposedTimings: proposedTimings || '',
+      specialization: cleanSpec,
+      qualification: (doctor.doctorDetails?.qualification || '').slice(0, 60),
+      medicalRegistrationNumber: (doctor.doctorDetails?.medicalRegistrationNumber || '').slice(0, 60),
+      experienceYears: Math.max(0, Math.min(60, Number(doctor.doctorDetails?.experienceYears) || 0)),
+      message: cleanMessage,
+      proposedTimings: cleanProposed,
       status: 'pending'
     });
 

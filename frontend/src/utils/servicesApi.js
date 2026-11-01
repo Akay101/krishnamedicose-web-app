@@ -15,25 +15,35 @@ servicesApi.interceptors.request.use(
     const serviceToken = localStorage.getItem('service_token');
     const adminToken = localStorage.getItem('token');
 
-    if (serviceToken) {
+    // Context detection:
+    // If request URL has '/admin' OR current window location is an admin path, prioritize platform admin token
+    const isAdminContext =
+      (config.url && config.url.includes('/admin')) ||
+      (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin'));
+
+    const primaryToken = isAdminContext
+      ? (adminToken || serviceToken)
+      : (serviceToken || adminToken);
+
+    if (primaryToken) {
       // Proactive 24-hour session expiration check
       try {
-        const parts = serviceToken.split('.');
+        const parts = primaryToken.split('.');
         if (parts.length === 3) {
           const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
           if (payload.exp && payload.exp * 1000 <= Date.now()) {
-            localStorage.removeItem('service_token');
-            localStorage.removeItem('service_user');
-            window.dispatchEvent(new Event('service_auth_change'));
+            if (primaryToken === serviceToken) {
+              localStorage.removeItem('service_token');
+              localStorage.removeItem('service_user');
+              window.dispatchEvent(new Event('service_auth_change'));
+            }
             return config;
           }
         }
       } catch {
         // Fall through
       }
-      config.headers.Authorization = `Bearer ${serviceToken}`;
-    } else if (adminToken) {
-      config.headers.Authorization = `Bearer ${adminToken}`;
+      config.headers.Authorization = `Bearer ${primaryToken}`;
     }
 
     return config;
@@ -45,8 +55,13 @@ servicesApi.interceptors.request.use(
 servicesApi.interceptors.response.use(
   (response) => response,
   (error) => {
+    const isServiceReq =
+      !error.config?.url?.includes('/admin') &&
+      typeof window !== 'undefined' &&
+      !window.location.pathname.startsWith('/admin');
+
     // If blocked or 401 on service user
-    if (error.response?.status === 401 && localStorage.getItem('service_token')) {
+    if (error.response?.status === 401 && isServiceReq && localStorage.getItem('service_token')) {
       // Clear expired service user session
       localStorage.removeItem('service_token');
       localStorage.removeItem('service_user');

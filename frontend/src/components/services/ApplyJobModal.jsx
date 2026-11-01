@@ -81,16 +81,16 @@ export default function ApplyJobModal({ isOpen, onClose, job, user, onApplicatio
             )}
 
             {/* Target Job Summary Box */}
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
-              <h4 className="font-bold text-slate-900 text-sm">{job.title}</h4>
-              <p className="text-xs text-slate-500 mt-0.5">
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl min-w-0">
+              <h4 className="font-bold text-slate-900 text-sm break-words break-all">{job.title}</h4>
+              <p className="text-xs text-slate-500 mt-0.5 break-words break-all">
                 {job.pharmacyName} - {job.location?.city || 'Local Area'}
               </p>
               <div className="flex flex-wrap gap-2 mt-2">
-                <span className="text-[11px] font-semibold px-2 py-0.5 bg-teal-100 text-teal-800 rounded">
+                <span className="text-[11px] font-semibold px-2 py-0.5 bg-teal-100 text-teal-800 rounded break-all">
                   {job.jobType}
                 </span>
-                <span className="text-[11px] font-semibold px-2 py-0.5 bg-slate-200 text-slate-700 rounded">
+                <span className="text-[11px] font-semibold px-2 py-0.5 bg-slate-200 text-slate-700 rounded break-all">
                   {job.salaryRange}
                 </span>
               </div>
@@ -104,17 +104,22 @@ export default function ApplyJobModal({ isOpen, onClose, job, user, onApplicatio
                   type="text"
                   disabled
                   value={user?.name || ''}
-                  className="w-full px-4 py-2.5 text-sm rounded-xl border border-slate-200 bg-slate-100 text-slate-600"
+                  className="w-full px-4 py-2.5 text-sm rounded-xl border border-slate-200 bg-slate-100 text-slate-600 truncate"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Contact Phone Number *</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-bold text-slate-700">Contact Phone Number *</label>
+                  <span className="text-[11px] text-slate-400 font-semibold">{mobile.length}/10</span>
+                </div>
                 <input
                   type="tel"
                   required
+                  maxLength={10}
                   value={mobile}
-                  onChange={(e) => setMobile(e.target.value)}
+                  onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="10-digit mobile"
                   className="w-full px-4 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
                 />
               </div>
@@ -141,9 +146,12 @@ export default function ApplyJobModal({ isOpen, onClose, job, user, onApplicatio
                 <input
                   type="number"
                   min="0"
-                  max="40"
+                  max="50"
                   required
                   value={experienceYears}
+                  onKeyDown={(e) => {
+                    if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
+                  }}
                   onChange={(e) => setExperienceYears(e.target.value)}
                   className="w-full px-4 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
                 />
@@ -151,11 +159,15 @@ export default function ApplyJobModal({ isOpen, onClose, job, user, onApplicatio
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Brief Introduction / Cover Message
-              </label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs font-bold text-slate-700">
+                  Brief Introduction / Cover Message
+                </label>
+                <span className="text-[11px] text-slate-400 font-semibold">{coverNote.length}/500</span>
+              </div>
               <textarea
                 rows={3}
+                maxLength={500}
                 value={coverNote}
                 onChange={(e) => setCoverNote(e.target.value)}
                 placeholder="Mention your availability to join, previous pharmacy experience, or dispensing skills..."

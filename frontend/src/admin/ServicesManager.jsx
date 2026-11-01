@@ -31,8 +31,10 @@ import {
   Check
 } from 'lucide-react';
 import servicesApi from '../utils/servicesApi';
+import { useModal } from '../context/ModalContext';
 
 export default function ServicesManager() {
+  const { showModal } = useModal();
   const [activeTab, setActiveTab] = useState('users'); // 'users', 'jobs', 'collabs'
   const [stats, setStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(true);
@@ -137,27 +139,41 @@ export default function ServicesManager() {
   };
 
   // Toggle user block
-  const handleToggleBlock = async (user) => {
+  const handleToggleBlock = (user) => {
     const action = user.isBlocked ? 'unblock' : 'block';
-    let reason = '';
-    if (!user.isBlocked) {
-      reason = window.prompt('Specify reason for account suspension (optional):', 'Administrative review');
-      if (reason === null) return;
-    }
+    const actionTitle = user.isBlocked ? 'Unblock User Account' : 'Suspend User Account';
+    const actionMsg = user.isBlocked
+      ? `Are you sure you want to lift the suspension for ${user.name || user.email}?`
+      : `Are you sure you want to suspend ${user.name || user.email}'s account? They will lose access to post jobs and doctor collaborations.`;
 
-    try {
-      const res = await servicesApi.patch(`/admin/users/${user._id}/toggle-block`, { blockReason: reason });
-      setUsers((prev) =>
-        prev.map((u) => (u._id === user._id ? { ...u, isBlocked: res.data.isBlocked, blockReason: reason } : u))
-      );
-      setSelectedUserForDetails((prev) =>
-        prev && prev._id === user._id ? { ...prev, isBlocked: res.data.isBlocked, blockReason: reason } : prev
-      );
-      showNotification(res.data.message);
-      fetchStats();
-    } catch (err) {
-      alert(err.response?.data?.message || `Failed to ${action} user.`);
-    }
+    showModal({
+      title: actionTitle,
+      message: actionMsg,
+      type: 'confirm',
+      confirmText: user.isBlocked ? 'Unblock' : 'Suspend Account',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        try {
+          const res = await servicesApi.patch(`/admin/users/${user._id}/toggle-block`, {
+            blockReason: user.isBlocked ? '' : 'Administrative review'
+          });
+          setUsers((prev) =>
+            prev.map((u) => (u._id === user._id ? { ...u, isBlocked: res.data.isBlocked, blockReason: res.data.isBlocked ? 'Administrative review' : '' } : u))
+          );
+          setSelectedUserForDetails((prev) =>
+            prev && prev._id === user._id ? { ...prev, isBlocked: res.data.isBlocked, blockReason: res.data.isBlocked ? 'Administrative review' : '' } : prev
+          );
+          showNotification(res.data.message);
+          fetchStats();
+        } catch (err) {
+          showModal({
+            title: 'Action Failed',
+            message: err.response?.data?.message || `Failed to ${action} user.`,
+            type: 'error'
+          });
+        }
+      }
+    });
   };
 
   // Toggle user verify
@@ -172,7 +188,11 @@ export default function ServicesManager() {
       );
       showNotification(res.data.message);
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update verification status.');
+      showModal({
+        title: 'Update Failed',
+        message: err.response?.data?.message || 'Failed to update verification status.',
+        type: 'error'
+      });
     }
   };
 
@@ -189,24 +209,40 @@ export default function ServicesManager() {
       setEditingUser(null);
       fetchStats();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update user.');
+      showModal({
+        title: 'Update Failed',
+        message: err.response?.data?.message || 'Failed to update user.',
+        type: 'error'
+      });
     } finally {
       setSavingEditUser(false);
     }
   };
 
   // Delete user
-  const handleDeleteUser = async (userId) => {
-    if (!window.confirm('Are you sure you want to PERMANENTLY delete this user account and all their postings?')) return;
-    try {
-      const res = await servicesApi.delete(`/admin/users/${userId}`);
-      setUsers((prev) => prev.filter((u) => u._id !== userId));
-      setSelectedUserForDetails((prev) => (prev && prev._id === userId ? null : prev));
-      showNotification(res.data.message);
-      fetchStats();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to delete user.');
-    }
+  const handleDeleteUser = (userId) => {
+    showModal({
+      title: 'Confirm Deletion',
+      message: 'Are you sure you want to PERMANENTLY delete this user account and all their postings?',
+      type: 'confirm',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        try {
+          const res = await servicesApi.delete(`/admin/users/${userId}`);
+          setUsers((prev) => prev.filter((u) => u._id !== userId));
+          setSelectedUserForDetails((prev) => (prev && prev._id === userId ? null : prev));
+          showNotification(res.data.message);
+          fetchStats();
+        } catch (err) {
+          showModal({
+            title: 'Delete Failed',
+            message: err.response?.data?.message || 'Failed to delete user.',
+            type: 'error'
+          });
+        }
+      }
+    });
   };
 
   // Toggle job status
@@ -218,22 +254,38 @@ export default function ServicesManager() {
       showNotification(res.data.message);
       fetchStats();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update job status.');
+      showModal({
+        title: 'Update Failed',
+        message: err.response?.data?.message || 'Failed to update job status.',
+        type: 'error'
+      });
     }
   };
 
   // Delete job
-  const handleDeleteJob = async (jobId) => {
-    if (!window.confirm('Delete this job post permanently?')) return;
-    try {
-      const res = await servicesApi.delete(`/admin/jobs/${jobId}`);
-      setJobs((prev) => prev.filter((j) => j._id !== jobId));
-      setSelectedJobForDetails((prev) => (prev && prev._id === jobId ? null : prev));
-      showNotification(res.data.message);
-      fetchStats();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to delete job.');
-    }
+  const handleDeleteJob = (jobId) => {
+    showModal({
+      title: 'Confirm Deletion',
+      message: 'Delete this job post permanently?',
+      type: 'confirm',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        try {
+          const res = await servicesApi.delete(`/admin/jobs/${jobId}`);
+          setJobs((prev) => prev.filter((j) => j._id !== jobId));
+          setSelectedJobForDetails((prev) => (prev && prev._id === jobId ? null : prev));
+          showNotification(res.data.message);
+          fetchStats();
+        } catch (err) {
+          showModal({
+            title: 'Delete Failed',
+            message: err.response?.data?.message || 'Failed to delete job.',
+            type: 'error'
+          });
+        }
+      }
+    });
   };
 
   // Toggle collab status
@@ -245,22 +297,38 @@ export default function ServicesManager() {
       showNotification(res.data.message);
       fetchStats();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update collaboration status.');
+      showModal({
+        title: 'Update Failed',
+        message: err.response?.data?.message || 'Failed to update collaboration status.',
+        type: 'error'
+      });
     }
   };
 
   // Delete collab
-  const handleDeleteCollab = async (collabId) => {
-    if (!window.confirm('Delete this doctor collaboration listing permanently?')) return;
-    try {
-      const res = await servicesApi.delete(`/admin/collab-posts/${collabId}`);
-      setCollabs((prev) => prev.filter((c) => c._id !== collabId));
-      setSelectedCollabForDetails((prev) => (prev && prev._id === collabId ? null : prev));
-      showNotification(res.data.message);
-      fetchStats();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to delete collaboration listing.');
-    }
+  const handleDeleteCollab = (collabId) => {
+    showModal({
+      title: 'Confirm Deletion',
+      message: 'Delete this doctor collaboration listing permanently?',
+      type: 'confirm',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        try {
+          const res = await servicesApi.delete(`/admin/collab-posts/${collabId}`);
+          setCollabs((prev) => prev.filter((c) => c._id !== collabId));
+          setSelectedCollabForDetails((prev) => (prev && prev._id === collabId ? null : prev));
+          showNotification(res.data.message);
+          fetchStats();
+        } catch (err) {
+          showModal({
+            title: 'Delete Failed',
+            message: err.response?.data?.message || 'Failed to delete collaboration listing.',
+            type: 'error'
+          });
+        }
+      }
+    });
   };
 
   const getUserLicenseDoc = (user) => {
@@ -497,7 +565,7 @@ export default function ServicesManager() {
                         <tr key={u._id} className="hover:bg-slate-50/70 transition-colors">
                           {/* Name & Role */}
                           <td className="px-6 py-4">
-                            <div className="font-bold text-slate-900 text-sm">{u.name}</div>
+                            <div className="font-bold text-slate-900 text-sm max-w-[180px] break-words break-all">{u.name}</div>
                             <span
                               className={`inline-block text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full mt-1 ${
                                 u.role === 'pharmacy_owner'
@@ -517,46 +585,46 @@ export default function ServicesManager() {
 
                           {/* Contact */}
                           <td className="px-6 py-4 space-y-1">
-                            <div className="flex items-center gap-1.5 text-slate-700">
-                              <Phone className="w-3.5 h-3.5 text-slate-400" />
-                              <span>{u.mobile}</span>
+                            <div className="flex items-center gap-1.5 text-slate-700 max-w-[200px] break-words break-all">
+                              <Phone className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                              <span className="break-all">{u.mobile}</span>
                             </div>
-                            <div className="flex items-center gap-1.5 text-slate-600">
-                              <Mail className="w-3.5 h-3.5 text-slate-400" />
-                              <span>{u.email}</span>
+                            <div className="flex items-center gap-1.5 text-slate-600 max-w-[200px] break-words break-all">
+                              <Mail className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                              <span className="break-all">{u.email}</span>
                             </div>
                           </td>
 
                           {/* Credentials */}
                           <td className="px-6 py-4">
                             {u.role === 'pharmacy_owner' && (
-                              <div>
-                                <span className="font-bold text-slate-800 block">
+                              <div className="max-w-[200px]">
+                                <span className="font-bold text-slate-800 block break-words break-all">
                                   {u.pharmacyDetails?.pharmacyName || 'Pharmacy'}
                                 </span>
-                                <span className="text-[11px] text-slate-500">
+                                <span className="text-[11px] text-slate-500 break-words break-all">
                                   DL: {u.pharmacyDetails?.licenseNumber || 'N/A'}
                                 </span>
                               </div>
                             )}
 
                             {u.role === 'job_seeker_pharmacist' && (
-                              <div>
-                                <span className="font-bold text-slate-800 block">
+                              <div className="max-w-[200px]">
+                                <span className="font-bold text-slate-800 block break-words break-all">
                                   {u.pharmacistDetails?.qualification || 'B.Pharm'}
                                 </span>
-                                <span className="text-[11px] text-slate-500">
+                                <span className="text-[11px] text-slate-500 break-words break-all">
                                   Exp: {u.pharmacistDetails?.experienceYears || 0} Yrs | Reg: {u.pharmacistDetails?.licenseNumber || 'N/A'}
                                 </span>
                               </div>
                             )}
 
                             {u.role === 'doctor' && (
-                              <div>
-                                <span className="font-bold text-slate-800 block">
+                              <div className="max-w-[200px]">
+                                <span className="font-bold text-slate-800 block break-words break-all">
                                   {u.doctorDetails?.specialization || 'Specialist'}
                                 </span>
-                                <span className="text-[11px] text-slate-500">
+                                <span className="text-[11px] text-slate-500 break-words break-all">
                                   {u.doctorDetails?.qualification} | Council Reg: {u.doctorDetails?.medicalRegistrationNumber || 'N/A'}
                                 </span>
                               </div>
@@ -565,8 +633,8 @@ export default function ServicesManager() {
 
                           {/* Location */}
                           <td className="px-6 py-4">
-                            <div className="text-slate-800 font-semibold">{u.location?.city || 'N/A'}</div>
-                            <div className="text-[11px] text-slate-500 truncate max-w-[150px]">
+                            <div className="text-slate-800 font-semibold max-w-[150px] break-words break-all">{u.location?.city || 'N/A'}</div>
+                            <div className="text-[11px] text-slate-500 max-w-[150px] break-words break-all line-clamp-2">
                               {u.location?.address}
                             </div>
                           </td>
@@ -745,19 +813,19 @@ export default function ServicesManager() {
                     jobs.map((job) => (
                       <tr key={job._id} className="hover:bg-slate-50/70 transition-colors">
                         <td className="px-6 py-4">
-                          <div className="font-bold text-slate-900 text-sm">{job.title}</div>
-                          <div className="text-xs text-slate-500">{job.pharmacyName}</div>
+                          <div className="font-bold text-slate-900 text-sm max-w-[220px] break-words break-all">{job.title}</div>
+                          <div className="text-xs text-slate-500 max-w-[220px] break-words break-all">{job.pharmacyName}</div>
                         </td>
 
                         <td className="px-6 py-4">
-                          <div className="font-semibold text-slate-800">{job.jobType}</div>
-                          <div className="text-[11px] text-slate-500">Degree: {job.requiredQualification}</div>
+                          <div className="font-semibold text-slate-800 max-w-[150px] break-words break-all">{job.jobType}</div>
+                          <div className="text-[11px] text-slate-500 max-w-[150px] break-words break-all">Degree: {job.requiredQualification}</div>
                         </td>
 
-                        <td className="px-6 py-4 font-semibold text-slate-700">{job.salaryRange}</td>
+                        <td className="px-6 py-4 font-semibold text-slate-700 max-w-[150px] break-words break-all">{job.salaryRange}</td>
 
                         <td className="px-6 py-4">
-                          <div>{job.location?.city || 'Local Zone'}</div>
+                          <div className="max-w-[150px] break-words break-all">{job.location?.city || 'Local Zone'}</div>
                           <div className="text-[11px] text-slate-500">Radius: {job.visibilityRadiusKm || 25} km</div>
                         </td>
 
@@ -850,24 +918,24 @@ export default function ServicesManager() {
                   ) : (
                     collabs.map((collab) => (
                       <tr key={collab._id} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="font-bold text-slate-900 text-sm">
+                        <td className="px-6 py-4 max-w-[220px]">
+                          <div className="font-bold text-slate-900 text-sm break-words break-all">
                             Needs: {collab.specializationNeeded}
                           </div>
-                          <div className="text-xs text-slate-500">
+                          <div className="text-xs text-slate-500 break-words break-all">
                             {collab.clinicOrChamberName || collab.pharmacyName}
                           </div>
                         </td>
 
-                        <td className="px-6 py-4">
-                          <div className="font-semibold text-slate-800">{collab.preferredTimings}</div>
-                          <div className="text-[11px] text-slate-500">{collab.consultationDays}</div>
+                        <td className="px-6 py-4 max-w-[180px]">
+                          <div className="font-semibold text-slate-800 break-words break-all">{collab.preferredTimings}</div>
+                          <div className="text-[11px] text-slate-500 break-words break-all">{collab.consultationDays}</div>
                         </td>
 
-                        <td className="px-6 py-4 font-semibold text-emerald-800">{collab.collaborationTerms}</td>
+                        <td className="px-6 py-4 font-semibold text-emerald-800 max-w-[160px] break-words break-all">{collab.collaborationTerms}</td>
 
-                        <td className="px-6 py-4">
-                          <div>{collab.location?.city || 'Local Zone'}</div>
+                        <td className="px-6 py-4 max-w-[160px]">
+                          <div className="break-words break-all">{collab.location?.city || 'Local Zone'}</div>
                           <div className="text-[11px] text-slate-500">Radius: {collab.visibilityRadiusKm || 30} km</div>
                         </td>
 
@@ -920,9 +988,9 @@ export default function ServicesManager() {
           <div className="relative w-full max-w-2xl bg-white rounded-3xl overflow-hidden shadow-2xl p-6 sm:p-8 space-y-6 my-8 max-h-[90vh] overflow-y-auto">
             {/* Header */}
             <div className="flex items-start justify-between pb-4 border-b border-slate-200">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-xl font-black text-slate-900">{selectedUserForDetails.name}</h3>
+              <div className="min-w-0 pr-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-xl font-black text-slate-900 break-words break-all">{selectedUserForDetails.name}</h3>
                   <span
                     className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full ${
                       selectedUserForDetails.isBlocked
@@ -945,7 +1013,7 @@ export default function ServicesManager() {
               </div>
               <button
                 onClick={() => setSelectedUserForDetails(null)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100"
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 flex-shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -953,9 +1021,9 @@ export default function ServicesManager() {
 
             {/* Block reason notice if suspended */}
             {selectedUserForDetails.isBlocked && (
-              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2">
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2 break-words break-all">
                 <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-rose-600" />
-                <div>
+                <div className="min-w-0">
                   <span className="font-bold">Suspension Reason: </span>
                   <span>{selectedUserForDetails.blockReason || 'Administrative suspension'}</span>
                 </div>
@@ -964,27 +1032,27 @@ export default function ServicesManager() {
 
             {/* Contact & Location Info */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div className="p-3 bg-slate-50 rounded-xl space-y-1">
+              <div className="p-3 bg-slate-50 rounded-xl space-y-1 min-w-0">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Mobile</span>
-                <p className="font-bold text-slate-900">{selectedUserForDetails.mobile || 'N/A'}</p>
+                <p className="font-bold text-slate-900 break-all">{selectedUserForDetails.mobile || 'N/A'}</p>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl space-y-1">
+              <div className="p-3 bg-slate-50 rounded-xl space-y-1 min-w-0">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Email</span>
-                <p className="font-bold text-slate-900">{selectedUserForDetails.email || 'N/A'}</p>
+                <p className="font-bold text-slate-900 break-all">{selectedUserForDetails.email || 'N/A'}</p>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl space-y-1">
+              <div className="p-3 bg-slate-50 rounded-xl space-y-1 min-w-0">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">City / Region</span>
-                <p className="font-bold text-slate-900">{selectedUserForDetails.location?.city || 'N/A'}</p>
+                <p className="font-bold text-slate-900 break-words break-all">{selectedUserForDetails.location?.city || 'N/A'}</p>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl space-y-1">
+              <div className="p-3 bg-slate-50 rounded-xl space-y-1 min-w-0">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Pincode / State</span>
-                <p className="font-bold text-slate-900">
+                <p className="font-bold text-slate-900 break-words break-all">
                   {selectedUserForDetails.location?.pincode || 'N/A'} {selectedUserForDetails.location?.state ? `(${selectedUserForDetails.location.state})` : ''}
                 </p>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl sm:col-span-2 space-y-1">
+              <div className="p-3 bg-slate-50 rounded-xl sm:col-span-2 space-y-1 min-w-0">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Full Address</span>
-                <p className="font-semibold text-slate-800">{selectedUserForDetails.location?.address || 'No address provided'}</p>
+                <p className="font-semibold text-slate-800 break-words break-all">{selectedUserForDetails.location?.address || 'No address provided'}</p>
               </div>
             </div>
 
@@ -994,28 +1062,28 @@ export default function ServicesManager() {
               
               {selectedUserForDetails.role === 'pharmacy_owner' && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
+                  <div className="min-w-0">
                     <span className="text-slate-500 text-[11px]">Pharmacy Name:</span>
-                    <p className="font-bold text-slate-900">{selectedUserForDetails.pharmacyDetails?.pharmacyName || 'N/A'}</p>
+                    <p className="font-bold text-slate-900 break-words break-all">{selectedUserForDetails.pharmacyDetails?.pharmacyName || 'N/A'}</p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <span className="text-slate-500 text-[11px]">Drug License Number:</span>
-                    <p className="font-bold text-slate-900">{selectedUserForDetails.pharmacyDetails?.licenseNumber || 'N/A'}</p>
+                    <p className="font-bold text-slate-900 break-words break-all">{selectedUserForDetails.pharmacyDetails?.licenseNumber || 'N/A'}</p>
                   </div>
                 </div>
               )}
 
               {selectedUserForDetails.role === 'job_seeker_pharmacist' && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
+                  <div className="min-w-0">
                     <span className="text-slate-500 text-[11px]">Qualification:</span>
-                    <p className="font-bold text-slate-900">{selectedUserForDetails.pharmacistDetails?.qualification || 'N/A'}</p>
+                    <p className="font-bold text-slate-900 break-words break-all">{selectedUserForDetails.pharmacistDetails?.qualification || 'N/A'}</p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <span className="text-slate-500 text-[11px]">Pharmacy Reg / License:</span>
-                    <p className="font-bold text-slate-900">{selectedUserForDetails.pharmacistDetails?.licenseNumber || 'N/A'}</p>
+                    <p className="font-bold text-slate-900 break-words break-all">{selectedUserForDetails.pharmacistDetails?.licenseNumber || 'N/A'}</p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <span className="text-slate-500 text-[11px]">Experience:</span>
                     <p className="font-bold text-slate-900">{selectedUserForDetails.pharmacistDetails?.experienceYears ?? 0} Years</p>
                   </div>
@@ -1024,19 +1092,19 @@ export default function ServicesManager() {
 
               {selectedUserForDetails.role === 'doctor' && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
+                  <div className="min-w-0">
                     <span className="text-slate-500 text-[11px]">Specialization:</span>
-                    <p className="font-bold text-slate-900">{selectedUserForDetails.doctorDetails?.specialization || 'N/A'}</p>
+                    <p className="font-bold text-slate-900 break-words break-all">{selectedUserForDetails.doctorDetails?.specialization || 'N/A'}</p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <span className="text-slate-500 text-[11px]">Degree / Qualification:</span>
-                    <p className="font-bold text-slate-900">{selectedUserForDetails.doctorDetails?.qualification || 'N/A'}</p>
+                    <p className="font-bold text-slate-900 break-words break-all">{selectedUserForDetails.doctorDetails?.qualification || 'N/A'}</p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <span className="text-slate-500 text-[11px]">Medical Council Reg:</span>
-                    <p className="font-bold text-slate-900">{selectedUserForDetails.doctorDetails?.medicalRegistrationNumber || 'N/A'}</p>
+                    <p className="font-bold text-slate-900 break-words break-all">{selectedUserForDetails.doctorDetails?.medicalRegistrationNumber || 'N/A'}</p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <span className="text-slate-500 text-[11px]">Experience:</span>
                     <p className="font-bold text-slate-900">{selectedUserForDetails.doctorDetails?.experienceYears ?? 0} Years</p>
                   </div>
@@ -1175,32 +1243,35 @@ export default function ServicesManager() {
               {/* Basic Fields */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Full Name</label>
+                  <label className="font-bold text-slate-700 block mb-1">Full Name (Max 80)</label>
                   <input
                     type="text"
                     required
+                    maxLength={80}
                     value={editingUser.name || ''}
-                    onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
+                    onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value.slice(0, 80) })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Mobile Number</label>
+                  <label className="font-bold text-slate-700 block mb-1">Mobile Number (10 Digits)</label>
                   <input
                     type="tel"
                     required
+                    maxLength={10}
                     value={editingUser.mobile || ''}
-                    onChange={(e) => setEditingUser({ ...editingUser, mobile: e.target.value })}
+                    onChange={(e) => setEditingUser({ ...editingUser, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Email Address</label>
+                  <label className="font-bold text-slate-700 block mb-1">Email Address (Max 120)</label>
                   <input
                     type="email"
                     required
+                    maxLength={120}
                     value={editingUser.email || ''}
-                    onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
+                    onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value.slice(0, 120) })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
                   />
                 </div>
@@ -1221,42 +1292,45 @@ export default function ServicesManager() {
               {/* Location Fields */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">City</label>
+                  <label className="font-bold text-slate-700 block mb-1">City (Max 60)</label>
                   <input
                     type="text"
+                    maxLength={60}
                     value={editingUser.location?.city || ''}
                     onChange={(e) =>
                       setEditingUser({
                         ...editingUser,
-                        location: { ...editingUser.location, city: e.target.value },
+                        location: { ...editingUser.location, city: e.target.value.slice(0, 60) },
                       })
                     }
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">State</label>
+                  <label className="font-bold text-slate-700 block mb-1">State (Max 60)</label>
                   <input
                     type="text"
+                    maxLength={60}
                     value={editingUser.location?.state || ''}
                     onChange={(e) =>
                       setEditingUser({
                         ...editingUser,
-                        location: { ...editingUser.location, state: e.target.value },
+                        location: { ...editingUser.location, state: e.target.value.slice(0, 60) },
                       })
                     }
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Pincode</label>
+                  <label className="font-bold text-slate-700 block mb-1">Pincode (6 Digits)</label>
                   <input
                     type="text"
+                    maxLength={6}
                     value={editingUser.location?.pincode || ''}
                     onChange={(e) =>
                       setEditingUser({
                         ...editingUser,
-                        location: { ...editingUser.location, pincode: e.target.value },
+                        location: { ...editingUser.location, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) },
                       })
                     }
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
@@ -1265,14 +1339,15 @@ export default function ServicesManager() {
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Full Address</label>
+                <label className="font-bold text-slate-700 block mb-1">Full Address (Max 200)</label>
                 <input
                   type="text"
+                  maxLength={200}
                   value={editingUser.location?.address || ''}
                   onChange={(e) =>
                     setEditingUser({
                       ...editingUser,
-                      location: { ...editingUser.location, address: e.target.value },
+                      location: { ...editingUser.location, address: e.target.value.slice(0, 200) },
                     })
                   }
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
@@ -1285,28 +1360,30 @@ export default function ServicesManager() {
                   <h4 className="font-bold text-slate-800">Pharmacy Details</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="font-bold text-slate-700 block mb-1">Pharmacy Name</label>
+                      <label className="font-bold text-slate-700 block mb-1">Pharmacy Name (Max 120)</label>
                       <input
                         type="text"
+                        maxLength={120}
                         value={editingUser.pharmacyDetails?.pharmacyName || ''}
                         onChange={(e) =>
                           setEditingUser({
                             ...editingUser,
-                            pharmacyDetails: { ...editingUser.pharmacyDetails, pharmacyName: e.target.value },
+                            pharmacyDetails: { ...editingUser.pharmacyDetails, pharmacyName: e.target.value.slice(0, 120) },
                           })
                         }
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 bg-white"
                       />
                     </div>
                     <div>
-                      <label className="font-bold text-slate-700 block mb-1">Drug License Number</label>
+                      <label className="font-bold text-slate-700 block mb-1">Drug License Number (Max 60)</label>
                       <input
                         type="text"
+                        maxLength={60}
                         value={editingUser.pharmacyDetails?.licenseNumber || ''}
                         onChange={(e) =>
                           setEditingUser({
                             ...editingUser,
-                            pharmacyDetails: { ...editingUser.pharmacyDetails, licenseNumber: e.target.value },
+                            pharmacyDetails: { ...editingUser.pharmacyDetails, licenseNumber: e.target.value.slice(0, 60) },
                           })
                         }
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 bg-white"
@@ -1321,45 +1398,52 @@ export default function ServicesManager() {
                   <h4 className="font-bold text-slate-800">Pharmacist Credentials</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                      <label className="font-bold text-slate-700 block mb-1">Qualification</label>
+                      <label className="font-bold text-slate-700 block mb-1">Qualification (Max 60)</label>
                       <input
                         type="text"
+                        maxLength={60}
                         value={editingUser.pharmacistDetails?.qualification || ''}
                         onChange={(e) =>
                           setEditingUser({
                             ...editingUser,
-                            pharmacistDetails: { ...editingUser.pharmacistDetails, qualification: e.target.value },
+                            pharmacistDetails: { ...editingUser.pharmacistDetails, qualification: e.target.value.slice(0, 60) },
                           })
                         }
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 bg-white"
                       />
                     </div>
                     <div>
-                      <label className="font-bold text-slate-700 block mb-1">Pharmacy Reg / License</label>
+                      <label className="font-bold text-slate-700 block mb-1">Pharmacy Reg / License (Max 60)</label>
                       <input
                         type="text"
+                        maxLength={60}
                         value={editingUser.pharmacistDetails?.licenseNumber || ''}
                         onChange={(e) =>
                           setEditingUser({
                             ...editingUser,
-                            pharmacistDetails: { ...editingUser.pharmacistDetails, licenseNumber: e.target.value },
+                            pharmacistDetails: { ...editingUser.pharmacistDetails, licenseNumber: e.target.value.slice(0, 60) },
                           })
                         }
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 bg-white"
                       />
                     </div>
                     <div>
-                      <label className="font-bold text-slate-700 block mb-1">Experience (Years)</label>
+                      <label className="font-bold text-slate-700 block mb-1">Experience (Years, 0-50)</label>
                       <input
                         type="number"
                         min="0"
+                        max="50"
+                        onKeyDown={(e) => {
+                          if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
+                        }}
                         value={editingUser.pharmacistDetails?.experienceYears ?? 0}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const val = Math.min(50, Math.max(0, parseInt(e.target.value, 10) || 0));
                           setEditingUser({
                             ...editingUser,
-                            pharmacistDetails: { ...editingUser.pharmacistDetails, experienceYears: Number(e.target.value) },
-                          })
-                        }
+                            pharmacistDetails: { ...editingUser.pharmacistDetails, experienceYears: val },
+                          });
+                        }}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 bg-white"
                       />
                     </div>
@@ -1372,59 +1456,67 @@ export default function ServicesManager() {
                   <h4 className="font-bold text-slate-800">Doctor Credentials</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="font-bold text-slate-700 block mb-1">Specialization</label>
+                      <label className="font-bold text-slate-700 block mb-1">Specialization (Max 80)</label>
                       <input
                         type="text"
+                        maxLength={80}
                         value={editingUser.doctorDetails?.specialization || ''}
                         onChange={(e) =>
                           setEditingUser({
                             ...editingUser,
-                            doctorDetails: { ...editingUser.doctorDetails, specialization: e.target.value },
+                            doctorDetails: { ...editingUser.doctorDetails, specialization: e.target.value.slice(0, 80) },
                           })
                         }
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 bg-white"
                       />
                     </div>
                     <div>
-                      <label className="font-bold text-slate-700 block mb-1">Degree / Qualification</label>
+                      <label className="font-bold text-slate-700 block mb-1">Degree / Qualification (Max 60)</label>
                       <input
                         type="text"
+                        maxLength={60}
                         value={editingUser.doctorDetails?.qualification || ''}
                         onChange={(e) =>
                           setEditingUser({
                             ...editingUser,
-                            doctorDetails: { ...editingUser.doctorDetails, qualification: e.target.value },
+                            doctorDetails: { ...editingUser.doctorDetails, qualification: e.target.value.slice(0, 60) },
                           })
                         }
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 bg-white"
                       />
                     </div>
                     <div>
-                      <label className="font-bold text-slate-700 block mb-1">Medical Council Reg</label>
+                      <label className="font-bold text-slate-700 block mb-1">Medical Council Reg (Max 60)</label>
                       <input
                         type="text"
+                        maxLength={60}
                         value={editingUser.doctorDetails?.medicalRegistrationNumber || ''}
                         onChange={(e) =>
                           setEditingUser({
                             ...editingUser,
-                            doctorDetails: { ...editingUser.doctorDetails, medicalRegistrationNumber: e.target.value },
+                            doctorDetails: { ...editingUser.doctorDetails, medicalRegistrationNumber: e.target.value.slice(0, 60) },
                           })
                         }
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 bg-white"
                       />
                     </div>
                     <div>
-                      <label className="font-bold text-slate-700 block mb-1">Experience (Years)</label>
+                      <label className="font-bold text-slate-700 block mb-1">Experience (Years, 0-60)</label>
                       <input
                         type="number"
                         min="0"
+                        max="60"
+                        onKeyDown={(e) => {
+                          if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
+                        }}
                         value={editingUser.doctorDetails?.experienceYears ?? 0}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const val = Math.min(60, Math.max(0, parseInt(e.target.value, 10) || 0));
                           setEditingUser({
                             ...editingUser,
-                            doctorDetails: { ...editingUser.doctorDetails, experienceYears: Number(e.target.value) },
-                          })
-                        }
+                            doctorDetails: { ...editingUser.doctorDetails, experienceYears: val },
+                          });
+                        }}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 bg-white"
                       />
                     </div>
@@ -1458,12 +1550,13 @@ export default function ServicesManager() {
 
                 {editingUser.isBlocked && (
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">Suspension Reason</label>
+                    <label className="font-bold text-slate-700 block mb-1">Suspension Reason (Max 250)</label>
                     <input
                       type="text"
+                      maxLength={250}
                       placeholder="e.g. Terms violation or invalid license"
                       value={editingUser.blockReason || ''}
-                      onChange={(e) => setEditingUser({ ...editingUser, blockReason: e.target.value })}
+                      onChange={(e) => setEditingUser({ ...editingUser, blockReason: e.target.value.slice(0, 250) })}
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 bg-white"
                     />
                   </div>
@@ -1499,12 +1592,12 @@ export default function ServicesManager() {
           <div className="relative w-full max-w-2xl bg-white rounded-3xl overflow-hidden shadow-2xl p-6 sm:p-8 space-y-6 my-8 max-h-[90vh] overflow-y-auto">
             {/* Header */}
             <div className="flex items-start justify-between pb-4 border-b border-slate-200">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-xl font-black text-slate-900">{selectedJobForDetails.title}</h3>
+              <div className="min-w-0 pr-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-xl font-black text-slate-900 break-words break-all">{selectedJobForDetails.title}</h3>
                   <button
                     onClick={() => handleToggleJobStatus(selectedJobForDetails)}
-                    className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full transition-colors ${
+                    className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full transition-colors flex-shrink-0 ${
                       selectedJobForDetails.status === 'active'
                         ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
                         : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
@@ -1514,11 +1607,11 @@ export default function ServicesManager() {
                     {selectedJobForDetails.status}
                   </button>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">{selectedJobForDetails.pharmacyName}</p>
+                <p className="text-xs text-slate-500 mt-1 break-words break-all">{selectedJobForDetails.pharmacyName}</p>
               </div>
               <button
                 onClick={() => setSelectedJobForDetails(null)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100"
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 flex-shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1526,29 +1619,29 @@ export default function ServicesManager() {
 
             {/* Specifications Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div className="p-3 bg-slate-50 rounded-xl space-y-1">
+              <div className="p-3 bg-slate-50 rounded-xl space-y-1 min-w-0">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Job Type</span>
-                <p className="font-bold text-slate-900">{selectedJobForDetails.jobType || 'Full-time'}</p>
+                <p className="font-bold text-slate-900 break-words">{selectedJobForDetails.jobType || 'Full-time'}</p>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl space-y-1">
+              <div className="p-3 bg-slate-50 rounded-xl space-y-1 min-w-0">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Required Qualification</span>
-                <p className="font-bold text-slate-900">{selectedJobForDetails.requiredQualification || 'N/A'}</p>
+                <p className="font-bold text-slate-900 break-words break-all">{selectedJobForDetails.requiredQualification || 'N/A'}</p>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl space-y-1">
+              <div className="p-3 bg-slate-50 rounded-xl space-y-1 min-w-0">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Salary Range</span>
-                <p className="font-bold text-slate-900">{selectedJobForDetails.salaryRange || 'Negotiable'}</p>
+                <p className="font-bold text-slate-900 break-words break-all">{selectedJobForDetails.salaryRange || 'Negotiable'}</p>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl space-y-1">
+              <div className="p-3 bg-slate-50 rounded-xl space-y-1 min-w-0">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Experience Required</span>
                 <p className="font-bold text-slate-900">{selectedJobForDetails.experienceRequiredYears ?? 0} Years</p>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl space-y-1">
+              <div className="p-3 bg-slate-50 rounded-xl space-y-1 min-w-0">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Shift / Timings</span>
-                <p className="font-bold text-slate-900">{selectedJobForDetails.shiftTimings || 'Regular Shifts'}</p>
+                <p className="font-bold text-slate-900 break-words break-all">{selectedJobForDetails.shiftTimings || 'Regular Shifts'}</p>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl space-y-1">
+              <div className="p-3 bg-slate-50 rounded-xl space-y-1 min-w-0">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Location & Radius</span>
-                <p className="font-bold text-slate-900">
+                <p className="font-bold text-slate-900 break-words break-all">
                   {selectedJobForDetails.location?.city || 'Local Area'} (Within {selectedJobForDetails.visibilityRadiusKm || 25} km)
                 </p>
               </div>
@@ -1556,16 +1649,16 @@ export default function ServicesManager() {
 
             {/* Address */}
             {selectedJobForDetails.location?.address && (
-              <div className="p-3 bg-slate-50 rounded-xl text-xs space-y-1">
+              <div className="p-3 bg-slate-50 rounded-xl text-xs space-y-1 min-w-0">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Full Address</span>
-                <p className="font-semibold text-slate-800">{selectedJobForDetails.location.address}</p>
+                <p className="font-semibold text-slate-800 break-words break-all">{selectedJobForDetails.location.address}</p>
               </div>
             )}
 
             {/* Description */}
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-2">
               <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Vacancy Description</span>
-              <p className="text-slate-800 whitespace-pre-line leading-relaxed">
+              <p className="text-slate-800 whitespace-pre-line leading-relaxed max-h-48 overflow-y-auto break-words break-all">
                 {selectedJobForDetails.description || 'No detailed description provided.'}
               </p>
             </div>
@@ -1575,9 +1668,9 @@ export default function ServicesManager() {
               <div className="p-3 bg-teal-50/50 rounded-xl border border-teal-100 text-xs space-y-1">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Posted By Employer</span>
                 <div className="flex flex-wrap items-center gap-4 text-slate-700">
-                  <span className="font-bold">{selectedJobForDetails.ownerId.name || 'Owner'}</span>
-                  <span>{selectedJobForDetails.ownerId.mobile}</span>
-                  <span>{selectedJobForDetails.ownerId.email}</span>
+                  <span className="font-bold break-words break-all">{selectedJobForDetails.ownerId.name || 'Owner'}</span>
+                  <span className="break-all">{selectedJobForDetails.ownerId.mobile}</span>
+                  <span className="break-all">{selectedJobForDetails.ownerId.email}</span>
                 </div>
               </div>
             )}
@@ -1631,14 +1724,14 @@ export default function ServicesManager() {
           <div className="relative w-full max-w-2xl bg-white rounded-3xl overflow-hidden shadow-2xl p-6 sm:p-8 space-y-6 my-8 max-h-[90vh] overflow-y-auto">
             {/* Header */}
             <div className="flex items-start justify-between pb-4 border-b border-slate-200">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-xl font-black text-slate-900">
+              <div className="min-w-0 pr-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-xl font-black text-slate-900 break-words break-all">
                     Needs: {selectedCollabForDetails.specializationNeeded}
                   </h3>
                   <button
                     onClick={() => handleToggleCollabStatus(selectedCollabForDetails)}
-                    className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full transition-colors ${
+                    className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full transition-colors flex-shrink-0 ${
                       selectedCollabForDetails.status === 'active'
                         ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
                         : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
@@ -1648,13 +1741,13 @@ export default function ServicesManager() {
                     {selectedCollabForDetails.status}
                   </button>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 mt-1 break-words break-all">
                   {selectedCollabForDetails.clinicOrChamberName || selectedCollabForDetails.pharmacyName}
                 </p>
               </div>
               <button
                 onClick={() => setSelectedCollabForDetails(null)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100"
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 flex-shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1662,30 +1755,30 @@ export default function ServicesManager() {
 
             {/* Specifications Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div className="p-3 bg-slate-50 rounded-xl space-y-1">
+              <div className="p-3 bg-slate-50 rounded-xl space-y-1 min-w-0">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Preferred Timings</span>
-                <p className="font-bold text-slate-900">{selectedCollabForDetails.preferredTimings || 'Flexible'}</p>
+                <p className="font-bold text-slate-900 break-words break-all">{selectedCollabForDetails.preferredTimings || 'Flexible'}</p>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl space-y-1">
+              <div className="p-3 bg-slate-50 rounded-xl space-y-1 min-w-0">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Consultation Days</span>
-                <p className="font-bold text-slate-900">{selectedCollabForDetails.consultationDays || 'All Week'}</p>
+                <p className="font-bold text-slate-900 break-words break-all">{selectedCollabForDetails.consultationDays || 'All Week'}</p>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl space-y-1">
+              <div className="p-3 bg-slate-50 rounded-xl space-y-1 min-w-0">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Collaboration Terms</span>
-                <p className="font-bold text-emerald-800">{selectedCollabForDetails.collaborationTerms || 'Mutual Agreement'}</p>
+                <p className="font-bold text-emerald-800 break-words break-all">{selectedCollabForDetails.collaborationTerms || 'Mutual Agreement'}</p>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl space-y-1">
+              <div className="p-3 bg-slate-50 rounded-xl space-y-1 min-w-0">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Location & Radius</span>
-                <p className="font-bold text-slate-900">
+                <p className="font-bold text-slate-900 break-words break-all">
                   {selectedCollabForDetails.location?.city || 'Local Area'} (Within {selectedCollabForDetails.visibilityRadiusKm || 30} km)
                 </p>
               </div>
             </div>
 
             {/* Facilities & Address */}
-            <div className="p-3 bg-slate-50 rounded-xl text-xs space-y-1">
+            <div className="p-3 bg-slate-50 rounded-xl text-xs space-y-1 min-w-0">
               <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Chamber Facilities</span>
-              <p className="font-semibold text-slate-800">
+              <p className="font-semibold text-slate-800 break-words break-all">
                 {Array.isArray(selectedCollabForDetails.chamberFacilities) && selectedCollabForDetails.chamberFacilities.length > 0
                   ? selectedCollabForDetails.chamberFacilities.join(', ')
                   : selectedCollabForDetails.facilitiesAvailable || 'Standard Clinic Equipment'}
@@ -1693,9 +1786,9 @@ export default function ServicesManager() {
             </div>
 
             {selectedCollabForDetails.location?.address && (
-              <div className="p-3 bg-slate-50 rounded-xl text-xs space-y-1">
+              <div className="p-3 bg-slate-50 rounded-xl text-xs space-y-1 min-w-0">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Full Address</span>
-                <p className="font-semibold text-slate-800">{selectedCollabForDetails.location.address}</p>
+                <p className="font-semibold text-slate-800 break-words break-all">{selectedCollabForDetails.location.address}</p>
               </div>
             )}
 
@@ -1703,7 +1796,7 @@ export default function ServicesManager() {
             {(selectedCollabForDetails.description || selectedCollabForDetails.additionalNotes) && (
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-2">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Details & Terms</span>
-                <p className="text-slate-800 whitespace-pre-line leading-relaxed">
+                <p className="text-slate-800 whitespace-pre-line leading-relaxed max-h-48 overflow-y-auto break-words break-all">
                   {selectedCollabForDetails.description || selectedCollabForDetails.additionalNotes}
                 </p>
               </div>
@@ -1714,9 +1807,9 @@ export default function ServicesManager() {
               <div className="p-3 bg-teal-50/50 rounded-xl border border-teal-100 text-xs space-y-1">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Posted By Organizer</span>
                 <div className="flex flex-wrap items-center gap-4 text-slate-700">
-                  <span className="font-bold">{selectedCollabForDetails.ownerId.name || 'Organizer'}</span>
-                  <span>{selectedCollabForDetails.ownerId.mobile}</span>
-                  <span>{selectedCollabForDetails.ownerId.email}</span>
+                  <span className="font-bold break-words break-all">{selectedCollabForDetails.ownerId.name || 'Organizer'}</span>
+                  <span className="break-all">{selectedCollabForDetails.ownerId.mobile}</span>
+                  <span className="break-all">{selectedCollabForDetails.ownerId.email}</span>
                 </div>
               </div>
             )}

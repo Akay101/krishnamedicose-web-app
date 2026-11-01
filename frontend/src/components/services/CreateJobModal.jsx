@@ -30,25 +30,48 @@ export default function CreateJobModal({ isOpen, onClose, onJobCreated, initialJ
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    const cleanTitle = formData.title.trim();
+    if (cleanTitle.length < 3 || cleanTitle.length > 120) {
+      setError('Job title must be between 3 and 120 characters.');
+      return;
+    }
+
+    const cleanDesc = formData.description.trim();
+    if (cleanDesc.length < 10 || cleanDesc.length > 1000) {
+      setError('Job description must be between 10 and 1000 characters.');
+      return;
+    }
+
+    const numVacancies = Number(formData.vacancies);
+    if (isNaN(numVacancies) || numVacancies < 1 || numVacancies > 50) {
+      setError('Vacancies must be between 1 and 50.');
+      return;
+    }
+
     setLoading(true);
 
     try {
       const payload = {
-        title: formData.title,
+        title: cleanTitle,
         jobType: formData.jobType,
         requiredExperience: formData.requiredExperience,
         requiredQualification: formData.requiredQualification,
-        salaryRange: formData.salaryRange,
-        workTimings: formData.workTimings,
-        vacancies: Number(formData.vacancies),
-        description: formData.description,
-        requirements: formData.requirements.split('\n').filter((r) => r.trim().length > 0),
-        visibilityRadiusKm: Number(formData.visibilityRadiusKm),
+        salaryRange: formData.salaryRange.trim().slice(0, 80),
+        workTimings: formData.workTimings.trim().slice(0, 80),
+        vacancies: numVacancies,
+        description: cleanDesc,
+        requirements: formData.requirements
+          .split('\n')
+          .map((r) => r.trim().slice(0, 150))
+          .filter((r) => r.length > 0)
+          .slice(0, 15),
+        visibilityRadiusKm: Math.max(5, Math.min(100, Number(formData.visibilityRadiusKm) || 25)),
         location: {
-          address: formData.address,
-          city: formData.city,
-          state: formData.state,
-          pincode: formData.pincode,
+          address: (formData.address || '').trim().slice(0, 200),
+          city: (formData.city || '').trim().slice(0, 60),
+          state: (formData.state || '').trim().slice(0, 60),
+          pincode: (formData.pincode || '').trim().slice(0, 10),
           coordinates: formData.coordinates
         }
       };
@@ -108,10 +131,16 @@ export default function CreateJobModal({ isOpen, onClose, onJobCreated, initialJ
           {/* Job Details */}
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Job Title *</label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs font-bold text-slate-700">Job Title *</label>
+                <span className="text-[11px] font-semibold text-slate-400">
+                  {formData.title.length} / 120
+                </span>
+              </div>
               <input
                 type="text"
                 required
+                maxLength={120}
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 placeholder="e.g. Retail Pharmacist / Senior Dispensing Pharmacist"
@@ -172,6 +201,7 @@ export default function CreateJobModal({ isOpen, onClose, onJobCreated, initialJ
                 <input
                   type="text"
                   required
+                  maxLength={80}
                   value={formData.salaryRange}
                   onChange={(e) => setFormData({ ...formData, salaryRange: e.target.value })}
                   placeholder="e.g. Rs. 25,000 - 32,000 / month"
@@ -184,6 +214,7 @@ export default function CreateJobModal({ isOpen, onClose, onJobCreated, initialJ
                 <input
                   type="text"
                   required
+                  maxLength={80}
                   value={formData.workTimings}
                   onChange={(e) => setFormData({ ...formData, workTimings: e.target.value })}
                   placeholder="e.g. 10:00 AM - 7:00 PM"
@@ -196,9 +227,12 @@ export default function CreateJobModal({ isOpen, onClose, onJobCreated, initialJ
                 <input
                   type="number"
                   min="1"
-                  max="20"
+                  max="50"
                   required
                   value={formData.vacancies}
+                  onKeyDown={(e) => {
+                    if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
+                  }}
                   onChange={(e) => setFormData({ ...formData, vacancies: e.target.value })}
                   className="w-full px-4 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
                 />
@@ -206,10 +240,16 @@ export default function CreateJobModal({ isOpen, onClose, onJobCreated, initialJ
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Job Description *</label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs font-bold text-slate-700">Job Description *</label>
+                <span className="text-[11px] font-semibold text-slate-400">
+                  {formData.description.length} / 1000
+                </span>
+              </div>
               <textarea
                 rows={3}
                 required
+                maxLength={1000}
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Describe daily duties, pharmacy environment, software used, etc."
@@ -218,11 +258,17 @@ export default function CreateJobModal({ isOpen, onClose, onJobCreated, initialJ
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Key Requirements & Responsibilities (one per line)
-              </label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs font-bold text-slate-700">
+                  Key Requirements & Responsibilities (one per line)
+                </label>
+                <span className="text-[11px] font-semibold text-slate-400">
+                  {formData.requirements.length} / 1000
+                </span>
+              </div>
               <textarea
                 rows={3}
+                maxLength={1000}
                 value={formData.requirements}
                 onChange={(e) => setFormData({ ...formData, requirements: e.target.value })}
                 placeholder="Valid State Pharmacy Council License&#10;Computer billing experience&#10;Polite customer communication"

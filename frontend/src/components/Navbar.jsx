@@ -11,20 +11,18 @@ export default function Navbar() {
 
   const navLinks = [
     { name: "Vision", href: isHome ? "#vision" : "/#vision" },
-    { name: "Products", href: isHome ? "#offers" : "/#offers" },
     { name: "Services", href: "/services", isRoute: true, highlight: true, badge: "New" },
+    { name: "Products", href: isHome ? "#offers" : "/#offers" },
     { name: "The Owner", href: isHome ? "#owner" : "/#owner" },
-    { name: "Medicine Data", href: isHome ? "#medicine-data" : "/#medicine-data" },
-    { name: "Links", href: "/links", isRoute: true },
   ];
 
   return (
-    <nav className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-5xl">
+    <nav className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-4xl">
       <div className="glass-morphism rounded-full px-6 py-3 flex items-center justify-between">
         <Logo size="sm" />
 
         {/* Desktop Links */}
-        <div className="hidden md:flex items-center gap-7 lg:gap-8">
+        <div className="hidden md:flex items-center gap-6 lg:gap-8">
           {navLinks.map((link) => {
             const isHighlighted = link.highlight || location.pathname === link.href;
 
@@ -33,15 +31,15 @@ export default function Navbar() {
                 <Link
                   key={link.name}
                   to={link.href}
-                  className={`text-sm font-extrabold transition-colors relative group inline-flex items-center gap-1.5 ${
+                  className={`text-sm font-extrabold whitespace-nowrap transition-colors relative group inline-flex items-center gap-1.5 ${
                     isHighlighted
                       ? "text-teal-700 hover:text-teal-900"
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  <span>{link.name}</span>
+                  <span className="whitespace-nowrap">{link.name}</span>
                   {link.badge && (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-teal-500 to-emerald-600 text-white shadow-sm shadow-teal-500/25 group-hover:scale-105 transition-transform">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-teal-500 to-emerald-600 text-white shadow-sm shadow-teal-500/25 group-hover:scale-105 transition-transform whitespace-nowrap">
                       <span className="w-1 h-1 rounded-full bg-white animate-pulse" />
                       {link.badge}
                     </span>
@@ -56,12 +54,12 @@ export default function Navbar() {
               <motion.a
                 key={link.name}
                 href={link.href}
-                className="text-sm font-extrabold text-slate-600 hover:text-slate-900 transition-colors relative group inline-flex items-center gap-1.5"
+                className="text-sm font-extrabold whitespace-nowrap text-slate-600 hover:text-slate-900 transition-colors relative group inline-flex items-center gap-1.5"
                 whileHover={{ y: -1 }}
               >
-                <span>{link.name}</span>
+                <span className="whitespace-nowrap">{link.name}</span>
                 {link.badge && (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-teal-500 to-emerald-600 text-white shadow-sm shadow-teal-500/25 group-hover:scale-105 transition-transform">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-teal-500 to-emerald-600 text-white shadow-sm shadow-teal-500/25 group-hover:scale-105 transition-transform whitespace-nowrap">
                     <span className="w-1 h-1 rounded-full bg-white animate-pulse" />
                     {link.badge}
                   </span>
@@ -70,7 +68,7 @@ export default function Navbar() {
               </motion.a>
             );
           })}
-          <a href="#footer" className="btn-primary py-2 text-sm">Contact Us</a>
+          <a href={isHome ? "#footer" : "/#footer"} className="btn-primary py-2 text-sm whitespace-nowrap">Contact Us</a>
         </div>
 
         {/* Mobile Toggle */}

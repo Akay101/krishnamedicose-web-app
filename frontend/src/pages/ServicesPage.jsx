@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   Building2,
   Briefcase,
@@ -32,6 +32,10 @@ import {
   Globe,
   Lock,
   X,
+  Pill,
+  FileSpreadsheet,
+  Link2,
+  Sparkles,
 } from "lucide-react";
 import servicesApi from "../utils/servicesApi";
 import { translations } from "../utils/servicesTranslations";
@@ -45,8 +49,13 @@ import ViewInquiriesModal from "../components/services/ViewInquiriesModal";
 import ChangeLocationModal from "../components/services/ChangeLocationModal";
 import ScrollableFeedContainer from "../components/services/ScrollableFeedContainer";
 import ListingDetailsModal from "../components/services/ListingDetailsModal";
+import CatalogPage from "./CatalogPage";
+import MedicineDataPage from "./MedicineDataPage";
+import UsefulLinksPage from "./UsefulLinksPage";
+import { useModal } from "../context/ModalContext";
 
 export default function ServicesPage() {
+  const { showModal } = useModal();
   // Language state (en or hi)
   const [lang, setLang] = useState(() => {
     return localStorage.getItem("services_lang") || "en";
@@ -58,6 +67,31 @@ export default function ServicesPage() {
     const newLang = lang === "en" ? "hi" : "en";
     setLang(newLang);
     localStorage.setItem("services_lang", newLang);
+  };
+
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Read active service from URL query params: 'staffing' | 'catalogs' | 'medicine-data' | 'links'
+  const getInitialServiceTab = () => {
+    const param = (searchParams.get("service") || searchParams.get("tab") || "").toLowerCase();
+    if (param === "catalogs" || param === "catalog" || param === "products") return "catalogs";
+    if (param === "medicine-data" || param === "medicinedata" || param === "medicine") return "medicine-data";
+    if (param === "links" || param === "usefullinks") return "links";
+    return "staffing";
+  };
+
+  const [selectedService, setSelectedService] = useState(getInitialServiceTab);
+
+  useEffect(() => {
+    const tabFromUrl = getInitialServiceTab();
+    if (tabFromUrl !== selectedService) {
+      setSelectedService(tabFromUrl);
+    }
+  }, [searchParams]);
+
+  const handleSelectService = (key) => {
+    setSelectedService(key);
+    setSearchParams({ service: key });
   };
 
   // Current authenticated user state
@@ -348,7 +382,11 @@ export default function ServicesPage() {
       setStatusMessage(res.data.message);
       setTimeout(() => setStatusMessage(""), 3000);
     } catch (err) {
-      alert(err.response?.data?.message || "Could not update status.");
+      showModal({
+        title: "Status Update Failed",
+        message: err.response?.data?.message || "Could not update status.",
+        type: "error",
+      });
     } finally {
       setTogglingAvailability(false);
     }
@@ -363,27 +401,50 @@ export default function ServicesPage() {
   };
 
   // Delete Job
-  const handleDeleteJob = async (jobId) => {
-    if (!window.confirm("Delete this job vacancy?")) return;
-    try {
-      await servicesApi.delete(`/jobs/${jobId}`);
-      setMyJobs((prev) => prev.filter((j) => j._id !== jobId));
-    } catch (err) {
-      alert(err.response?.data?.message || "Failed to delete job post.");
-    }
+  const handleDeleteJob = (jobId) => {
+    showModal({
+      title: "Confirm Deletion",
+      message: "Delete this job vacancy permanently?",
+      type: "confirm",
+      confirmText: "Delete",
+      cancelText: "Cancel",
+      onConfirm: async () => {
+        try {
+          await servicesApi.delete(`/jobs/${jobId}`);
+          setMyJobs((prev) => prev.filter((j) => j._id !== jobId));
+        } catch (err) {
+          showModal({
+            title: "Delete Failed",
+            message: err.response?.data?.message || "Failed to delete job post.",
+            type: "error",
+          });
+        }
+      },
+    });
   };
 
   // Delete Collab
-  const handleDeleteCollab = async (collabId) => {
-    if (!window.confirm("Delete this collaboration listing?")) return;
-    try {
-      await servicesApi.delete(`/collab-posts/${collabId}`);
-      setMyCollabs((prev) => prev.filter((c) => c._id !== collabId));
-    } catch (err) {
-      alert(
-        err.response?.data?.message || "Failed to delete collaboration listing."
-      );
-    }
+  const handleDeleteCollab = (collabId) => {
+    showModal({
+      title: "Confirm Deletion",
+      message: "Delete this collaboration listing permanently?",
+      type: "confirm",
+      confirmText: "Delete",
+      cancelText: "Cancel",
+      onConfirm: async () => {
+        try {
+          await servicesApi.delete(`/collab-posts/${collabId}`);
+          setMyCollabs((prev) => prev.filter((c) => c._id !== collabId));
+        } catch (err) {
+          showModal({
+            title: "Delete Failed",
+            message:
+              err.response?.data?.message || "Failed to delete collaboration listing.",
+            type: "error",
+          });
+        }
+      },
+    });
   };
 
   return (
@@ -586,65 +647,287 @@ export default function ServicesPage() {
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-10 sm:space-y-14">
-        {/* ================= PRIMARY 2-TAB CONTROLLER ================= */}
-        <div className="flex flex-col items-center justify-center text-center space-y-3">
-          <div className="inline-flex p-1.5 sm:p-2 bg-slate-200/90 rounded-3xl gap-2 shadow-inner border border-slate-300/60 max-w-lg w-full">
-            <button
-              onClick={() => {
-                setMainTab("pharmacists");
-                setActiveTab("main");
-                setSearchQuery("");
-              }}
-              className={`flex-1 flex items-center justify-center gap-2 sm:gap-3 py-3 sm:py-3.5 px-4 sm:px-6 rounded-2xl font-extrabold text-xs sm:text-sm md:text-base transition-all ${
-                mainTab === "pharmacists"
-                  ? "bg-teal-700 text-white shadow-md"
-                  : "text-slate-700 hover:text-slate-900 hover:bg-white/60"
-              }`}
-            >
-              <Briefcase className="w-4 h-4 sm:w-5 sm:h-5 text-teal-200" />
-              <span>{t.tabPharmacists || "Pharmacists"}</span>
-              <span
-                className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-full font-bold ${
-                  mainTab === "pharmacists"
-                    ? "bg-white/20 text-white"
-                    : "bg-slate-300/80 text-slate-700"
-                }`}
-              >
-                {currentUser?.role === "pharmacy_owner"
-                  ? myJobs.length
-                  : jobFeed.length}
+        {/* ================= SERVICES SWITCHER HUB ================= */}
+        <div className="bg-white border border-slate-200/90 rounded-3xl p-3 sm:p-5 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 mb-3 border-b border-slate-100">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-teal-600 animate-pulse" />
+                <h2 className="text-sm sm:text-base font-extrabold text-slate-900 font-outfit">
+                  Krishna Medicos Services Hub
+                </h2>
+              </div>
+              <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5">
+                Select among our pharmaceutical and healthcare services. Any option is accessible with your verified account.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-400">Active Service:</span>
+              <span className="px-2.5 py-1 rounded-full bg-teal-50 border border-teal-200 text-teal-800 text-[11px] font-black uppercase tracking-wider">
+                {selectedService === "staffing" && "Staffing & Doctors"}
+                {selectedService === "catalogs" && "Product Catalogs"}
+                {selectedService === "medicine-data" && "Medicine Data"}
+                {selectedService === "links" && "Useful Links"}
               </span>
-            </button>
-            {/* <button
-              onClick={() => {
-                setMainTab('doctors');
-                setActiveTab('main');
-                setSearchQuery('');
-              }}
-              className={`flex-1 flex items-center justify-center gap-2 sm:gap-3 py-3 sm:py-3.5 px-4 sm:px-6 rounded-2xl font-extrabold text-xs sm:text-sm md:text-base transition-all ${
-                mainTab === 'doctors'
-                  ? 'bg-emerald-700 text-white shadow-md'
-                  : 'text-slate-700 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              <Stethoscope className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-200" />
-              <span>{t.tabDoctors || 'Doctors'}</span>
-              <span className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-full font-bold ${
-                mainTab === 'doctors' ? 'bg-white/20 text-white' : 'bg-slate-300/80 text-slate-700'
-              }`}>
-                {currentUser?.role === 'pharmacy_owner' ? myCollabs.length : collabFeed.length}
-              </span>
-            </button> */}
+            </div>
           </div>
 
-          <p className="text-xs sm:text-sm text-slate-500 font-medium max-w-md">
-            {mainTab === "pharmacists"
-              ? t.pharmacistsTabSubtitle ||
-                "Pharmacy hiring, job vacancies, and pharmacists looking for work"
-              : t.doctorsTabSubtitle ||
-                "Doctor consultation chambers, clinic tie-ups, and specialist doctors"}
-          </p>
+          {/* 4 Interactive Service Tabs */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+            {/* 1. Staffing & Doctors */}
+            <button
+              type="button"
+              onClick={() => handleSelectService("staffing")}
+              className={`p-3.5 sm:p-4 rounded-2xl border text-left transition-all flex flex-col justify-between gap-3 group relative ${
+                selectedService === "staffing"
+                  ? "bg-gradient-to-br from-teal-700 to-slate-900 text-white border-teal-800 shadow-md ring-2 ring-teal-500/30"
+                  : "bg-slate-50/80 hover:bg-white text-slate-800 border-slate-200/80 hover:border-teal-400 hover:shadow-sm"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div
+                  className={`p-2.5 rounded-xl ${
+                    selectedService === "staffing"
+                      ? "bg-white/15 text-white"
+                      : "bg-teal-100 text-teal-800"
+                  }`}
+                >
+                  <Briefcase className="w-4 h-4 sm:w-5 sm:h-5" />
+                </div>
+                <span
+                  className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                    selectedService === "staffing"
+                      ? "bg-teal-400/20 text-teal-200 border border-teal-400/30"
+                      : "bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  Hiring & Clinic
+                </span>
+              </div>
+              <div>
+                <h3 className="font-extrabold text-xs sm:text-sm font-outfit leading-snug">
+                  Staffing & Doctors
+                </h3>
+                <p
+                  className={`text-[11px] line-clamp-1 mt-0.5 ${
+                    selectedService === "staffing"
+                      ? "text-teal-100"
+                      : "text-slate-500"
+                  }`}
+                >
+                  Pharmacy jobs & clinic tie-ups
+                </p>
+              </div>
+            </button>
+
+            {/* 2. Product Catalogs & Distributors */}
+            <button
+              type="button"
+              onClick={() => handleSelectService("catalogs")}
+              className={`p-3.5 sm:p-4 rounded-2xl border text-left transition-all flex flex-col justify-between gap-3 group relative ${
+                selectedService === "catalogs"
+                  ? "bg-gradient-to-br from-teal-700 to-slate-900 text-white border-teal-800 shadow-md ring-2 ring-teal-500/30"
+                  : "bg-slate-50/80 hover:bg-white text-slate-800 border-slate-200/80 hover:border-teal-400 hover:shadow-sm"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div
+                  className={`p-2.5 rounded-xl ${
+                    selectedService === "catalogs"
+                      ? "bg-white/15 text-white"
+                      : "bg-teal-100 text-teal-800"
+                  }`}
+                >
+                  <Pill className="w-4 h-4 sm:w-5 sm:h-5" />
+                </div>
+                <span
+                  className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                    selectedService === "catalogs"
+                      ? "bg-teal-400/20 text-teal-200 border border-teal-400/30"
+                      : "bg-teal-100 text-teal-800 font-bold"
+                  }`}
+                >
+                  Pan-India
+                </span>
+              </div>
+              <div>
+                <h3 className="font-extrabold text-xs sm:text-sm font-outfit leading-snug">
+                  Product Catalogs
+                </h3>
+                <p
+                  className={`text-[11px] line-clamp-1 mt-0.5 ${
+                    selectedService === "catalogs"
+                      ? "text-teal-100"
+                      : "text-slate-500"
+                  }`}
+                >
+                  Formulations & stockists
+                </p>
+              </div>
+            </button>
+
+            {/* 3. Medicine Data Hub */}
+            <button
+              type="button"
+              onClick={() => handleSelectService("medicine-data")}
+              className={`p-3.5 sm:p-4 rounded-2xl border text-left transition-all flex flex-col justify-between gap-3 group relative ${
+                selectedService === "medicine-data"
+                  ? "bg-gradient-to-br from-teal-700 to-slate-900 text-white border-teal-800 shadow-md ring-2 ring-teal-500/30"
+                  : "bg-slate-50/80 hover:bg-white text-slate-800 border-slate-200/80 hover:border-teal-400 hover:shadow-sm"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div
+                  className={`p-2.5 rounded-xl ${
+                    selectedService === "medicine-data"
+                      ? "bg-white/15 text-white"
+                      : "bg-teal-100 text-teal-800"
+                  }`}
+                >
+                  <FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5" />
+                </div>
+                <span
+                  className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                    selectedService === "medicine-data"
+                      ? "bg-teal-400/20 text-teal-200 border border-teal-400/30"
+                      : "bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  Database
+                </span>
+              </div>
+              <div>
+                <h3 className="font-extrabold text-xs sm:text-sm font-outfit leading-snug">
+                  Medicine Data
+                </h3>
+                <p
+                  className={`text-[11px] line-clamp-1 mt-0.5 ${
+                    selectedService === "medicine-data"
+                      ? "text-teal-100"
+                      : "text-slate-500"
+                  }`}
+                >
+                  Search & explore datasets
+                </p>
+              </div>
+            </button>
+
+            {/* 4. Useful Links */}
+            <button
+              type="button"
+              onClick={() => handleSelectService("links")}
+              className={`p-3.5 sm:p-4 rounded-2xl border text-left transition-all flex flex-col justify-between gap-3 group relative ${
+                selectedService === "links"
+                  ? "bg-gradient-to-br from-teal-700 to-slate-900 text-white border-teal-800 shadow-md ring-2 ring-teal-500/30"
+                  : "bg-slate-50/80 hover:bg-white text-slate-800 border-slate-200/80 hover:border-teal-400 hover:shadow-sm"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div
+                  className={`p-2.5 rounded-xl ${
+                    selectedService === "links"
+                      ? "bg-white/15 text-white"
+                      : "bg-teal-100 text-teal-800"
+                  }`}
+                >
+                  <Globe className="w-4 h-4 sm:w-5 sm:h-5" />
+                </div>
+                <span
+                  className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                    selectedService === "links"
+                      ? "bg-teal-400/20 text-teal-200 border border-teal-400/30"
+                      : "bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  Resources
+                </span>
+              </div>
+              <div>
+                <h3 className="font-extrabold text-xs sm:text-sm font-outfit leading-snug">
+                  Useful Links
+                </h3>
+                <p
+                  className={`text-[11px] line-clamp-1 mt-0.5 ${
+                    selectedService === "links"
+                      ? "text-teal-100"
+                      : "text-slate-500"
+                  }`}
+                >
+                  Portals & regulatory links
+                </p>
+              </div>
+            </button>
+          </div>
         </div>
+
+        {/* ================= SERVICE 1: PHARMACY STAFFING & DOCTORS ================= */}
+        {selectedService === "staffing" && (
+          <div className="space-y-10 sm:space-y-14">
+            {/* Primary 2-Tab Controller (Pharmacists, Doctors) */}
+            <div className="flex flex-col items-center justify-center text-center space-y-3">
+              <div className="inline-flex p-1.5 sm:p-2 bg-slate-200/90 rounded-3xl gap-2 shadow-inner border border-slate-300/60 max-w-lg w-full">
+                <button
+                  onClick={() => {
+                    setMainTab("pharmacists");
+                    setActiveTab("main");
+                    setSearchQuery("");
+                  }}
+                  className={`flex-1 flex items-center justify-center gap-2 sm:gap-3 py-3 sm:py-3.5 px-4 sm:px-6 rounded-2xl font-extrabold text-xs sm:text-sm md:text-base transition-all ${
+                    mainTab === "pharmacists"
+                      ? "bg-teal-700 text-white shadow-md"
+                      : "text-slate-700 hover:text-slate-900 hover:bg-white/60"
+                  }`}
+                >
+                  <Briefcase className="w-4 h-4 sm:w-5 sm:h-5 text-teal-200" />
+                  <span>{t.tabPharmacists || "Pharmacists"}</span>
+                  <span
+                    className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-full font-bold ${
+                      mainTab === "pharmacists"
+                        ? "bg-white/20 text-white"
+                        : "bg-slate-300/80 text-slate-700"
+                    }`}
+                  >
+                    {currentUser?.role === "pharmacy_owner"
+                      ? myJobs.length
+                      : jobFeed.length}
+                  </span>
+                </button>
+                <button
+                  onClick={() => {
+                    setMainTab("doctors");
+                    setActiveTab("main");
+                    setSearchQuery("");
+                  }}
+                  className={`flex-1 flex items-center justify-center gap-2 sm:gap-3 py-3 sm:py-3.5 px-4 sm:px-6 rounded-2xl font-extrabold text-xs sm:text-sm md:text-base transition-all ${
+                    mainTab === "doctors"
+                      ? "bg-teal-700 text-white shadow-md"
+                      : "text-slate-700 hover:text-slate-900 hover:bg-white/60"
+                  }`}
+                >
+                  <Stethoscope className="w-4 h-4 sm:w-5 sm:h-5 text-teal-200" />
+                  <span>{t.tabDoctors || "Doctors"}</span>
+                  <span
+                    className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-full font-bold ${
+                      mainTab === "doctors"
+                        ? "bg-white/20 text-white"
+                        : "bg-slate-300/80 text-slate-700"
+                    }`}
+                  >
+                    {currentUser?.role === "pharmacy_owner"
+                      ? myCollabs.length
+                      : collabFeed.length}
+                  </span>
+                </button>
+              </div>
+
+              <p className="text-xs sm:text-sm text-slate-500 font-medium max-w-md">
+                {mainTab === "pharmacists"
+                  ? t.pharmacistsTabSubtitle ||
+                    "Pharmacy hiring, job vacancies, and pharmacists looking for work"
+                  : t.doctorsTabSubtitle ||
+                    "Doctor consultation chambers, clinic tie-ups, and specialist doctors"}
+              </p>
+            </div>
 
         {/* ================= TAB 1: PHARMACISTS ================= */}
         {mainTab === "pharmacists" && (
@@ -822,7 +1105,7 @@ export default function ServicesPage() {
                       >
                         <div className="space-y-2 flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <h5 className="font-bold text-slate-900 text-base truncate">
+                            <h5 className="font-bold text-slate-900 text-base break-words break-all truncate">
                               {job.title}
                             </h5>
                             <span className="text-[10px] font-bold px-2.5 py-0.5 bg-teal-50 text-teal-800 rounded-lg border border-teal-200/60">
@@ -835,20 +1118,20 @@ export default function ServicesPage() {
                                 </span>
                               )}
                           </div>
-                          <p className="text-xs sm:text-sm text-slate-500 truncate font-medium">
+                          <p className="text-xs sm:text-sm text-slate-500 font-medium break-words break-all truncate">
                             {job.pharmacyName} -{" "}
                             {job.location?.city || "Local Area"}
                           </p>
                           <div className="flex flex-wrap items-center gap-4 text-xs text-slate-700 font-semibold">
                             <span>
                               Salary:{" "}
-                              <strong className="text-slate-900">
+                              <strong className="text-slate-900 break-words break-all">
                                 {job.salaryRange}
                               </strong>
                             </span>
                             <span>
                               Qualification:{" "}
-                              <strong className="text-slate-900">
+                              <strong className="text-slate-900 break-words break-all">
                                 {job.requiredQualification}
                               </strong>
                             </span>
@@ -859,7 +1142,7 @@ export default function ServicesPage() {
                               </strong>
                             </span>
                           </div>
-                          <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                          <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed break-words break-all">
                             {job.description}
                           </p>
                         </div>
@@ -916,7 +1199,7 @@ export default function ServicesPage() {
                         >
                           <div className="space-y-1.5 flex-1 min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              <h5 className="font-bold text-slate-900 text-base truncate">
+                              <h5 className="font-bold text-slate-900 text-base break-words break-all truncate">
                                 {p.name}
                               </h5>
                               <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-800 rounded-full border border-emerald-200">
@@ -929,7 +1212,7 @@ export default function ServicesPage() {
                                   </span>
                                 )}
                             </div>
-                            <p className="text-xs sm:text-sm text-slate-500 truncate">
+                            <p className="text-xs sm:text-sm text-slate-500 break-words break-all truncate">
                               {p.location?.city || "Local Area"} -{" "}
                               {p.pharmacistDetails?.qualification || "B.Pharm"}
                             </p>
@@ -1088,7 +1371,7 @@ export default function ServicesPage() {
                       >
                         <div className="space-y-2 flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <h4 className="font-bold text-slate-900 text-base truncate">
+                            <h4 className="font-bold text-slate-900 text-base break-words break-all truncate">
                               {job.title}
                             </h4>
                             <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200/60">
@@ -1098,11 +1381,11 @@ export default function ServicesPage() {
                               {job.jobType}
                             </span>
                           </div>
-                          <p className="text-xs sm:text-sm font-semibold text-slate-500">
+                          <p className="text-xs sm:text-sm font-semibold text-slate-500 break-words break-all">
                             {job.requiredQualification} | Salary:{" "}
                             {job.salaryRange} | Exp: {job.requiredExperience}
                           </p>
-                          <p className="text-xs sm:text-sm text-slate-600 line-clamp-2 leading-relaxed">
+                          <p className="text-xs sm:text-sm text-slate-600 line-clamp-2 leading-relaxed break-words break-all">
                             {job.description}
                           </p>
                         </div>
@@ -1199,7 +1482,7 @@ export default function ServicesPage() {
                         >
                           <div className="space-y-1.5 flex-1 min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              <h4 className="font-bold text-slate-900 text-base truncate">
+                              <h4 className="font-bold text-slate-900 text-base break-words break-all truncate">
                                 {p.name}
                               </h4>
                               <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-800 rounded-full border border-emerald-200">
@@ -1212,7 +1495,7 @@ export default function ServicesPage() {
                                   </span>
                                 )}
                             </div>
-                            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                            <p className="text-xs sm:text-sm text-slate-500 mt-0.5 break-words break-all truncate">
                               {p.location?.city || "Local Area"} -{" "}
                               {p.pharmacistDetails?.qualification || "B.Pharm"}
                             </p>
@@ -1745,7 +2028,7 @@ export default function ServicesPage() {
                       >
                         <div className="space-y-2 flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <h5 className="font-bold text-slate-900 text-base truncate">
+                            <h5 className="font-bold text-slate-900 text-base break-words break-all truncate">
                               {collab.specializationNeeded}
                             </h5>
                             <span className="text-[10px] font-bold px-2.5 py-0.5 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-200/60">
@@ -1758,25 +2041,25 @@ export default function ServicesPage() {
                                 </span>
                               )}
                           </div>
-                          <p className="text-xs sm:text-sm text-slate-500 truncate font-medium">
+                          <p className="text-xs sm:text-sm text-slate-500 font-medium break-words break-all truncate">
                             {collab.clinicOrChamberName || collab.pharmacyName}{" "}
                             - {collab.location?.city || "Local Area"}
                           </p>
                           <div className="flex flex-wrap items-center gap-4 text-xs text-slate-700 font-semibold">
                             <span>
                               Terms:{" "}
-                              <strong className="text-slate-900">
+                              <strong className="text-slate-900 break-words break-all">
                                 {collab.collaborationTerms}
                               </strong>
                             </span>
                             <span>
                               Days:{" "}
-                              <strong className="text-slate-900">
+                              <strong className="text-slate-900 break-words break-all">
                                 {collab.consultationDays || "Regular"}
                               </strong>
                             </span>
                           </div>
-                          <p className="text-xs sm:text-slate-600 line-clamp-2 leading-relaxed">
+                          <p className="text-xs sm:text-slate-600 line-clamp-2 leading-relaxed break-words break-all">
                             {collab.description}
                           </p>
                         </div>
@@ -1833,7 +2116,7 @@ export default function ServicesPage() {
                         >
                           <div className="space-y-1.5 flex-1 min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              <h5 className="font-bold text-slate-900 text-base truncate">
+                              <h5 className="font-bold text-slate-900 text-base break-words break-all truncate">
                                 Dr. {doc.name}
                               </h5>
                               <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-800 rounded-full border border-emerald-200">
@@ -1846,7 +2129,7 @@ export default function ServicesPage() {
                                   </span>
                                 )}
                             </div>
-                            <p className="text-xs sm:text-sm text-slate-500 truncate">
+                            <p className="text-xs sm:text-sm text-slate-500 break-words break-all truncate">
                               {doc.location?.city || "Local Area"} -{" "}
                               {doc.doctorDetails?.specialization ||
                                 "General Physician"}
@@ -2004,7 +2287,7 @@ export default function ServicesPage() {
                       >
                         <div className="space-y-2 flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <h4 className="font-bold text-slate-900 text-base truncate">
+                            <h4 className="font-bold text-slate-900 text-base break-words break-all truncate">
                               {collab.specializationNeeded}
                             </h4>
                             <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60">
@@ -2014,11 +2297,11 @@ export default function ServicesPage() {
                               {collab.preferredTimings}
                             </span>
                           </div>
-                          <p className="text-xs sm:text-sm font-semibold text-slate-600">
+                          <p className="text-xs sm:text-sm font-semibold text-slate-600 break-words break-all">
                             Terms: {collab.collaborationTerms} | Days:{" "}
                             {collab.consultationDays || "Regular"}
                           </p>
-                          <p className="text-xs sm:text-sm text-slate-500 line-clamp-2 leading-relaxed">
+                          <p className="text-xs sm:text-sm text-slate-500 line-clamp-2 leading-relaxed break-words break-all">
                             {collab.description}
                           </p>
                         </div>
@@ -2093,7 +2376,7 @@ export default function ServicesPage() {
                         >
                           <div className="space-y-1.5 flex-1 min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              <h4 className="font-bold text-slate-900 text-base truncate">
+                              <h4 className="font-bold text-slate-900 text-base break-words break-all truncate">
                                 Dr. {doc.name}
                               </h4>
                               <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-800 rounded-full border border-emerald-200">
@@ -2106,7 +2389,7 @@ export default function ServicesPage() {
                                   </span>
                                 )}
                             </div>
-                            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                            <p className="text-xs sm:text-sm text-slate-500 mt-0.5 break-words break-all truncate">
                               {doc.location?.city || "Local Area"} -{" "}
                               {doc.doctorDetails?.specialization ||
                                 "General Physician"}
@@ -2265,7 +2548,7 @@ export default function ServicesPage() {
                       >
                         <div className="space-y-2 flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <h4 className="font-bold text-slate-900 text-base truncate">
+                            <h4 className="font-bold text-slate-900 text-base break-words break-all truncate">
                               {post.pharmacyName}
                             </h4>
                             <span className="text-[10px] font-bold px-2.5 py-0.5 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-200/60">
@@ -2278,14 +2561,14 @@ export default function ServicesPage() {
                                 </span>
                               )}
                           </div>
-                          <p className="text-xs sm:text-sm font-bold text-emerald-800">
+                          <p className="text-xs sm:text-sm font-bold text-emerald-800 break-words break-all">
                             Needs: {post.specializationNeeded}
                           </p>
-                          <p className="text-xs sm:text-sm text-slate-600">
+                          <p className="text-xs sm:text-sm text-slate-600 break-words break-all">
                             {post.consultationDays || "Regular"} |{" "}
                             {post.collaborationTerms}
                           </p>
-                          <p className="text-xs sm:text-slate-500 line-clamp-2 leading-relaxed">
+                          <p className="text-xs sm:text-slate-500 line-clamp-2 leading-relaxed break-words break-all">
                             {post.description}
                           </p>
                         </div>
@@ -2342,16 +2625,16 @@ export default function ServicesPage() {
                         key={inq._id}
                         className="p-5 sm:p-6 rounded-2xl border border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs sm:text-sm shadow-sm hover:shadow-md transition-all"
                       >
-                        <div>
-                          <h4 className="font-bold text-slate-900 text-sm sm:text-base">
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-bold text-slate-900 text-sm sm:text-base break-words break-all">
                             {inq.collabPostId?.pharmacyName}
                           </h4>
-                          <p className="text-slate-500 mt-0.5">
+                          <p className="text-slate-500 mt-0.5 break-words break-all">
                             {inq.proposedTimings} - Proposed on{" "}
                             {new Date(inq.createdAt).toLocaleDateString()}
                           </p>
                         </div>
-                        <span className="font-bold uppercase px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 text-xs self-start sm:self-auto border border-slate-200">
+                        <span className="font-bold uppercase px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 text-xs self-start sm:self-auto border border-slate-200 flex-shrink-0">
                           {inq.status}
                         </span>
                       </div>
@@ -2380,14 +2663,14 @@ export default function ServicesPage() {
                       key={collab._id}
                       className="p-5 sm:p-6 rounded-2xl border border-slate-200 bg-white space-y-2 shadow-sm hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                     >
-                      <div>
-                        <h4 className="font-bold text-slate-900 text-base">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-bold text-slate-900 text-base break-words break-all">
                           {collab.specializationNeeded}
                         </h4>
-                        <p className="text-xs text-slate-500 mt-0.5">
+                        <p className="text-xs text-slate-500 mt-0.5 break-words break-all">
                           {collab.pharmacyName} - {collab.location?.city}
                         </p>
-                        <p className="text-xs text-slate-700 font-medium mt-1">
+                        <p className="text-xs text-slate-700 font-medium mt-1 break-words break-all">
                           {collab.preferredTimings} |{" "}
                           {collab.collaborationTerms}
                         </p>
@@ -2409,21 +2692,39 @@ export default function ServicesPage() {
             )}
           </div>
         )}
-      </main>
+      </div>
+    )}
 
-      {/* Modals */}
-      <ServicesAuthModal
-        isOpen={authModalOpen}
-        onClose={() => {
-          setAuthModalOpen(false);
-          setAuthInitialRole(null);
-          setAuthInitialSubRole(null);
-        }}
-        initialMode={authInitialMode}
-        initialRole={authInitialRole}
-        initialSubRole={authInitialSubRole}
-        t={t}
-        lang={lang}
+    {/* ================= SERVICE 2: PRODUCT CATALOGS & DISTRIBUTORS ================= */}
+    {selectedService === "catalogs" && (
+      <CatalogPage embedded={true} />
+    )}
+
+    {/* ================= SERVICE 3: MEDICINE DATA HUB ================= */}
+    {selectedService === "medicine-data" && (
+      <MedicineDataPage embedded={true} />
+    )}
+
+    {/* ================= SERVICE 4: USEFUL PHARMACY LINKS ================= */}
+    {selectedService === "links" && (
+      <UsefulLinksPage embedded={true} />
+    )}
+  </main>
+
+  {/* Modals */}
+  <ServicesAuthModal
+    isOpen={authModalOpen}
+    onClose={() => {
+      setAuthModalOpen(false);
+      setAuthInitialRole(null);
+      setAuthInitialSubRole(null);
+    }}
+    initialMode={authInitialMode}
+    initialRole={authInitialRole}
+    initialSubRole={authInitialSubRole}
+    context={selectedService === "staffing" ? "staffing" : selectedService}
+    t={t}
+    lang={lang}
         onAuthSuccess={(user) => {
           setCurrentUser(user);
           if (user.role === "doctor") {

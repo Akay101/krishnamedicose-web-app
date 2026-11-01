@@ -27,7 +27,7 @@ import InteractiveBackground from "../components/InteractiveBackground";
 import api from "../utils/api";
 import { useModal } from "../context/ModalContext";
 
-export default function MedicineDataPage() {
+export default function MedicineDataPage({ embedded = false }) {
   // Tabs: 'purchase' or 'login'
   const [activeTab, setActiveTab] = useState("purchase");
   const { showModal } = useModal();
@@ -508,7 +508,7 @@ export default function MedicineDataPage() {
   ];
 
   return (
-    <main className="relative min-h-screen bg-slate-50 text-slate-900 selection:bg-teal-200 selection:text-teal-900 pb-20 select-none">
+    <main className={embedded ? "w-full space-y-8 select-none" : "relative min-h-screen bg-slate-50 text-slate-900 selection:bg-teal-200 selection:text-teal-900 pb-20 select-none"}>
       {/* Block printing */}
       <style>{`
         @media print {
@@ -518,10 +518,10 @@ export default function MedicineDataPage() {
         }
       `}</style>
 
-      <InteractiveBackground />
-      <Navbar />
+      {!embedded && <InteractiveBackground />}
+      {!embedded && <Navbar />}
 
-      <div className="max-w-7xl mx-auto pt-40 px-6 lg:px-8">
+      <div className={embedded ? "max-w-7xl mx-auto px-0 sm:px-2" : "max-w-7xl mx-auto pt-40 px-6 lg:px-8"}>
         {/* SECURE VIEWER - AUTHENTICATED STATE */}
         {token && currentUser ? (
           <motion.div
@@ -1172,7 +1172,7 @@ export default function MedicineDataPage() {
                             {/* EXCLUSIVE RIBBON TAG */}
                             <div className="absolute -top-1 -right-1 z-10 overflow-hidden w-36 h-36 pointer-events-none">
                               <div className="absolute top-5 -right-9 w-40 rotate-45 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-[8px] font-black uppercase tracking-wider py-1 text-center shadow-sm border-y border-white/20">
-                                🎓 Student Offer
+                                Student Offer
                               </div>
                             </div>
 
@@ -1230,7 +1230,7 @@ export default function MedicineDataPage() {
                             <div className="mt-4 flex items-center justify-between">
                               <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700">
                                 {selectedBundle === "student"
-                                  ? "✓ Selected Plan"
+                                  ? "Selected Plan"
                                   : "Click to Select Plan"}
                               </span>
                               <div
@@ -1309,7 +1309,7 @@ export default function MedicineDataPage() {
                             <div className="mt-4 flex items-center justify-between">
                               <span className="text-[10px] font-extrabold uppercase tracking-wider text-teal-700">
                                 {selectedBundle === "regular"
-                                  ? "✓ Selected Plan"
+                                  ? "Selected Plan"
                                   : "Click to Select Plan"}
                               </span>
                               <div

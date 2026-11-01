@@ -24,14 +24,17 @@ const serviceAuthMiddleware = async (req, res, next) => {
       return res.status(401).json({ message: 'Session expired or invalid token. Please log in again.' });
     }
 
+    if (!decoded || !decoded.id) {
+      return res.status(401).json({ message: 'Invalid token payload.' });
+    }
+
     // Check if this is a platform admin token
-    if (decoded.role === 'admin' || decoded.role === 'user') {
-      const adminUser = await User.findById(decoded.id).select('-password');
-      if (adminUser && adminUser.isActive && adminUser.role === 'admin') {
-        req.isAdmin = true;
-        req.user = adminUser;
-        return next();
-      }
+    const adminUser = await User.findById(decoded.id).select('-password');
+    if (adminUser && adminUser.isActive && adminUser.role === 'admin') {
+      req.isAdmin = true;
+      req.user = adminUser;
+      req.adminUser = adminUser;
+      return next();
     }
 
     // Otherwise, check in ServiceUser collection
@@ -67,9 +70,19 @@ const optionalServiceAuth = async (req, res, next) => {
       if (token) {
         try {
           const decoded = jwt.verify(token, process.env.JWT_SECRET);
-          const serviceUser = await ServiceUser.findById(decoded.id).select('-password');
-          if (serviceUser && !serviceUser.isBlocked) {
-            req.serviceUser = serviceUser;
+          if (decoded && decoded.id) {
+            const adminUser = await User.findById(decoded.id).select('-password');
+            if (adminUser && adminUser.isActive && adminUser.role === 'admin') {
+              req.isAdmin = true;
+              req.user = adminUser;
+              req.adminUser = adminUser;
+            } else {
+              const serviceUser = await ServiceUser.findById(decoded.id).select('-password');
+              if (serviceUser && !serviceUser.isBlocked) {
+                req.serviceUser = serviceUser;
+                req.isAdmin = false;
+              }
+            }
           }
         } catch (e) {
           // Token expired or invalid, proceed as unauthenticated
@@ -115,7 +128,21 @@ const requireAdmin = async (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!token) {
+      return res.status(401).json({ message: 'Authentication token missing.' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      return res.status(401).json({ message: 'Invalid or expired administrator token.' });
+    }
+
+    if (!decoded || !decoded.id) {
+      return res.status(401).json({ message: 'Invalid administrator token payload.' });
+    }
+
     const adminUser = await User.findById(decoded.id).select('-password');
 
     if (!adminUser || !adminUser.isActive || adminUser.role !== 'admin') {
@@ -123,10 +150,12 @@ const requireAdmin = async (req, res, next) => {
     }
 
     req.adminUser = adminUser;
+    req.user = adminUser;
     req.isAdmin = true;
     next();
   } catch (error) {
-    return res.status(401).json({ message: 'Invalid or expired administrator token.' });
+    console.error('Require Admin Error:', error);
+    return res.status(500).json({ message: 'Internal server error during administrator authentication.' });
   }
 };
 

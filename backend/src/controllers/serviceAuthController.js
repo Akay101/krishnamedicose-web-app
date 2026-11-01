@@ -142,10 +142,13 @@ exports.register = async (req, res) => {
       location
     } = req.body;
 
+    const userRole = role || 'general_user';
+    const userSubRole = subRole || (userRole === 'general_user' ? 'general_access' : subRole);
+
     // Basic Validations
-    if (!name || !email || !mobile || !password || !role || !subRole) {
+    if (!name || !email || !mobile || !password || !userRole || !userSubRole) {
       return res.status(400).json({
-        message: 'Please provide all required fields: name, email, mobile, password, role, and objective.'
+        message: 'Please provide all required fields: name, email, mobile, and password.'
       });
     }
 
@@ -263,8 +266,8 @@ exports.register = async (req, res) => {
       email: cleanEmail,
       mobile: cleanMobile,
       password,
-      role,
-      subRole,
+      role: userRole,
+      subRole: userSubRole,
       pharmacyDetails: parsedPharmacy,
       pharmacistDetails: parsedPharmacist,
       doctorDetails: parsedDoctor,
@@ -546,29 +549,44 @@ exports.updateProfile = async (req, res) => {
       location
     } = req.body;
 
-    if (name) user.name = name.trim();
-    if (mobile) user.mobile = mobile.trim();
+    if (name) user.name = String(name).trim().slice(0, 80);
+    if (mobile) user.mobile = String(mobile).replace(/\D/g, '').slice(0, 10);
 
     if (location) {
-      if (location.address !== undefined) user.location.address = location.address;
-      if (location.city !== undefined) user.location.city = location.city;
-      if (location.state !== undefined) user.location.state = location.state;
-      if (location.pincode !== undefined) user.location.pincode = location.pincode;
+      if (location.address !== undefined) user.location.address = String(location.address).trim().slice(0, 200);
+      if (location.city !== undefined) user.location.city = String(location.city).trim().slice(0, 60);
+      if (location.state !== undefined) user.location.state = String(location.state).trim().slice(0, 60);
+      if (location.pincode !== undefined) user.location.pincode = String(location.pincode).trim().slice(0, 10);
       if (location.coordinates) {
         user.location.coordinates = sanitizeCoordinates(location.coordinates);
       }
     }
 
     if (pharmacyDetails && user.role === 'pharmacy_owner') {
-      user.pharmacyDetails = { ...user.pharmacyDetails, ...pharmacyDetails };
+      user.pharmacyDetails = {
+        ...user.pharmacyDetails,
+        pharmacyName: pharmacyDetails.pharmacyName !== undefined ? String(pharmacyDetails.pharmacyName).trim().slice(0, 120) : user.pharmacyDetails?.pharmacyName,
+        licenseNumber: pharmacyDetails.licenseNumber !== undefined ? String(pharmacyDetails.licenseNumber).trim().slice(0, 60) : user.pharmacyDetails?.licenseNumber
+      };
     }
 
     if (pharmacistDetails && (user.role === 'job_seeker_pharmacist' || user.role === 'pharmacy_owner')) {
-      user.pharmacistDetails = { ...user.pharmacistDetails, ...pharmacistDetails };
+      user.pharmacistDetails = {
+        ...user.pharmacistDetails,
+        qualification: pharmacistDetails.qualification !== undefined ? String(pharmacistDetails.qualification).trim().slice(0, 60) : user.pharmacistDetails?.qualification,
+        licenseNumber: pharmacistDetails.licenseNumber !== undefined ? String(pharmacistDetails.licenseNumber).trim().slice(0, 60) : user.pharmacistDetails?.licenseNumber,
+        experienceYears: pharmacistDetails.experienceYears !== undefined ? Math.max(0, Math.min(50, Number(pharmacistDetails.experienceYears) || 0)) : user.pharmacistDetails?.experienceYears
+      };
     }
 
     if (doctorDetails && user.role === 'doctor') {
-      user.doctorDetails = { ...user.doctorDetails, ...doctorDetails };
+      user.doctorDetails = {
+        ...user.doctorDetails,
+        specialization: doctorDetails.specialization !== undefined ? String(doctorDetails.specialization).trim().slice(0, 80) : user.doctorDetails?.specialization,
+        qualification: doctorDetails.qualification !== undefined ? String(doctorDetails.qualification).trim().slice(0, 60) : user.doctorDetails?.qualification,
+        medicalRegistrationNumber: doctorDetails.medicalRegistrationNumber !== undefined ? String(doctorDetails.medicalRegistrationNumber).trim().slice(0, 60) : user.doctorDetails?.medicalRegistrationNumber,
+        experienceYears: doctorDetails.experienceYears !== undefined ? Math.max(0, Math.min(60, Number(doctorDetails.experienceYears) || 0)) : user.doctorDetails?.experienceYears
+      };
     }
 
     await user.save();

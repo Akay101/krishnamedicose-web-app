@@ -21,6 +21,8 @@ const UsefulLinksPage = lazy(() => import('./pages/UsefulLinksPage'));
 const LinksManager = lazy(() => import('./admin/LinksManager'));
 const ServicesPage = lazy(() => import('./pages/ServicesPage'));
 const ServicesManager = lazy(() => import('./admin/ServicesManager'));
+const CatalogPage = lazy(() => import('./pages/CatalogPage'));
+const CatalogsManager = lazy(() => import('./admin/CatalogsManager'));
 
 function LoadingFallback() {
   return (
@@ -58,9 +60,11 @@ function App() {
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/catalogs" element={<Navigate to="/services?service=catalogs" replace />} />
+          <Route path="/catalog" element={<Navigate to="/services?service=catalogs" replace />} />
           <Route path="/services" element={<ServicesPage />} />
-          <Route path="/links" element={<UsefulLinksPage />} />
-          <Route path="/medicine-data" element={<MedicineDataPage />} />
+          <Route path="/links" element={<Navigate to="/services?service=links" replace />} />
+          <Route path="/medicine-data" element={<Navigate to="/services?service=medicine-data" replace />} />
           <Route path="/medicine-data/verify-payment" element={<PaymentVerificationPage />} />
           <Route path="/admin/login" element={<Login />} />
           <Route 
@@ -133,6 +137,14 @@ function App() {
               element={
                 <PrivateRoute>
                   <MedicineDataManager />
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="catalogs" 
+              element={
+                <PrivateRoute permission="website">
+                  <CatalogsManager />
                 </PrivateRoute>
               } 
             />

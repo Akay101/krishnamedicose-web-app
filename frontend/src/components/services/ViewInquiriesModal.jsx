@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { X, Stethoscope, Phone, Mail, Award, CheckCircle2, Clock, XCircle, FileText, Loader2, AlertCircle } from 'lucide-react';
 import servicesApi from '../../utils/servicesApi';
+import { useModal } from '../../context/ModalContext';
 
 export default function ViewInquiriesModal({ isOpen, onClose, collabPost }) {
+  const { showModal } = useModal();
   const [inquiries, setInquiries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -35,7 +37,11 @@ export default function ViewInquiriesModal({ isOpen, onClose, collabPost }) {
         prev.map((inq) => (inq._id === inqId ? { ...inq, status: newStatus } : inq))
       );
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update inquiry status.');
+      showModal({
+        title: 'Status Update Failed',
+        message: err.response?.data?.message || 'Failed to update inquiry status.',
+        type: 'error'
+      });
     } finally {
       setUpdatingId(null);
     }
@@ -53,7 +59,7 @@ export default function ViewInquiriesModal({ isOpen, onClose, collabPost }) {
               <Stethoscope className="w-5 h-5 text-emerald-200" />
             </div>
             <div>
-              <h3 className="text-base sm:text-lg font-bold font-outfit">Doctor Proposals: {collabPost.pharmacyName}</h3>
+              <h3 className="text-base sm:text-lg font-bold font-outfit break-words break-all">Doctor Proposals: {collabPost.pharmacyName}</h3>
               <p className="text-xs text-emerald-100">
                 {inquiries.length} Physician Collaboration Inquiry{inquiries.length !== 1 ? 's' : ''}
               </p>
@@ -61,7 +67,7 @@ export default function ViewInquiriesModal({ isOpen, onClose, collabPost }) {
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all"
+            className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all flex-shrink-0"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
@@ -93,12 +99,12 @@ export default function ViewInquiriesModal({ isOpen, onClose, collabPost }) {
               {inquiries.map((inq) => (
                 <div
                   key={inq._id}
-                  className="p-5 rounded-2xl border border-slate-200 bg-slate-50/50 hover:bg-white transition-all space-y-3"
+                  className="p-5 rounded-2xl border border-slate-200 bg-slate-50/50 hover:bg-white transition-all space-y-3 min-w-0"
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-slate-900 text-base">{inq.doctorName}</h4>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="font-bold text-slate-900 text-base break-words break-all">{inq.doctorName}</h4>
                         <span
                           className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full ${
                             inq.status === 'accepted'
@@ -118,7 +124,7 @@ export default function ViewInquiriesModal({ isOpen, onClose, collabPost }) {
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       <button
                         onClick={() => handleStatusChange(inq._id, 'accepted')}
                         disabled={updatingId === inq._id || inq.status === 'accepted'}
@@ -143,21 +149,21 @@ export default function ViewInquiriesModal({ isOpen, onClose, collabPost }) {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
-                    <div className="flex items-center gap-2 text-slate-700">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs min-w-0">
+                    <div className="flex items-center gap-2 text-slate-700 min-w-0">
                       <Award className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                      <span>Specialization: <strong>{inq.specialization || 'Medical Specialist'}</strong></span>
+                      <span className="break-words break-all">Specialization: <strong>{inq.specialization || 'Medical Specialist'}</strong></span>
                     </div>
 
-                    <div className="flex items-center gap-2 text-slate-700">
+                    <div className="flex items-center gap-2 text-slate-700 min-w-0">
                       <Clock className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                      <span>Proposed: <strong>{inq.proposedTimings || 'Standard Chamber Timings'}</strong></span>
+                      <span className="break-words break-all">Proposed: <strong>{inq.proposedTimings || 'Standard Chamber Timings'}</strong></span>
                     </div>
 
                     {inq.medicalRegistrationNumber && (
-                      <div className="flex items-center gap-2 text-slate-700 truncate">
+                      <div className="flex items-center gap-2 text-slate-700 min-w-0">
                         <FileText className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                        <span className="truncate">Council Reg: <strong>{inq.medicalRegistrationNumber}</strong></span>
+                        <span className="break-words break-all">Council Reg: <strong>{inq.medicalRegistrationNumber}</strong></span>
                       </div>
                     )}
                   </div>
@@ -165,20 +171,20 @@ export default function ViewInquiriesModal({ isOpen, onClose, collabPost }) {
                   <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-200/80">
                     <a
                       href={`tel:${inq.doctorMobile}`}
-                      className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 hover:text-emerald-900 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200"
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 hover:text-emerald-900 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 break-all"
                     >
-                      <Phone className="w-3.5 h-3.5" /> Call Doctor: {inq.doctorMobile}
+                      <Phone className="w-3.5 h-3.5 flex-shrink-0" /> Call Doctor: {inq.doctorMobile}
                     </a>
                     <a
                       href={`mailto:${inq.doctorEmail}`}
-                      className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200"
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 break-all"
                     >
-                      <Mail className="w-3.5 h-3.5" /> {inq.doctorEmail}
+                      <Mail className="w-3.5 h-3.5 flex-shrink-0" /> {inq.doctorEmail}
                     </a>
                   </div>
 
                   {inq.message && (
-                    <div className="p-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-600 italic">
+                    <div className="p-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-600 italic break-words break-all max-h-36 overflow-y-auto">
                       "{inq.message}"
                     </div>
                   )}

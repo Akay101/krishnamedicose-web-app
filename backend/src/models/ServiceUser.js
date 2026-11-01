@@ -34,16 +34,17 @@ const serviceUserSchema = new mongoose.Schema(
     role: {
       type: String,
       required: [true, 'Role is required'],
-      enum: ['pharmacy_owner', 'job_seeker_pharmacist', 'doctor']
+      enum: ['pharmacy_owner', 'job_seeker_pharmacist', 'doctor', 'general_user']
     },
     // Sub-intent:
     // - pharmacy_owner: 'hire_pharmacist' or 'collab_doctor'
     // - job_seeker_pharmacist: 'work_in_pharmacy'
     // - doctor: 'doctor_collab'
+    // - general_user: 'general_access'
     subRole: {
       type: String,
       required: true,
-      enum: ['hire_pharmacist', 'collab_doctor', 'work_in_pharmacy', 'doctor_collab']
+      enum: ['hire_pharmacist', 'collab_doctor', 'work_in_pharmacy', 'doctor_collab', 'general_access']
     },
 
     // Pharmacy Details (if pharmacy owner)

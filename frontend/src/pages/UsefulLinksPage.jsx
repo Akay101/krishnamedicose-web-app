@@ -5,7 +5,7 @@ import Navbar from '../components/Navbar';
 import Logo from '../components/Logo';
 import InteractiveBackground from '../components/InteractiveBackground';
 
-export default function UsefulLinksPage() {
+export default function UsefulLinksPage({ embedded = false }) {
   const [links, setLinks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -70,11 +70,11 @@ export default function UsefulLinksPage() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900 relative selection:bg-teal-200 selection:text-teal-900 flex flex-col">
-      <InteractiveBackground />
-      <Navbar />
+    <main className={embedded ? "w-full space-y-8" : "min-h-screen bg-slate-50 text-slate-900 relative selection:bg-teal-200 selection:text-teal-900 flex flex-col"}>
+      {!embedded && <InteractiveBackground />}
+      {!embedded && <Navbar />}
 
-      <div className="pt-32 pb-16 px-4 sm:px-8 lg:px-16 max-w-7xl mx-auto flex-1 w-full space-y-12">
+      <div className={embedded ? "w-full space-y-10" : "pt-32 pb-16 px-4 sm:px-8 lg:px-16 max-w-7xl mx-auto flex-1 w-full space-y-12"}>
         {/* Header Banner */}
         <div className="text-center max-w-3xl mx-auto">
           <motion.h1

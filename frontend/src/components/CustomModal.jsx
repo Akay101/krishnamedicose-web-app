@@ -41,12 +41,12 @@ export default function CustomModal({
             initial={{ scale: 0.9, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 20 }}
-            className={`relative w-full max-w-2xl bg-white border ${colors[type]} rounded-[2.5rem] p-8 shadow-2xl overflow-hidden`}
+            className={`relative w-full max-w-2xl bg-white border ${colors[type]} rounded-3xl sm:rounded-[2.5rem] p-5 sm:p-8 shadow-2xl overflow-hidden`}
           >
             {/* Close Button */}
             <button 
               onClick={onClose}
-              className="absolute top-6 right-6 p-2 text-slate-500 hover:text-slate-800 transition-colors z-50 bg-slate-50 border border-slate-100 hover:bg-slate-100 rounded-full"
+              className="absolute top-4 sm:top-6 right-4 sm:right-6 p-2 text-slate-500 hover:text-slate-800 transition-colors z-50 bg-slate-50 border border-slate-100 hover:bg-slate-100 rounded-full"
             >
               <X className="w-5 h-5" />
             </button>
@@ -54,30 +54,30 @@ export default function CustomModal({
             {/* Background Glow */}
             <div className={`absolute -top-24 -right-24 w-48 h-48 rounded-full blur-[80px] opacity-25 ${type === 'error' ? 'bg-red-300' : 'bg-teal-300'}`} />
 
-            <div className="flex flex-col items-center text-center space-y-6 relative z-10">
-              <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+            <div className="flex flex-col items-center text-center space-y-5 sm:space-y-6 relative z-10">
+              <div className="p-3.5 sm:p-4 bg-slate-50 border border-slate-100 rounded-2xl">
                 {icons[type]}
               </div>
               
               <div className="space-y-2 w-full">
-                <h3 className="text-2xl font-black font-outfit text-slate-900">{title}</h3>
-                <div className="text-slate-700 font-bold leading-relaxed text-sm text-left max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar whitespace-pre-line">
+                <h3 className="text-xl sm:text-2xl font-black font-outfit text-slate-900">{title}</h3>
+                <div className="text-slate-700 font-bold leading-relaxed text-xs sm:text-sm text-left max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar whitespace-pre-line">
                   {message}
                 </div>
               </div>
 
-              <div className="flex gap-4 w-full pt-4">
+              <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4 w-full pt-2 sm:pt-4">
                 {type === 'confirm' ? (
                   <>
                     <button
                       onClick={onClose}
-                      className="flex-1 py-4 rounded-2xl bg-slate-100 border border-slate-200 text-slate-700 font-bold hover:bg-slate-200 transition-all"
+                      className="w-full sm:flex-1 py-3 sm:py-4 rounded-xl sm:rounded-2xl bg-slate-100 border border-slate-200 text-slate-700 font-bold hover:bg-slate-200 transition-all text-xs sm:text-sm"
                     >
                       {cancelText}
                     </button>
                     <button
-                      onClick={() => { onConfirm(); onClose(); }}
-                      className="flex-1 py-4 rounded-2xl bg-teal-600 text-white font-extrabold uppercase tracking-widest hover:bg-teal-700 transition-all shadow-md"
+                      onClick={() => { if (onConfirm) onConfirm(); onClose(); }}
+                      className="w-full sm:flex-1 py-3 sm:py-4 rounded-xl sm:rounded-2xl bg-teal-600 text-white font-extrabold uppercase tracking-widest hover:bg-teal-700 transition-all shadow-md text-xs sm:text-sm"
                     >
                       {confirmText}
                     </button>
@@ -85,7 +85,7 @@ export default function CustomModal({
                 ) : (
                   <button
                     onClick={onClose}
-                    className="w-full py-4 rounded-2xl bg-teal-600 text-white font-extrabold uppercase tracking-widest hover:bg-teal-700 transition-all shadow-md"
+                    className="w-full py-3 sm:py-4 rounded-xl sm:rounded-2xl bg-teal-600 text-white font-extrabold uppercase tracking-widest hover:bg-teal-700 transition-all shadow-md text-xs sm:text-sm"
                   >
                     Got it
                   </button>

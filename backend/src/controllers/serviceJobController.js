@@ -35,27 +35,53 @@ exports.createJobPost = async (req, res) => {
       return res.status(400).json({ message: 'Title and description are required.' });
     }
 
+    const cleanTitle = String(title).trim();
+    if (cleanTitle.length < 3 || cleanTitle.length > 120) {
+      return res.status(400).json({ message: 'Job title must be between 3 and 120 characters.' });
+    }
+
+    const cleanDescription = String(description).trim();
+    if (cleanDescription.length < 10 || cleanDescription.length > 1000) {
+      return res.status(400).json({ message: 'Job description must be between 10 and 1000 characters.' });
+    }
+
+    const cleanSalary = salaryRange ? String(salaryRange).trim().slice(0, 80) : 'Negotiable';
+    const cleanTimings = workTimings ? String(workTimings).trim().slice(0, 80) : 'Standard Pharmacy Shifts';
+
+    const numVacancies = Math.max(1, Math.min(50, Number(vacancies) || 1));
+    const cleanRadius = Math.max(5, Math.min(100, Number(visibilityRadiusKm) || 25));
+
+    let sanitizedReqs = [];
+    if (Array.isArray(requirements)) {
+      sanitizedReqs = requirements
+        .map((r) => String(r).trim().slice(0, 150))
+        .filter((r) => r.length > 0)
+        .slice(0, 15);
+    } else if (requirements) {
+      sanitizedReqs = [String(requirements).trim().slice(0, 150)];
+    }
+
     const owner = await ServiceUser.findById(req.serviceUser._id);
     if (!owner) return res.status(404).json({ message: 'Owner account not found.' });
 
     // Use owner's pharmacy name or provided
-    const pharmacyName = owner.pharmacyDetails?.pharmacyName || owner.name;
+    const pharmacyName = (owner.pharmacyDetails?.pharmacyName || owner.name || '').slice(0, 120);
 
     // Resolve location
     let finalLocation = {
-      address: owner.location?.address || '',
-      city: owner.location?.city || '',
-      state: owner.location?.state || '',
-      pincode: owner.location?.pincode || '',
+      address: (owner.location?.address || '').slice(0, 200),
+      city: (owner.location?.city || '').slice(0, 60),
+      state: (owner.location?.state || '').slice(0, 60),
+      pincode: (owner.location?.pincode || '').slice(0, 10),
       type: 'Point',
       coordinates: owner.location?.coordinates || [77.1025, 28.7041]
     };
 
     if (location) {
-      if (location.address) finalLocation.address = location.address;
-      if (location.city) finalLocation.city = location.city;
-      if (location.state) finalLocation.state = location.state;
-      if (location.pincode) finalLocation.pincode = location.pincode;
+      if (location.address) finalLocation.address = String(location.address).trim().slice(0, 200);
+      if (location.city) finalLocation.city = String(location.city).trim().slice(0, 60);
+      if (location.state) finalLocation.state = String(location.state).trim().slice(0, 60);
+      if (location.pincode) finalLocation.pincode = String(location.pincode).trim().slice(0, 10);
       if (location.coordinates) {
         finalLocation.coordinates = sanitizeCoordinates(location.coordinates);
       }
@@ -63,20 +89,20 @@ exports.createJobPost = async (req, res) => {
 
     const job = new JobPost({
       ownerId: owner._id,
-      title: title.trim(),
+      title: cleanTitle,
       pharmacyName,
-      jobType: jobType || 'Full-time',
-      requiredExperience: requiredExperience || '1 - 2 Years',
-      requiredQualification: requiredQualification || 'B.Pharm',
-      salaryRange: salaryRange || 'Negotiable',
-      workTimings: workTimings || 'Standard Pharmacy Shifts',
-      vacancies: Number(vacancies) || 1,
-      description: description.trim(),
-      requirements: Array.isArray(requirements) ? requirements : (requirements ? [requirements] : []),
+      jobType: (jobType || 'Full-time').slice(0, 50),
+      requiredExperience: (requiredExperience || '1 - 2 Years').slice(0, 50),
+      requiredQualification: (requiredQualification || 'B.Pharm').slice(0, 60),
+      salaryRange: cleanSalary,
+      workTimings: cleanTimings,
+      vacancies: numVacancies,
+      description: cleanDescription,
+      requirements: sanitizedReqs,
       contactPhone: contactPhone || owner.mobile,
       contactEmail: contactEmail || owner.email,
       location: finalLocation,
-      visibilityRadiusKm: Number(visibilityRadiusKm) || 25,
+      visibilityRadiusKm: cleanRadius,
       status: 'active'
     });
 
@@ -138,34 +164,51 @@ exports.updateJobPost = async (req, res) => {
     }
 
     const updates = req.body;
-    const allowedFields = [
-      'title',
-      'pharmacyName',
-      'jobType',
-      'requiredExperience',
-      'requiredQualification',
-      'salaryRange',
-      'workTimings',
-      'vacancies',
-      'description',
-      'requirements',
-      'contactPhone',
-      'contactEmail',
-      'visibilityRadiusKm',
-      'status'
-    ];
-
-    allowedFields.forEach((field) => {
-      if (updates[field] !== undefined) {
-        job[field] = updates[field];
+    if (updates.title !== undefined) {
+      const cleanTitle = String(updates.title).trim();
+      if (cleanTitle.length < 3 || cleanTitle.length > 120) {
+        return res.status(400).json({ message: 'Job title must be between 3 and 120 characters.' });
       }
-    });
+      job.title = cleanTitle;
+    }
+
+    if (updates.description !== undefined) {
+      const cleanDesc = String(updates.description).trim();
+      if (cleanDesc.length < 10 || cleanDesc.length > 1000) {
+        return res.status(400).json({ message: 'Job description must be between 10 and 1000 characters.' });
+      }
+      job.description = cleanDesc;
+    }
+
+    if (updates.pharmacyName !== undefined) job.pharmacyName = String(updates.pharmacyName).trim().slice(0, 120);
+    if (updates.jobType !== undefined) job.jobType = String(updates.jobType).slice(0, 50);
+    if (updates.requiredExperience !== undefined) job.requiredExperience = String(updates.requiredExperience).slice(0, 50);
+    if (updates.requiredQualification !== undefined) job.requiredQualification = String(updates.requiredQualification).slice(0, 60);
+    if (updates.salaryRange !== undefined) job.salaryRange = String(updates.salaryRange).trim().slice(0, 80);
+    if (updates.workTimings !== undefined) job.workTimings = String(updates.workTimings).trim().slice(0, 80);
+    if (updates.vacancies !== undefined) job.vacancies = Math.max(1, Math.min(50, Number(updates.vacancies) || 1));
+    if (updates.visibilityRadiusKm !== undefined) job.visibilityRadiusKm = Math.max(5, Math.min(100, Number(updates.visibilityRadiusKm) || 25));
+    if (updates.status !== undefined) job.status = ['active', 'closed', 'paused'].includes(updates.status) ? updates.status : job.status;
+
+    if (updates.requirements !== undefined) {
+      if (Array.isArray(updates.requirements)) {
+        job.requirements = updates.requirements
+          .map((r) => String(r).trim().slice(0, 150))
+          .filter((r) => r.length > 0)
+          .slice(0, 15);
+      } else if (updates.requirements) {
+        job.requirements = [String(updates.requirements).trim().slice(0, 150)];
+      }
+    }
+
+    if (updates.contactPhone !== undefined) job.contactPhone = String(updates.contactPhone).trim().slice(0, 20);
+    if (updates.contactEmail !== undefined) job.contactEmail = String(updates.contactEmail).trim().slice(0, 120);
 
     if (updates.location) {
-      if (updates.location.address !== undefined) job.location.address = updates.location.address;
-      if (updates.location.city !== undefined) job.location.city = updates.location.city;
-      if (updates.location.state !== undefined) job.location.state = updates.location.state;
-      if (updates.location.pincode !== undefined) job.location.pincode = updates.location.pincode;
+      if (updates.location.address !== undefined) job.location.address = String(updates.location.address).trim().slice(0, 200);
+      if (updates.location.city !== undefined) job.location.city = String(updates.location.city).trim().slice(0, 60);
+      if (updates.location.state !== undefined) job.location.state = String(updates.location.state).trim().slice(0, 60);
+      if (updates.location.pincode !== undefined) job.location.pincode = String(updates.location.pincode).trim().slice(0, 10);
       if (updates.location.coordinates) {
         job.location.coordinates = sanitizeCoordinates(updates.location.coordinates);
       }
@@ -391,17 +434,22 @@ exports.applyForJob = async (req, res) => {
 
     const { coverNote, mobile, qualification, experienceYears } = req.body;
 
+    const cleanCoverNote = coverNote ? String(coverNote).trim().slice(0, 500) : '';
+    const cleanMobile = mobile ? String(mobile).replace(/\D/g, '').slice(0, 10) : applicant.mobile;
+    const cleanQualification = qualification ? String(qualification).trim().slice(0, 60) : (applicant.pharmacistDetails?.qualification || 'B.Pharm');
+    const cleanExp = experienceYears !== undefined ? Math.max(0, Math.min(50, Number(experienceYears) || 0)) : (applicant.pharmacistDetails?.experienceYears || 0);
+
     const application = new JobApplication({
       jobId: job._id,
       applicantId: applicant._id,
       ownerId: job.ownerId,
       applicantName: applicant.name,
-      applicantMobile: mobile || applicant.mobile,
+      applicantMobile: cleanMobile,
       applicantEmail: applicant.email,
-      qualification: qualification || applicant.pharmacistDetails?.qualification || 'B.Pharm',
-      experienceYears: experienceYears !== undefined ? Number(experienceYears) : (applicant.pharmacistDetails?.experienceYears || 0),
-      licenseNumber: applicant.pharmacistDetails?.licenseNumber || '',
-      coverNote: (coverNote || '').trim(),
+      qualification: cleanQualification,
+      experienceYears: cleanExp,
+      licenseNumber: (applicant.pharmacistDetails?.licenseNumber || '').slice(0, 60),
+      coverNote: cleanCoverNote,
       status: 'pending'
     });
 

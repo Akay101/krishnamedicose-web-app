@@ -16,7 +16,8 @@ import {
   User,
   KeyRound,
   Clock,
-  RefreshCw
+  RefreshCw,
+  Sparkles
 } from 'lucide-react';
 import servicesApi from '../../utils/servicesApi';
 import LocationPicker from './LocationPicker';
@@ -25,16 +26,29 @@ export default function ServicesAuthModal({
   isOpen,
   onClose,
   onAuthSuccess,
-  initialMode = 'register',
+  initialMode = 'login',
   initialRole = null,
   initialSubRole = null,
+  context = 'general',
   t = {},
   lang
 }) {
+  const isGeneralContext =
+    context === 'catalogs' ||
+    context === 'general' ||
+    context === 'medicine-data' ||
+    context === 'links';
+
   // Mode can be 'intent', 'intent_sub', 'register', 'verify_register_otp', 'login', or 'verify_login_otp'
-  const [step, setStep] = useState(initialMode === 'login' ? 'login' : 'intent');
-  const [selectedRole, setSelectedRole] = useState(initialRole);
-  const [selectedSubRole, setSelectedSubRole] = useState(initialSubRole);
+  const [step, setStep] = useState(
+    initialMode === 'login' ? 'login' : isGeneralContext ? 'register' : 'intent'
+  );
+  const [selectedRole, setSelectedRole] = useState(
+    initialRole || (isGeneralContext ? 'general_user' : null)
+  );
+  const [selectedSubRole, setSelectedSubRole] = useState(
+    initialSubRole || (isGeneralContext ? 'general_access' : null)
+  );
 
   // OTP & 24h Session verification states
   const [otp, setOtp] = useState('');
@@ -49,7 +63,11 @@ export default function ServicesAuthModal({
         setStep('login');
       } else if (initialRole) {
         setSelectedRole(initialRole);
-        setSelectedSubRole(initialSubRole);
+        setSelectedSubRole(initialSubRole || 'general_access');
+        setStep('register');
+      } else if (isGeneralContext) {
+        setSelectedRole('general_user');
+        setSelectedSubRole('general_access');
         setStep('register');
       } else {
         setSelectedRole(null);
@@ -59,7 +77,7 @@ export default function ServicesAuthModal({
       setError('');
       setOtp('');
     }
-  }, [isOpen, initialMode, initialRole, initialSubRole]);
+  }, [isOpen, initialMode, initialRole, initialSubRole, isGeneralContext]);
 
   // Cooldown countdown timer for OTP resend
   useEffect(() => {
@@ -173,7 +191,7 @@ export default function ServicesAuthModal({
       return;
     }
 
-    if (!formData.location.city || !formData.location.address) {
+    if (selectedRole !== 'general_user' && (!formData.location.city || !formData.location.address)) {
       setError(t.errRequired || 'Please enter your address and city.');
       return;
     }
@@ -230,8 +248,8 @@ export default function ServicesAuthModal({
       postPayload.append('mobile', cleanMobile);
       postPayload.append('password', formData.password);
       postPayload.append('otp', cleanOtp);
-      postPayload.append('role', selectedRole);
-      postPayload.append('subRole', selectedSubRole);
+      postPayload.append('role', selectedRole || 'general_user');
+      postPayload.append('subRole', selectedSubRole || 'general_access');
       postPayload.append('location', JSON.stringify(formData.location));
 
       if (selectedRole === 'pharmacy_owner') {
@@ -374,7 +392,21 @@ export default function ServicesAuthModal({
   const getHeaderTitle = () => {
     if (step === 'login') return t.signInBtn || 'Sign In';
     if (step === 'verify_login_otp' || step === 'verify_register_otp') return t.enterOtp || 'Enter Verification Code';
+    if (context === 'catalogs') return 'Product Catalogs & Distributors';
+    if (context === 'medicine-data') return 'Medicine Data Hub';
+    if (context === 'links') return 'Useful Pharmacy Links';
+    if (context === 'general') return 'Krishna Medicos Services';
     return t.siteTitle || 'Find Jobs & Doctors';
+  };
+
+  const getHeaderSubtitle = () => {
+    if (step === 'login') return 'Access your verified healthcare services account';
+    if (step === 'verify_login_otp' || step === 'verify_register_otp') return 'Enter the 6-digit OTP sent to your registered email';
+    if (context === 'catalogs') return 'Pan-India Pharmaceutical Supply Directory';
+    if (context === 'medicine-data') return 'Comprehensive Indian Medicine Database';
+    if (context === 'links') return 'Official Regulatory & Pharmacy Resources';
+    if (context === 'general') return 'Unified Healthcare & Pharmacy Services';
+    return t.siteSubtitle || 'Pharmacy Staffing & Doctor Network';
   };
 
   return (
@@ -390,7 +422,7 @@ export default function ServicesAuthModal({
               <h2 className="text-lg font-bold font-outfit">
                 {getHeaderTitle()}
               </h2>
-              <p className="text-xs text-teal-100">{t.siteSubtitle || 'Pharmacy Staffing & Doctor Network'}</p>
+              <p className="text-xs text-teal-100">{getHeaderSubtitle()}</p>
             </div>
           </div>
           <button
@@ -495,6 +527,35 @@ export default function ServicesAuthModal({
                     </p>
                   </div>
                 </button>
+
+                {/* Option 4: General Account / Catalogs & Resources */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError('');
+                    setSelectedRole('general_user');
+                    setSelectedSubRole('general_access');
+                    setStep('register');
+                  }}
+                  className="w-full text-left p-5 sm:p-6 rounded-2xl border-2 border-slate-200 hover:border-teal-600 bg-white hover:bg-teal-50/40 transition-all flex items-start gap-4 sm:gap-5 group shadow-sm hover:shadow-md"
+                >
+                  <div className="p-3.5 bg-sky-100 text-sky-700 rounded-2xl flex-shrink-0 group-hover:scale-105 transition-transform">
+                    <Sparkles className="w-6 h-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-teal-700 leading-snug">
+                        4. General User / Catalogs & Medicine Explorer
+                      </h4>
+                      <span className="text-xs bg-slate-100 text-slate-600 px-3 py-1 rounded-lg font-bold group-hover:bg-teal-600 group-hover:text-white flex-shrink-0 transition-colors">
+                        {t.select || 'Select'}
+                      </span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">
+                      Search pharmaceutical formulations, pan-India distributors, medicine database, and resources without job/clinic listings.
+                    </p>
+                  </div>
+                </button>
               </div>
 
               {/* Toggle to Sign In */}
@@ -576,15 +637,25 @@ export default function ServicesAuthModal({
               <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setStep(selectedRole === 'pharmacy_owner' ? 'intent_sub' : 'intent')}
+                  onClick={() => {
+                    setError('');
+                    if (isGeneralContext || selectedRole === 'general_user') {
+                      setStep('login');
+                    } else if (selectedRole === 'pharmacy_owner') {
+                      setStep('intent_sub');
+                    } else {
+                      setStep('intent');
+                    }
+                  }}
                   className="flex items-center gap-1.5 text-xs font-bold text-teal-700 hover:text-teal-800"
                 >
-                  <ArrowLeft className="w-4 h-4" /> {t.back || 'Back'}
+                  <ArrowLeft className="w-4 h-4" /> {isGeneralContext || selectedRole === 'general_user' ? (t.signInBtn || 'Sign In') : (t.back || 'Back')}
                 </button>
                 <span className="text-xs font-bold px-3 py-1 bg-teal-50 text-teal-800 rounded-full">
                   {selectedRole === 'pharmacy_owner' && (t.pharmacyOwner || 'Pharmacy Owner')}
                   {selectedRole === 'job_seeker_pharmacist' && (t.pharmacist || 'Pharmacist')}
                   {selectedRole === 'doctor' && (t.doctor || 'Doctor')}
+                  {selectedRole === 'general_user' && 'General Account'}
                 </span>
               </div>
 
@@ -768,10 +839,16 @@ export default function ServicesAuthModal({
                       <input
                         type="number"
                         min="0"
-                        max="40"
+                        max="50"
                         required
                         value={formData.experienceYears}
-                        onChange={(e) => setFormData({ ...formData, experienceYears: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
+                        }}
+                        onChange={(e) => {
+                          const val = Math.min(50, Math.max(0, parseInt(e.target.value, 10) || 0));
+                          setFormData({ ...formData, experienceYears: val });
+                        }}
                         className="w-full h-11 px-4 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 transition-colors"
                       />
                     </div>
@@ -875,7 +952,13 @@ export default function ServicesAuthModal({
                         max="50"
                         required
                         value={formData.doctorExperienceYears}
-                        onChange={(e) => setFormData({ ...formData, doctorExperienceYears: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
+                        }}
+                        onChange={(e) => {
+                          const val = Math.min(50, Math.max(0, parseInt(e.target.value, 10) || 0));
+                          setFormData({ ...formData, doctorExperienceYears: val });
+                        }}
                         className="w-full h-11 px-4 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 transition-colors"
                       />
                     </div>
@@ -995,7 +1078,13 @@ export default function ServicesAuthModal({
                   type="button"
                   onClick={() => {
                     setError('');
-                    setStep('intent');
+                    if (isGeneralContext) {
+                      setSelectedRole('general_user');
+                      setSelectedSubRole('general_access');
+                      setStep('register');
+                    } else {
+                      setStep('intent');
+                    }
                   }}
                   className="text-xs sm:text-sm font-bold text-teal-700 hover:text-teal-900 underline py-1"
                 >
