@@ -1109,7 +1109,8 @@ export default function CatalogsManager() {
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-slate-800 flex items-center gap-1.5">
                       <FileText className="w-4 h-4 text-teal-700" />
-                      Product Catalog Document (PDF / DOC / XLS)
+                      Product Catalog Document (PDF / DOC / XLS){' '}
+                      <span className="text-slate-400 font-normal text-xs">(Optional)</span>
                     </span>
                     {formDistributor.catalogDocument && (
                       <button

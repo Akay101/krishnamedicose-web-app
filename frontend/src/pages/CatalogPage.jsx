@@ -984,11 +984,11 @@ export default function CatalogPage({ embedded = false }) {
                           I am a Pharmacist (Add a Distributor)
                         </h4>
                         <p className="text-xs text-slate-500 leading-relaxed">
-                          Quickly recommend a trusted distributor or agency you purchase from. Simply enter the distributor name,
-                          categories, location, and contact number.
+                          Quickly recommend a trusted distributor or agency you purchase from. Enter the distributor name,
+                          categories, location, contact number, and optionally attach their product catalog.
                         </p>
                         <span className="inline-block text-[11px] font-bold text-sky-700 mt-1 group-hover:underline">
-                          Simple 4-field recommendation flow &rarr;
+                          Quick recommendation flow (catalog optional) &rarr;
                         </span>
                       </div>
                     </button>
@@ -1212,6 +1212,76 @@ export default function CatalogPage({ embedded = false }) {
                     />
                   </div>
 
+                  {/* Pharmacist Entry: Product Catalog Upload (Optional) */}
+                  {selectedPersona === 'pharmacist_entry' && (
+                    <div className="space-y-2.5 p-4 bg-teal-50/40 rounded-2xl border border-teal-100">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                            <FileText className="w-4 h-4 text-teal-700" />
+                            Product Catalog Document (PDF / DOC / XLS){' '}
+                            <span className="text-slate-400 font-normal text-[11px]">(Optional)</span>
+                          </span>
+                          <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                            Have this distributor's product rate list or catalog file? Attach it here (PDF, DOC, XLS).
+                          </p>
+                        </div>
+                        {formData.catalogDocument && (
+                          <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, catalogDocument: null })}
+                            className="text-[11px] text-rose-600 font-bold hover:underline flex-shrink-0"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+
+                      {formData.catalogDocument ? (
+                        <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-between text-xs text-emerald-800 font-semibold gap-2">
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <FileText className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                            <span className="truncate">
+                              {formData.catalogDocument.originalName || 'Catalog uploaded'}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold flex-shrink-0">
+                            Verified
+                          </span>
+                        </div>
+                      ) : (
+                        <div>
+                          <label
+                            className={`w-full py-2.5 px-3 border border-dashed rounded-xl flex items-center justify-center gap-2 text-xs font-bold cursor-pointer transition-colors ${
+                              uploadingCatalog
+                                ? 'bg-slate-100 text-slate-400 border-slate-300'
+                                : 'border-teal-300 text-teal-800 hover:bg-teal-50/80 bg-white shadow-sm'
+                            }`}
+                          >
+                            {uploadingCatalog ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
+                                <span>Sanitizing & uploading catalog...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="w-4 h-4 text-teal-600" />
+                                <span>Upload Catalog PDF (Optional, Max 10MB)</span>
+                              </>
+                            )}
+                            <input
+                              type="file"
+                              disabled={uploadingCatalog}
+                              onChange={(e) => handleFileUpload(e, 'catalog')}
+                              accept=".pdf,.doc,.docx,.xls,.xlsx,.csv"
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* ================= DISTRIBUTOR SELF ONLY FIELDS ================= */}
                   {selectedPersona === 'distributor_self' && (
                     <>
@@ -1277,7 +1347,8 @@ export default function CatalogPage({ embedded = false }) {
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                               <FileText className="w-4 h-4 text-teal-700" />
-                              Product Catalog Document (PDF / DOC / XLS)
+                              Product Catalog Document (PDF / DOC / XLS){' '}
+                              <span className="text-slate-400 font-normal text-[11px]">(Optional)</span>
                             </span>
                             {formData.catalogDocument && (
                               <button
