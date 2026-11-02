@@ -8,11 +8,12 @@ const {
 } = require('../middleware/serviceAuthMiddleware');
 
 const catalogController = require('../controllers/catalogController');
+const { upload } = require('../services/catalogUploadService');
 
 // Rate limiting for submissions to prevent spamming
 const contributionLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 40,
+  max: 60,
   message: { message: 'Submission rate limit reached. Please wait before submitting more items.' },
   standardHeaders: true,
   legacyHeaders: false
@@ -24,14 +25,13 @@ const contributionLimiter = rateLimit({
  * =========================================================================
  */
 
-// Search / browse approved product catalogs
-router.get('/products', serviceAuthMiddleware, catalogController.getProducts);
-
-// Get single product details by ID
-router.get('/products/:id', serviceAuthMiddleware, catalogController.getProductById);
-
-// Contribute / Add product catalog entry (User -> pending approval; Admin -> approved)
-router.post('/products', serviceAuthMiddleware, contributionLimiter, catalogController.createProduct);
+// Secure document / catalog PDF / drug license upload with strict sanitary checks
+router.post(
+  '/upload-document',
+  serviceAuthMiddleware,
+  upload.single('file'),
+  catalogController.uploadDocument
+);
 
 // Search / browse approved distributors directory
 router.get('/distributors', serviceAuthMiddleware, catalogController.getDistributors);
@@ -39,11 +39,16 @@ router.get('/distributors', serviceAuthMiddleware, catalogController.getDistribu
 // Get single distributor details by ID
 router.get('/distributors/:id', serviceAuthMiddleware, catalogController.getDistributorById);
 
-// Add distributor (User -> pending approval; Admin -> approved)
+// Add distributor (Distributor Self-Registration or Pharmacist Recommendation)
 router.post('/distributors', serviceAuthMiddleware, contributionLimiter, catalogController.createDistributor);
 
 // View user's own contributions and approval statuses
 router.get('/my-contributions', serviceAuthMiddleware, catalogController.getUserContributions);
+
+// Products endpoints (preserved for backwards-compatibility)
+router.get('/products', serviceAuthMiddleware, catalogController.getProducts);
+router.get('/products/:id', serviceAuthMiddleware, catalogController.getProductById);
+router.post('/products', serviceAuthMiddleware, contributionLimiter, catalogController.createProduct);
 
 /**
  * =========================================================================
@@ -54,18 +59,18 @@ router.get('/my-contributions', serviceAuthMiddleware, catalogController.getUser
 // Catalog dashboard stats
 router.get('/admin/stats', requireAdmin, catalogController.getAdminStats);
 
-// Products management
-router.get('/admin/products', requireAdmin, catalogController.getAdminProducts);
-router.post('/admin/products', requireAdmin, catalogController.createProduct);
-router.patch('/admin/products/:id/status', requireAdmin, catalogController.updateProductStatus);
-router.put('/admin/products/:id', requireAdmin, catalogController.updateProduct);
-router.delete('/admin/products/:id', requireAdmin, catalogController.deleteProduct);
-
 // Distributors management
 router.get('/admin/distributors', requireAdmin, catalogController.getAdminDistributors);
 router.post('/admin/distributors', requireAdmin, catalogController.createDistributor);
 router.patch('/admin/distributors/:id/status', requireAdmin, catalogController.updateDistributorStatus);
 router.put('/admin/distributors/:id', requireAdmin, catalogController.updateDistributor);
 router.delete('/admin/distributors/:id', requireAdmin, catalogController.deleteDistributor);
+
+// Products management (admin)
+router.get('/admin/products', requireAdmin, catalogController.getAdminProducts);
+router.post('/admin/products', requireAdmin, catalogController.createProduct);
+router.patch('/admin/products/:id/status', requireAdmin, catalogController.updateProductStatus);
+router.put('/admin/products/:id', requireAdmin, catalogController.updateProduct);
+router.delete('/admin/products/:id', requireAdmin, catalogController.deleteProduct);
 
 module.exports = router;

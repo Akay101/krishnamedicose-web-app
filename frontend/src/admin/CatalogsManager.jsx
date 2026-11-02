@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Pill,
   Building2,
   Search,
   Filter,
@@ -24,452 +24,598 @@ import {
   MessageCircle,
   User,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Download,
+  Upload,
+  RotateCcw,
+  FileText,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import catalogApi from '../utils/catalogApi';
-import LocationPicker from '../components/services/LocationPicker';
-import { INDIAN_STATES, PHARMACY_CATEGORIES, DOSAGE_FORMS } from '../utils/catalogConstants';
+import SingleAddressAutocomplete from '../components/services/SingleAddressAutocomplete';
+import { INDIAN_STATES, PHARMACY_CATEGORIES } from '../utils/catalogConstants';
 import { useModal } from '../context/ModalContext';
+import { lockScroll, unlockScroll } from '../utils/scrollLock';
 
 export default function CatalogsManager() {
   const { showModal } = useModal();
-  const [activeTab, setActiveTab] = useState('products'); // 'products', 'distributors'
 
-  // Stats
+  // Overview stats
   const [stats, setStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(true);
 
-  // Products state & pagination
-  const [products, setProducts] = useState([]);
-  const [totalProducts, setTotalProducts] = useState(0);
-  const [productPage, setProductPage] = useState(1);
-  const [totalProductPages, setTotalProductPages] = useState(1);
-  const productPageSize = 10;
-  const [loadingProducts, setLoadingProducts] = useState(false);
-  const [productSearch, setProductSearch] = useState('');
-  const [productStatusFilter, setProductStatusFilter] = useState('All');
-  const [productCategoryFilter, setProductCategoryFilter] = useState('All');
-
-  // Distributors state & pagination
+  // Distributors listing & pagination
   const [distributors, setDistributors] = useState([]);
   const [totalDistributors, setTotalDistributors] = useState(0);
-  const [distributorPage, setDistributorPage] = useState(1);
-  const [totalDistributorPages, setTotalDistributorPages] = useState(1);
-  const distributorPageSize = 10;
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const pageSize = 12;
+
+  // Search & Filters
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [entryTypeFilter, setEntryTypeFilter] = useState('All');
+  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [stateFilter, setStateFilter] = useState('All');
   const [loadingDistributors, setLoadingDistributors] = useState(false);
-  const [distributorSearch, setDistributorSearch] = useState('');
-  const [distributorStatusFilter, setDistributorStatusFilter] = useState('All');
 
   // Modals state
-  const [selectedProductForDetails, setSelectedProductForDetails] = useState(null);
-  const [editingProduct, setEditingProduct] = useState(null);
-  const [selectedDistributorForDetails, setSelectedDistributorForDetails] = useState(null);
+  const [createDistributorOpen, setCreateDistributorOpen] = useState(false);
   const [editingDistributor, setEditingDistributor] = useState(null);
+  const [detailsDistributor, setDetailsDistributor] = useState(null);
 
   // Rejection modal
-  const [rejectingItem, setRejectingItem] = useState(null); // { type: 'product'|'distributor', id, title }
+  const [rejectingDistributor, setRejectingDistributor] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [rejectingLoading, setRejectingLoading] = useState(false);
 
-  // Direct Creation modals
-  const [createProductOpen, setCreateProductOpen] = useState(false);
-  const [createDistributorOpen, setCreateDistributorOpen] = useState(false);
-
-  const initialNewProductForm = {
-    name: '',
-    brandName: '',
-    manufacturer: '',
-    saltComposition: '',
-    category: 'Allopathic',
-    dosageForm: 'Tablet',
-    packaging: '1 Strip',
-    strength: '',
-    mrp: '',
-    prescriptionRequired: true
-  };
-  const [newProductForm, setNewProductForm] = useState(initialNewProductForm);
-
-  const initialNewDistributorForm = {
-    firmName: '',
-    contactPerson: '',
-    mobile: '',
-    whatsappNumber: '',
-    drugLicenseNumber: '',
-    gstNumber: '',
-    officeAddress: '',
-    city: '',
-    state: 'Uttar Pradesh',
-    pincode: '',
-    coordinates: [0, 0],
-    panIndia: false
-  };
-  const [newDistributorForm, setNewDistributorForm] = useState(initialNewDistributorForm);
-
-  // Notifications
+  // Action status message
   const [actionMessage, setActionMessage] = useState('');
-
   const showNotification = (msg) => {
     setActionMessage(msg);
     setTimeout(() => setActionMessage(''), 4000);
+  };
+
+  // Form State for Create / Edit
+  const initialDistributorForm = {
+    entryType: 'admin_entry',
+    firmName: '',
+    contactPerson: '',
+    mobile: '',
+    alternateMobile: '',
+    whatsappNumber: '',
+    email: '',
+    categories: [],
+    otherCategory: '',
+    officeAddress: '',
+    city: '',
+    state: '',
+    pincode: '',
+    coordinates: [0, 0],
+    panIndia: false,
+    statesCovered: [],
+    drugLicenseNumber: '',
+    gstNumber: '',
+    catalogDocument: null,
+    drugLicenseDocument: null,
+    minimumOrderValue: '',
+    deliveryLeadTime: '24-48 Hours',
+    paymentTerms: 'Credit / COD / Advance',
+    notes: '',
+    adminNotes: ''
+  };
+
+  const [formDistributor, setFormDistributor] = useState(initialDistributorForm);
+  const [submittingForm, setSubmittingForm] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  // Upload progress
+  const [uploadingCatalog, setUploadingCatalog] = useState(false);
+  const [uploadingLicense, setUploadingLicense] = useState(false);
+
+  // Lock body scroll when any modal is open
+  useEffect(() => {
+    const isModalOpen =
+      createDistributorOpen ||
+      Boolean(editingDistributor) ||
+      Boolean(detailsDistributor) ||
+      Boolean(rejectingDistributor);
+
+    if (isModalOpen) {
+      lockScroll();
+      return () => {
+        unlockScroll();
+      };
+    }
+  }, [createDistributorOpen, editingDistributor, detailsDistributor, rejectingDistributor]);
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Reset pagination on filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter, entryTypeFilter, categoryFilter, stateFilter]);
+
+  // Fetch admin stats
+  const fetchStats = async () => {
+    setLoadingStats(true);
+    try {
+      const res = await catalogApi.get('/admin/stats');
+      if (res.data?.success) {
+        setStats(res.data.stats || {});
+      }
+    } catch (err) {
+      console.error('Error loading admin stats:', err);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
+  // Fetch distributors
+  const fetchDistributors = async () => {
+    setLoadingDistributors(true);
+    try {
+      const params = {
+        page: currentPage,
+        limit: pageSize,
+        search: debouncedSearch.trim() || undefined,
+        status: statusFilter !== 'All' ? statusFilter : undefined,
+        entryType: entryTypeFilter !== 'All' ? entryTypeFilter : undefined,
+        category: categoryFilter !== 'All' ? categoryFilter : undefined,
+        state: stateFilter !== 'All' ? stateFilter : undefined
+      };
+
+      const res = await catalogApi.get('/admin/distributors', { params });
+      if (res.data?.success) {
+        setDistributors(res.data.distributors || []);
+        setTotalDistributors(res.data.total || 0);
+        setTotalPages(res.data.pages || 1);
+      }
+    } catch (err) {
+      console.error('Error fetching admin distributors:', err);
+    } finally {
+      setLoadingDistributors(false);
+    }
   };
 
   useEffect(() => {
     fetchStats();
   }, []);
 
-  const [debouncedProductSearch, setDebouncedProductSearch] = useState('');
-  const [debouncedDistributorSearch, setDebouncedDistributorSearch] = useState('');
-
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedProductSearch(productSearch);
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [productSearch]);
+    fetchDistributors();
+  }, [currentPage, debouncedSearch, statusFilter, entryTypeFilter, categoryFilter, stateFilter]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedDistributorSearch(distributorSearch);
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [distributorSearch]);
-
-  // Reset page when search or filters change
-  useEffect(() => {
-    setProductPage(1);
-  }, [debouncedProductSearch, productStatusFilter, productCategoryFilter]);
-
-  useEffect(() => {
-    setDistributorPage(1);
-  }, [debouncedDistributorSearch, distributorStatusFilter]);
-
-  useEffect(() => {
-    if (activeTab === 'products') {
-      fetchAdminProducts();
-    }
-  }, [activeTab, debouncedProductSearch, productStatusFilter, productCategoryFilter, productPage]);
-
-  useEffect(() => {
-    if (activeTab === 'distributors') {
-      fetchAdminDistributors();
-    }
-  }, [activeTab, debouncedDistributorSearch, distributorStatusFilter, distributorPage]);
-
-  const fetchStats = async () => {
-    setLoadingStats(true);
+  // Approve distributor
+  const handleApprove = async (id, firmName) => {
     try {
-      const res = await catalogApi.get('/admin/stats');
-      setStats(res.data.stats);
-    } catch (err) {
-      console.error('Failed to load catalog stats:', err);
-    } finally {
-      setLoadingStats(false);
-    }
-  };
-
-  const fetchAdminProducts = async () => {
-    setLoadingProducts(true);
-    try {
-      const res = await catalogApi.get('/admin/products', {
-        params: {
-          search: debouncedProductSearch,
-          status: productStatusFilter,
-          category: productCategoryFilter,
-          page: productPage,
-          limit: productPageSize
-        }
+      const res = await catalogApi.patch(`/admin/distributors/${id}/status`, {
+        status: 'approved'
       });
-      setProducts(res.data.products || []);
-      setTotalProducts(res.data.total || 0);
-      setTotalProductPages(res.data.pages || 1);
-    } catch (err) {
-      console.error('Failed to load admin products:', err);
-    } finally {
-      setLoadingProducts(false);
-    }
-  };
-
-  const fetchAdminDistributors = async () => {
-    setLoadingDistributors(true);
-    try {
-      const res = await catalogApi.get('/admin/distributors', {
-        params: {
-          search: debouncedDistributorSearch,
-          status: distributorStatusFilter,
-          page: distributorPage,
-          limit: distributorPageSize
-        }
-      });
-      setDistributors(res.data.distributors || []);
-      setTotalDistributors(res.data.total || 0);
-      setTotalDistributorPages(res.data.pages || 1);
-    } catch (err) {
-      console.error('Failed to load admin distributors:', err);
-    } finally {
-      setLoadingDistributors(false);
-    }
-  };
-
-  // Status Handlers
-  const handleApproveProduct = async (product) => {
-    try {
-      await catalogApi.patch(`/admin/products/${product._id}/status`, {
-        status: 'approved',
-        adminNotes: 'Approved by administrator'
-      });
-      showNotification(`Product "${product.name}" approved and published to catalog.`);
-      fetchAdminProducts();
-      fetchStats();
-      if (selectedProductForDetails?._id === product._id) {
-        setSelectedProductForDetails((prev) => ({ ...prev, status: 'approved' }));
+      if (res.data?.success) {
+        showNotification(`Distributor "${firmName}" approved and published to directory.`);
+        fetchDistributors();
+        fetchStats();
       }
     } catch (err) {
+      console.error('Error approving distributor:', err);
       showModal({
-        title: 'Approval Failed',
-        message: err.response?.data?.message || 'Failed to approve product.',
-        type: 'error'
-      });
-    }
-  };
-
-  const handleApproveDistributor = async (distributor) => {
-    try {
-      await catalogApi.patch(`/admin/distributors/${distributor._id}/status`, {
-        status: 'approved',
-        adminNotes: 'Approved by administrator'
-      });
-      showNotification(`Distributor "${distributor.firmName}" approved and verified.`);
-      fetchAdminDistributors();
-      fetchStats();
-      if (selectedDistributorForDetails?._id === distributor._id) {
-        setSelectedDistributorForDetails((prev) => ({ ...prev, status: 'approved' }));
-      }
-    } catch (err) {
-      showModal({
-        title: 'Approval Failed',
+        title: 'Action Failed',
         message: err.response?.data?.message || 'Failed to approve distributor.',
-        type: 'error'
+        type: 'danger'
       });
     }
   };
 
-  const handleConfirmReject = async (e) => {
-    e.preventDefault();
-    if (!rejectingItem) return;
+  // Open reject modal
+  const handleOpenReject = (dist) => {
+    setRejectingDistributor(dist);
+    setRejectReason('');
+  };
 
+  // Submit reject
+  const handleConfirmReject = async () => {
+    if (!rejectingDistributor) return;
+    setRejectingLoading(true);
     try {
-      if (rejectingItem.type === 'product') {
-        await catalogApi.patch(`/admin/products/${rejectingItem.id}/status`, {
-          status: 'rejected',
-          adminNotes: rejectReason || 'Administrative rejection'
-        });
-        showNotification('Product marked as rejected.');
-        fetchAdminProducts();
-      } else {
-        await catalogApi.patch(`/admin/distributors/${rejectingItem.id}/status`, {
-          status: 'rejected',
-          adminNotes: rejectReason || 'Administrative rejection'
-        });
-        showNotification('Distributor marked as rejected.');
-        fetchAdminDistributors();
-      }
-      fetchStats();
-      setRejectingItem(null);
-      setRejectReason('');
-    } catch (err) {
-      showModal({
-        title: 'Rejection Failed',
-        message: err.response?.data?.message || 'Failed to reject listing.',
-        type: 'error'
+      const res = await catalogApi.patch(`/admin/distributors/${rejectingDistributor._id}/status`, {
+        status: 'rejected',
+        adminNotes: rejectReason.trim()
       });
+      if (res.data?.success) {
+        showNotification(`Distributor "${rejectingDistributor.firmName}" marked as rejected.`);
+        setRejectingDistributor(null);
+        fetchDistributors();
+        fetchStats();
+      }
+    } catch (err) {
+      console.error('Error rejecting distributor:', err);
+      showModal({
+        title: 'Action Failed',
+        message: err.response?.data?.message || 'Failed to update distributor status.',
+        type: 'danger'
+      });
+    } finally {
+      setRejectingLoading(false);
     }
   };
 
-  // Delete Handlers with Custom Modal Confirmation
-  const handleDeleteProduct = (id) => {
+  // Delete distributor with confirmation
+  const handleDelete = (id, firmName) => {
     showModal({
-      title: 'Confirm Deletion',
-      message: 'Are you sure you want to PERMANENTLY delete this product catalog entry?',
-      type: 'confirm',
-      confirmText: 'Delete',
+      title: 'Delete Distributor Listing',
+      message: `Are you sure you want to permanently delete "${firmName}"? This action cannot be reversed.`,
+      type: 'warning',
+      confirmText: 'Delete Permanently',
       cancelText: 'Cancel',
       onConfirm: async () => {
         try {
-          await catalogApi.delete(`/admin/products/${id}`);
-          showNotification('Product catalog entry deleted.');
-          fetchAdminProducts();
-          fetchStats();
-          if (selectedProductForDetails?._id === id) setSelectedProductForDetails(null);
+          const res = await catalogApi.delete(`/admin/distributors/${id}`);
+          if (res.data?.success) {
+            showNotification(`Distributor "${firmName}" permanently removed.`);
+            fetchDistributors();
+            fetchStats();
+          }
         } catch (err) {
-          showModal({
-            title: 'Delete Failed',
-            message: err.response?.data?.message || 'Failed to delete product.',
-            type: 'error'
-          });
-        }
-      }
-    });
-  };
-
-  const handleDeleteDistributor = (id) => {
-    showModal({
-      title: 'Confirm Deletion',
-      message: 'Are you sure you want to PERMANENTLY delete this distributor and unlink from products?',
-      type: 'confirm',
-      confirmText: 'Delete',
-      cancelText: 'Cancel',
-      onConfirm: async () => {
-        try {
-          await catalogApi.delete(`/admin/distributors/${id}`);
-          showNotification('Distributor profile deleted.');
-          fetchAdminDistributors();
-          fetchStats();
-          if (selectedDistributorForDetails?._id === id) setSelectedDistributorForDetails(null);
-        } catch (err) {
+          console.error('Error deleting distributor:', err);
           showModal({
             title: 'Delete Failed',
             message: err.response?.data?.message || 'Failed to delete distributor.',
-            type: 'error'
+            type: 'danger'
           });
         }
       }
     });
   };
 
+  // Open Direct Add Distributor Modal
+  const handleOpenCreateModal = () => {
+    setFormDistributor({ ...initialDistributorForm, entryType: 'admin_entry' });
+    setFormError('');
+    setCreateDistributorOpen(true);
+  };
+
+  // Open Edit Modal
+  const handleOpenEditModal = (dist) => {
+    setEditingDistributor(dist);
+    setFormDistributor({
+      entryType: dist.entryType || 'admin_entry',
+      firmName: dist.firmName || '',
+      contactPerson: dist.contactPerson || '',
+      mobile: dist.mobile || '',
+      alternateMobile: dist.alternateMobile || '',
+      whatsappNumber: dist.whatsappNumber || '',
+      email: dist.email || '',
+      categories: Array.isArray(dist.categories) ? dist.categories : [],
+      otherCategory: dist.otherCategory || '',
+      officeAddress: dist.officeAddress || '',
+      city: dist.city || '',
+      state: dist.state || '',
+      pincode: dist.pincode || '',
+      coordinates: dist.location?.coordinates || [0, 0],
+      panIndia: Boolean(dist.supplyCoverage?.panIndia),
+      statesCovered: Array.isArray(dist.supplyCoverage?.statesCovered) ? dist.supplyCoverage.statesCovered : [],
+      drugLicenseNumber: dist.drugLicenseNumber || '',
+      gstNumber: dist.gstNumber || '',
+      catalogDocument: dist.catalogDocument?.url ? dist.catalogDocument : null,
+      drugLicenseDocument: dist.drugLicenseDocument?.url ? dist.drugLicenseDocument : null,
+      minimumOrderValue: dist.minimumOrderValue ? String(dist.minimumOrderValue) : '',
+      deliveryLeadTime: dist.deliveryLeadTime || '24-48 Hours',
+      paymentTerms: dist.paymentTerms || 'Credit / COD / Advance',
+      notes: dist.notes || '',
+      adminNotes: dist.adminNotes || ''
+    });
+    setFormError('');
+  };
+
+  // Handle Document Upload in Admin Modal
+  const handleFileUpload = async (e, type) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      showModal({
+        title: 'File Too Large',
+        message: 'The file exceeds the 10 MB limit. Please select a smaller document.',
+        type: 'warning'
+      });
+      return;
+    }
+
+    const isCatalog = type === 'catalog';
+    if (isCatalog) setUploadingCatalog(true);
+    else setUploadingLicense(true);
+
+    try {
+      const uploadForm = new FormData();
+      uploadForm.append('file', file);
+
+      const folder = isCatalog ? 'catalogs' : 'licenses';
+      const res = await catalogApi.post(`/upload-document?folder=${folder}`, uploadForm, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      if (res.data?.success && res.data.document) {
+        if (isCatalog) {
+          setFormDistributor((prev) => ({ ...prev, catalogDocument: res.data.document }));
+          showNotification('Product catalog document uploaded and sanitized successfully.');
+        } else {
+          setFormDistributor((prev) => ({ ...prev, drugLicenseDocument: res.data.document }));
+          showNotification('Drug license document uploaded and verified.');
+        }
+      }
+    } catch (err) {
+      console.error('File upload failed:', err);
+      showModal({
+        title: 'Upload Failed',
+        message: err.response?.data?.message || 'File upload failed validation checks.',
+        type: 'danger'
+      });
+    } finally {
+      if (isCatalog) setUploadingCatalog(false);
+      else setUploadingLicense(false);
+    }
+  };
+
+  // Toggle category
+  const toggleCategory = (cat) => {
+    setFormDistributor((prev) => {
+      const exists = prev.categories.includes(cat);
+      const updated = exists ? prev.categories.filter((c) => c !== cat) : [...prev.categories, cat];
+      return { ...prev, categories: updated };
+    });
+  };
+
+  // Toggle state covered
+  const toggleCoveredState = (st) => {
+    setFormDistributor((prev) => {
+      const exists = prev.statesCovered.includes(st);
+      const updated = exists ? prev.statesCovered.filter((s) => s !== st) : [...prev.statesCovered, st];
+      return { ...prev, statesCovered: updated };
+    });
+  };
+
+  // Save Distributor (Create or Edit)
+  const handleSaveDistributor = async (e) => {
+    e.preventDefault();
+    setFormError('');
+
+    if (!formDistributor.firmName.trim()) {
+      setFormError('Firm name is required.');
+      return;
+    }
+    if (!formDistributor.officeAddress.trim()) {
+      setFormError('Consolidated location / address is required.');
+      return;
+    }
+    if (!formDistributor.mobile.trim() || !/^[6-9]\d{9}$/.test(formDistributor.mobile.trim())) {
+      setFormError('Valid 10-digit primary mobile number is required.');
+      return;
+    }
+    if (formDistributor.categories.length === 0 && !formDistributor.otherCategory.trim()) {
+      setFormError('Please select at least one product category.');
+      return;
+    }
+
+    setSubmittingForm(true);
+    try {
+      const payload = {
+        entryType: formDistributor.entryType || 'admin_entry',
+        firmName: formDistributor.firmName.trim(),
+        contactPerson: formDistributor.contactPerson.trim(),
+        mobile: formDistributor.mobile.trim(),
+        alternateMobile: formDistributor.alternateMobile.trim(),
+        whatsappNumber: formDistributor.whatsappNumber.trim(),
+        email: formDistributor.email.trim(),
+        categories: formDistributor.categories,
+        otherCategory: formDistributor.otherCategory.trim(),
+        officeAddress: formDistributor.officeAddress.trim(),
+        city: formDistributor.city.trim(),
+        state: formDistributor.state.trim(),
+        pincode: formDistributor.pincode.trim(),
+        coordinates: formDistributor.coordinates,
+        panIndia: formDistributor.panIndia,
+        statesCovered: formDistributor.statesCovered,
+        drugLicenseNumber: formDistributor.drugLicenseNumber.trim(),
+        gstNumber: formDistributor.gstNumber.trim(),
+        catalogDocument: formDistributor.catalogDocument,
+        drugLicenseDocument: formDistributor.drugLicenseDocument,
+        minimumOrderValue: formDistributor.minimumOrderValue ? Number(formDistributor.minimumOrderValue) : 0,
+        deliveryLeadTime: formDistributor.deliveryLeadTime.trim(),
+        paymentTerms: formDistributor.paymentTerms.trim(),
+        notes: formDistributor.notes.trim(),
+        adminNotes: formDistributor.adminNotes.trim()
+      };
+
+      if (editingDistributor) {
+        const res = await catalogApi.put(`/admin/distributors/${editingDistributor._id}`, payload);
+        if (res.data?.success) {
+          showNotification(`Distributor "${payload.firmName}" updated successfully.`);
+          setEditingDistributor(null);
+          fetchDistributors();
+          fetchStats();
+        }
+      } else {
+        const res = await catalogApi.post('/admin/distributors', payload);
+        if (res.data?.success) {
+          showNotification(`Distributor "${payload.firmName}" created and approved.`);
+          setCreateDistributorOpen(false);
+          fetchDistributors();
+          fetchStats();
+        }
+      }
+    } catch (err) {
+      console.error('Error saving distributor:', err);
+      setFormError(err.response?.data?.message || 'Failed to save distributor details.');
+    } finally {
+      setSubmittingForm(false);
+    }
+  };
+
   return (
-    <div className="space-y-8 pb-12 font-sans">
-      {/* Toast Notification */}
+    <div className="space-y-6 sm:space-y-8 max-w-7xl mx-auto pb-12">
+      {/* Top Title Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-teal-600 animate-pulse" />
+            <span className="text-xs font-bold uppercase tracking-wider text-teal-800">Platform Directory Administration</span>
+          </div>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-900 font-outfit mt-1">
+            Distributors Directory Manager
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
+            Manage pharmaceutical distributors, approve community contributions, upload catalogs, and oversee verified listings.
+          </p>
+        </div>
+
+        <button
+          onClick={handleOpenCreateModal}
+          className="px-4 py-2.5 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 flex-shrink-0"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Add Distributor</span>
+        </button>
+      </div>
+
+      {/* Action Notification Alert */}
       {actionMessage && (
-        <div className="fixed bottom-6 right-6 z-[200] max-w-md bg-emerald-900 text-white px-4 py-3 rounded-2xl shadow-2xl border border-emerald-700 flex items-center gap-2 text-xs font-bold animate-in fade-in">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+        <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold rounded-2xl flex items-center gap-2.5 animate-in fade-in duration-200">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
           <span>{actionMessage}</span>
         </div>
       )}
 
-      {/* Header and Stats */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 font-outfit">Product Catalogs & Distributors</h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Review user contributions, approve products & Pan-India distributors, or add verified entries directly.
-          </p>
+      {/* Overview Metric Stats Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+        {/* Total */}
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-sm space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500">Total Listings</span>
+            <Building2 className="w-4 h-4 text-slate-400" />
+          </div>
+          <div className="text-xl sm:text-2xl font-black text-slate-900 font-outfit">
+            {loadingStats ? <Loader2 className="w-5 h-5 animate-spin text-teal-600" /> : stats?.totalDistributors || 0}
+          </div>
+          <span className="text-[11px] text-slate-400 font-medium">All registered entities</span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          <button
-            onClick={() => setCreateProductOpen(true)}
-            className="flex-1 sm:flex-none px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5"
-          >
-            <Plus className="w-3.5 h-3.5 stroke-[3]" />
-            <span>Add Product</span>
-          </button>
-          <button
-            onClick={() => setCreateDistributorOpen(true)}
-            className="flex-1 sm:flex-none px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5"
-          >
-            <Plus className="w-3.5 h-3.5 stroke-[3]" />
-            <span>Add Distributor</span>
-          </button>
+        {/* Pending Review */}
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-amber-200/90 bg-amber-50/20 shadow-sm space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-amber-800">Pending Review</span>
+            <Clock className="w-4 h-4 text-amber-600" />
+          </div>
+          <div className="text-xl sm:text-2xl font-black text-amber-900 font-outfit">
+            {loadingStats ? <Loader2 className="w-5 h-5 animate-spin text-amber-600" /> : stats?.pendingDistributors || 0}
+          </div>
+          <span className="text-[11px] text-amber-700 font-medium">Awaiting verification</span>
+        </div>
+
+        {/* Approved Live */}
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-emerald-200/90 bg-emerald-50/20 shadow-sm space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-emerald-800">Approved Live</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div className="text-xl sm:text-2xl font-black text-emerald-900 font-outfit">
+            {loadingStats ? <Loader2 className="w-5 h-5 animate-spin text-emerald-600" /> : stats?.approvedDistributors || 0}
+          </div>
+          <span className="text-[11px] text-emerald-700 font-medium">Publicly listed</span>
+        </div>
+
+        {/* Pan-India Delivery */}
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-sm space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500">Pan-India Reach</span>
+            <Globe className="w-4 h-4 text-teal-600" />
+          </div>
+          <div className="text-xl sm:text-2xl font-black text-slate-900 font-outfit">
+            {loadingStats ? <Loader2 className="w-5 h-5 animate-spin text-teal-600" /> : stats?.panIndiaDistributors || 0}
+          </div>
+          <span className="text-[11px] text-slate-400 font-medium">National distribution</span>
+        </div>
+
+        {/* Pharmacist Recommended */}
+        <div className="col-span-2 sm:col-span-1 bg-white p-4 sm:p-5 rounded-2xl border border-sky-200/90 bg-sky-50/20 shadow-sm space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-sky-800">Pharmacist Inputs</span>
+            <User className="w-4 h-4 text-sky-600" />
+          </div>
+          <div className="text-xl sm:text-2xl font-black text-sky-900 font-outfit">
+            {loadingStats ? <Loader2 className="w-5 h-5 animate-spin text-sky-600" /> : stats?.pharmacistEntryCount || 0}
+          </div>
+          <span className="text-[11px] text-sky-700 font-medium">Community submissions</span>
         </div>
       </div>
 
-      {/* KPI Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-1">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Products</span>
-          <p className="text-2xl font-black text-slate-900">{stats?.totalProducts ?? 0}</p>
-          <span className="text-[11px] text-emerald-700 font-semibold">{stats?.approvedProducts ?? 0} Approved</span>
-        </div>
+      {/* Filter and Search Bar */}
+      <div className="bg-white rounded-3xl border border-slate-200/90 p-4 sm:p-6 shadow-sm space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          {/* Keyword Search */}
+          <div className="lg:col-span-2 relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search firm name, mobile, DL, address, category..."
+              maxLength={100}
+              className="w-full h-11 pl-10 pr-9 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 bg-slate-50/70 focus:bg-white transition-all font-medium"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 p-0.5"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
 
-        <div className="p-4 bg-amber-50/70 rounded-2xl border border-amber-200 shadow-sm space-y-1">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            <span>Pending Review</span>
-          </span>
-          <p className="text-2xl font-black text-amber-900">
-            {(stats?.pendingProducts ?? 0) + (stats?.pendingDistributors ?? 0)}
-          </p>
-          <span className="text-[11px] text-amber-800 font-semibold">
-            {stats?.pendingProducts ?? 0} Products | {stats?.pendingDistributors ?? 0} Distributors
-          </span>
-        </div>
-
-        <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-1">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Distributors</span>
-          <p className="text-2xl font-black text-slate-900">{stats?.totalDistributors ?? 0}</p>
-          <span className="text-[11px] text-teal-700 font-semibold">{stats?.approvedDistributors ?? 0} Verified</span>
-        </div>
-
-        <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-1">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Pan-India Suppliers</span>
-          <p className="text-2xl font-black text-slate-900">{stats?.panIndiaDistributors ?? 0}</p>
-          <span className="text-[11px] text-sky-700 font-semibold">Supplying Nationwide</span>
-        </div>
-      </div>
-
-      {/* Navigation Tabs */}
-      <div className="flex border-b border-slate-200 gap-4 sm:gap-6 text-xs font-bold overflow-x-auto no-scrollbar whitespace-nowrap">
-        <button
-          onClick={() => setActiveTab('products')}
-          className={`pb-3 transition-colors relative flex items-center gap-2 flex-shrink-0 ${
-            activeTab === 'products' ? 'text-teal-700 border-b-2 border-teal-700' : 'text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          <Pill className="w-4 h-4" />
-          <span>Product Catalogs</span>
-          {stats?.pendingProducts > 0 && (
-            <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-800 font-extrabold">
-              {stats.pendingProducts} Pending
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveTab('distributors')}
-          className={`pb-3 transition-colors relative flex items-center gap-2 flex-shrink-0 ${
-            activeTab === 'distributors' ? 'text-teal-700 border-b-2 border-teal-700' : 'text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          <Building2 className="w-4 h-4" />
-          <span>Distributors Directory</span>
-          {stats?.pendingDistributors > 0 && (
-            <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-800 font-extrabold">
-              {stats.pendingDistributors} Pending
-            </span>
-          )}
-        </button>
-      </div>
-
-      {/* ================= TAB 1: PRODUCTS ================= */}
-      {activeTab === 'products' && (
-        <div className="space-y-4">
-          {/* Search & Filters */}
-          <div className="p-4 bg-white rounded-2xl border border-slate-200 flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-              <input
-                type="text"
-                value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
-                placeholder="Search product name, salt, manufacturer, submitter..."
-                className="w-full pl-10 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
-              />
-            </div>
-
+          {/* Status Filter */}
+          <div>
             <select
-              value={productStatusFilter}
-              onChange={(e) => setProductStatusFilter(e.target.value)}
-              className="px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 text-slate-800 font-semibold focus:outline-none focus:border-teal-600"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full h-11 px-3 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 bg-slate-50/70 focus:bg-white font-medium text-slate-700"
             >
               <option value="All">All Statuses</option>
-              <option value="pending_approval">Pending Approval</option>
+              <option value="pending_approval">Pending Review</option>
               <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
+              <option value="draft">Draft</option>
             </select>
+          </div>
 
+          {/* Persona Filter */}
+          <div>
             <select
-              value={productCategoryFilter}
-              onChange={(e) => setProductCategoryFilter(e.target.value)}
-              className="px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 text-slate-800 font-semibold focus:outline-none focus:border-teal-600"
+              value={entryTypeFilter}
+              onChange={(e) => setEntryTypeFilter(e.target.value)}
+              className="w-full h-11 px-3 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 bg-slate-50/70 focus:bg-white font-medium text-slate-700"
+            >
+              <option value="All">All Submission Types</option>
+              <option value="distributor_self">Distributor Self-Registration</option>
+              <option value="pharmacist_entry">Pharmacist Recommendation</option>
+              <option value="admin_entry">Admin Direct Entry</option>
+            </select>
+          </div>
+
+          {/* Category Filter */}
+          <div>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="w-full h-11 px-3 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 bg-slate-50/70 focus:bg-white font-medium text-slate-700"
             >
               <option value="All">All Categories</option>
               {PHARMACY_CATEGORIES.map((cat) => (
@@ -479,1726 +625,786 @@ export default function CatalogsManager() {
               ))}
             </select>
           </div>
-
-          {/* Table */}
-          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b border-slate-200">
-                  <tr>
-                    <th className="px-6 py-4">Product Name & Category</th>
-                    <th className="px-6 py-4">Salt Composition</th>
-                    <th className="px-6 py-4">Manufacturer</th>
-                    <th className="px-6 py-4">Distributors</th>
-                    <th className="px-6 py-4">Submitter</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {loadingProducts ? (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-teal-700">
-                        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-                        <span>Loading product catalogs...</span>
-                      </td>
-                    </tr>
-                  ) : products.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
-                        No product catalogs found.
-                      </td>
-                    </tr>
-                  ) : (
-                    products.map((p) => (
-                      <tr key={p._id} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="px-6 py-4 max-w-[220px]">
-                          <div className="font-bold text-slate-900 text-sm break-words break-all line-clamp-2" title={p.name}>
-                            {p.name}
-                          </div>
-                          <div className="text-[11px] text-teal-700 font-semibold break-words">{p.category}</div>
-                        </td>
-
-                        <td className="px-6 py-4 max-w-xs">
-                          <div className="font-semibold text-slate-800 break-words break-all line-clamp-2" title={p.saltComposition}>
-                            {p.saltComposition}
-                          </div>
-                          <div className="text-[11px] text-slate-500 break-words">{p.dosageForm} ({p.packaging || '1 Unit'})</div>
-                        </td>
-
-                        <td className="px-6 py-4 font-semibold text-slate-700 max-w-[180px] break-words break-all">
-                          {p.manufacturer}
-                        </td>
-
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="font-bold text-slate-800">
-                            {p.distributors?.length || 0} Suppliers
-                          </span>
-                        </td>
-
-                        <td className="px-6 py-4 max-w-[160px]">
-                          {p.isDirectAdminEntry || p.submittedByModel === 'AdminUser' ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-teal-50 text-teal-800 border border-teal-200">
-                              <ShieldCheck className="w-3 h-3 text-teal-700" />
-                              <span>Admin</span>
-                            </span>
-                          ) : (
-                            <div className="space-y-0.5">
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-100 text-slate-700 border border-slate-200">
-                                <User className="w-3 h-3 text-slate-500" />
-                                <span className="truncate max-w-[90px]">{p.submitterName || 'User'}</span>
-                              </span>
-                              {p.submitterContact && (
-                                <div className="text-[10px] text-slate-500 truncate max-w-[140px]">{p.submitterContact}</div>
-                              )}
-                            </div>
-                          )}
-                        </td>
-
-                        <td className="px-6 py-4">
-                          <span
-                            className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full ${
-                              p.status === 'approved'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : p.status === 'rejected'
-                                ? 'bg-rose-100 text-rose-800'
-                                : 'bg-amber-100 text-amber-800'
-                            }`}
-                          >
-                            {p.status === 'pending_approval' ? 'Pending' : p.status}
-                          </span>
-                        </td>
-
-                        <td className="px-6 py-4 text-right">
-                          <div className="inline-flex items-center gap-1.5">
-                            {/* Approve Button */}
-                            {p.status !== 'approved' && (
-                              <button
-                                onClick={() => handleApproveProduct(p)}
-                                className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
-                                title="Approve & Publish"
-                              >
-                                <Check className="w-4 h-4 stroke-[3]" />
-                              </button>
-                            )}
-
-                            {/* Reject Button */}
-                            {p.status !== 'rejected' && (
-                              <button
-                                onClick={() =>
-                                  setRejectingItem({
-                                    type: 'product',
-                                    id: p._id,
-                                    title: p.name
-                                  })
-                                }
-                                className="p-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
-                                title="Reject / Send Feedback"
-                              >
-                                <X className="w-4 h-4 stroke-[3]" />
-                              </button>
-                            )}
-
-                            {/* View Full Details */}
-                            <button
-                              onClick={() => setSelectedProductForDetails(p)}
-                              className="p-1.5 rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-100 transition-colors"
-                              title="View Details"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-
-                            {/* Edit */}
-                            <button
-                              onClick={() => setEditingProduct({ ...p })}
-                              className="p-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
-                              title="Edit Product"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-
-                            {/* Delete */}
-                            <button
-                              onClick={() => handleDeleteProduct(p._id)}
-                              className="p-1.5 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors"
-                              title="Delete Permanently"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Products Pagination Controls */}
-          {totalProductPages > 1 && (
-            <div className="p-4 bg-white rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shadow-sm">
-              <div className="text-slate-500 font-medium">
-                Showing <strong className="text-slate-800">{totalProducts === 0 ? 0 : (productPage - 1) * productPageSize + 1}</strong> to{' '}
-                <strong className="text-slate-800">{Math.min(productPage * productPageSize, totalProducts)}</strong> of{' '}
-                <strong className="text-slate-800">{totalProducts}</strong> products
-              </div>
-
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setProductPage((p) => Math.max(1, p - 1))}
-                  disabled={productPage === 1}
-                  className="px-3 py-1.5 rounded-xl border border-slate-200 font-bold bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 transition-colors"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                  <span>Prev</span>
-                </button>
-
-                {Array.from({ length: totalProductPages }, (_, idx) => idx + 1)
-                  .filter((p) => p === 1 || p === totalProductPages || Math.abs(p - productPage) <= 1)
-                  .map((p, i, arr) => {
-                    const prev = arr[i - 1];
-                    return (
-                      <React.Fragment key={p}>
-                        {prev && p - prev > 1 && <span className="px-1 text-slate-400 font-mono">...</span>}
-                        <button
-                          onClick={() => setProductPage(p)}
-                          className={`w-8 h-8 rounded-xl font-bold transition-all ${
-                            productPage === p
-                              ? 'bg-teal-700 text-white shadow-sm'
-                              : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
-                          }`}
-                        >
-                          {p}
-                        </button>
-                      </React.Fragment>
-                    );
-                  })}
-
-                <button
-                  onClick={() => setProductPage((p) => Math.min(totalProductPages, p + 1))}
-                  disabled={productPage === totalProductPages}
-                  className="px-3 py-1.5 rounded-xl border border-slate-200 font-bold bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 transition-colors"
-                >
-                  <span>Next</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          )}
         </div>
-      )}
 
-      {/* ================= TAB 2: DISTRIBUTORS ================= */}
-      {activeTab === 'distributors' && (
-        <div className="space-y-4">
-          <div className="p-4 bg-white rounded-2xl border border-slate-200 flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-              <input
-                type="text"
-                value={distributorSearch}
-                onChange={(e) => setDistributorSearch(e.target.value)}
-                placeholder="Search firm name, contact person, mobile, DL, city..."
-                className="w-full pl-10 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
-              />
-            </div>
-
+        {/* State filter row & reset */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-slate-500">Filter by State:</span>
             <select
-              value={distributorStatusFilter}
-              onChange={(e) => setDistributorStatusFilter(e.target.value)}
-              className="px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 text-slate-800 font-semibold focus:outline-none focus:border-teal-600"
+              value={stateFilter}
+              onChange={(e) => setStateFilter(e.target.value)}
+              className="h-8 px-2.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 bg-white"
             >
-              <option value="All">All Statuses</option>
-              <option value="pending_approval">Pending Approval</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
+              <option value="All">All States</option>
+              {INDIAN_STATES.map((st) => (
+                <option key={st} value={st}>
+                  {st}
+                </option>
+              ))}
             </select>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b border-slate-200">
-                  <tr>
-                    <th className="px-6 py-4">Firm & Contact</th>
-                    <th className="px-6 py-4">Location</th>
-                    <th className="px-6 py-4">Supply Coverage</th>
-                    <th className="px-6 py-4">Drug License & GST</th>
-                    <th className="px-6 py-4">Submitter</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {loadingDistributors ? (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-teal-700">
-                        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-                        <span>Loading distributors directory...</span>
-                      </td>
-                    </tr>
-                  ) : distributors.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
-                        No distributors found.
-                      </td>
-                    </tr>
-                  ) : (
-                    distributors.map((d) => (
-                      <tr key={d._id} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="px-6 py-4 max-w-[220px]">
-                          <div className="font-bold text-slate-900 text-sm break-words break-all line-clamp-2" title={d.firmName}>
-                            {d.firmName}
-                          </div>
-                          <div className="text-xs text-slate-500 break-words break-all">
-                            {d.contactPerson} ({d.mobile})
-                          </div>
-                        </td>
+          {(statusFilter !== 'All' || entryTypeFilter !== 'All' || categoryFilter !== 'All' || stateFilter !== 'All' || debouncedSearch) && (
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setStatusFilter('All');
+                setEntryTypeFilter('All');
+                setCategoryFilter('All');
+                setStateFilter('All');
+              }}
+              className="text-teal-700 hover:underline font-bold flex items-center gap-1"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Reset Filters</span>
+            </button>
+          )}
+        </div>
+      </div>
 
-                        <td className="px-6 py-4 max-w-[200px]">
-                          <div className="font-semibold text-slate-800 break-words break-all">
-                            {d.city}, {d.state}
-                          </div>
-                          <div className="text-[11px] text-slate-500 break-words break-all line-clamp-2" title={d.officeAddress}>
-                            {d.officeAddress}
-                          </div>
-                        </td>
+      {/* Distributors Directory List / Table */}
+      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden">
+        {loadingDistributors ? (
+          <div className="p-16 text-center space-y-3">
+            <Loader2 className="w-8 h-8 text-teal-600 animate-spin mx-auto" />
+            <p className="text-xs text-slate-500 font-semibold">Loading distributors...</p>
+          </div>
+        ) : distributors.length === 0 ? (
+          <div className="p-16 text-center space-y-3">
+            <Building2 className="w-10 h-10 text-slate-300 mx-auto" />
+            <h3 className="text-base font-bold text-slate-800">No distributors matching filters</h3>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              No directory entries matched your current search and filter combination.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  <th className="px-5 py-3.5">Distributor / Firm</th>
+                  <th className="px-4 py-3.5">Submission Source</th>
+                  <th className="px-4 py-3.5">Categories</th>
+                  <th className="px-4 py-3.5">Location</th>
+                  <th className="px-4 py-3.5">Catalog Doc</th>
+                  <th className="px-4 py-3.5">Status</th>
+                  <th className="px-5 py-3.5 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs">
+                {distributors.map((dist) => {
+                  const hasCatalog = Boolean(dist.catalogDocument?.url);
+                  const isPanIndia = Boolean(dist.supplyCoverage?.panIndia);
 
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {d.supplyCoverage?.panIndia ? (
-                            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                  return (
+                    <tr key={dist._id} className="hover:bg-slate-50/70 transition-colors">
+                      {/* Firm & Contact */}
+                      <td className="px-5 py-4">
+                        <div className="font-bold text-slate-900 text-sm">{dist.firmName}</div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">
+                          {dist.contactPerson ? `${dist.contactPerson} • ` : ''}
+                          <a href={`tel:${dist.mobile}`} className="text-teal-700 font-semibold hover:underline">
+                            {dist.mobile}
+                          </a>
+                        </div>
+                        {dist.drugLicenseNumber && (
+                          <div className="text-[10px] text-slate-400 mt-0.5">DL: {dist.drugLicenseNumber}</div>
+                        )}
+                      </td>
+
+                      {/* Persona Source */}
+                      <td className="px-4 py-4">
+                        {dist.entryType === 'pharmacist_entry' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-sky-50 text-sky-800 border border-sky-200 text-[10px] font-bold">
+                            Pharmacist Rec.
+                          </span>
+                        ) : dist.entryType === 'admin_entry' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold">
+                            Admin Entry
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200 text-[10px] font-bold">
+                            Distributor Direct
+                          </span>
+                        )}
+                        {dist.submitterName && (
+                          <div className="text-[10px] text-slate-400 mt-1">by: {dist.submitterName}</div>
+                        )}
+                      </td>
+
+                      {/* Categories */}
+                      <td className="px-4 py-4 max-w-[200px]">
+                        <div className="flex flex-wrap gap-1">
+                          {Array.isArray(dist.categories) && dist.categories.length > 0 ? (
+                            dist.categories.slice(0, 2).map((c) => (
+                              <span
+                                key={c}
+                                className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-medium"
+                              >
+                                {c}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-slate-400">None</span>
+                          )}
+                          {dist.categories?.length > 2 && (
+                            <span className="text-[10px] text-slate-400 font-bold">+{dist.categories.length - 2}</span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Location & Coverage */}
+                      <td className="px-4 py-4 max-w-[220px]">
+                        <div className="truncate font-medium text-slate-800" title={dist.officeAddress}>
+                          {dist.officeAddress || [dist.city, dist.state].filter(Boolean).join(', ') || 'India'}
+                        </div>
+                        <div className="mt-1">
+                          {isPanIndia ? (
+                            <span className="px-2 py-0.5 bg-teal-50 text-teal-800 border border-teal-200/80 rounded text-[10px] font-bold">
                               Pan-India
                             </span>
                           ) : (
-                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                              {d.supplyCoverage?.statesCovered?.length || 1} States
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              {dist.state || 'Local State'}
                             </span>
                           )}
-                        </td>
+                        </div>
+                      </td>
 
-                        <td className="px-6 py-4 text-[11px] font-mono text-slate-600 max-w-[140px] break-words break-all">
-                          <div>DL: {d.drugLicenseNumber || 'N/A'}</div>
-                          <div>GST: {d.gstNumber || 'N/A'}</div>
-                        </td>
-
-                        <td className="px-6 py-4 max-w-[150px]">
-                          {d.isDirectAdminEntry || d.submittedByModel === 'AdminUser' ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-teal-50 text-teal-800 border border-teal-200">
-                              <ShieldCheck className="w-3 h-3 text-teal-700" />
-                              <span>Admin</span>
-                            </span>
-                          ) : (
-                            <div className="space-y-0.5">
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-100 text-slate-700 border border-slate-200">
-                                <User className="w-3 h-3 text-slate-500" />
-                                <span className="truncate max-w-[90px]">{d.submitterName || 'User'}</span>
-                              </span>
-                              {d.submitterContact && (
-                                <div className="text-[10px] text-slate-500 truncate max-w-[130px]">{d.submitterContact}</div>
-                              )}
-                            </div>
-                          )}
-                        </td>
-
-                        <td className="px-6 py-4">
-                          <span
-                            className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full ${
-                              d.status === 'approved'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : d.status === 'rejected'
-                                ? 'bg-rose-100 text-rose-800'
-                                : 'bg-amber-100 text-amber-800'
-                            }`}
+                      {/* Catalog PDF */}
+                      <td className="px-4 py-4">
+                        {hasCatalog ? (
+                          <a
+                            href={dist.catalogDocument.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 text-teal-800 hover:bg-teal-100 border border-teal-200 text-[11px] font-bold transition-colors"
                           >
-                            {d.status === 'pending_approval' ? 'Pending' : d.status}
-                          </span>
-                        </td>
+                            <Download className="w-3 h-3" />
+                            <span>PDF</span>
+                          </a>
+                        ) : (
+                          <span className="text-[11px] text-slate-400">None</span>
+                        )}
+                      </td>
 
-                        <td className="px-6 py-4 text-right">
-                          <div className="inline-flex items-center gap-1.5">
-                            {d.status !== 'approved' && (
-                              <button
-                                onClick={() => handleApproveDistributor(d)}
-                                className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
-                                title="Approve & Verify"
-                              >
-                                <Check className="w-4 h-4 stroke-[3]" />
-                              </button>
-                            )}
-
-                            {d.status !== 'rejected' && (
-                              <button
-                                onClick={() =>
-                                  setRejectingItem({
-                                    type: 'distributor',
-                                    id: d._id,
-                                    title: d.firmName
-                                  })
-                                }
-                                className="p-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
-                                title="Reject"
-                              >
-                                <X className="w-4 h-4 stroke-[3]" />
-                              </button>
-                            )}
-
-                            <button
-                              onClick={() => setSelectedDistributorForDetails(d)}
-                              className="p-1.5 rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-100 transition-colors"
-                              title="View Details"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-
-                            <button
-                              onClick={() => setEditingDistributor({ ...d })}
-                              className="p-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
-                              title="Edit Distributor"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-
-                            <button
-                              onClick={() => handleDeleteDistributor(d._id)}
-                              className="p-1.5 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Distributors Pagination Controls */}
-          {totalDistributorPages > 1 && (
-            <div className="p-4 bg-white rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shadow-sm">
-              <div className="text-slate-500 font-medium">
-                Showing <strong className="text-slate-800">{totalDistributors === 0 ? 0 : (distributorPage - 1) * distributorPageSize + 1}</strong> to{' '}
-                <strong className="text-slate-800">{Math.min(distributorPage * distributorPageSize, totalDistributors)}</strong> of{' '}
-                <strong className="text-slate-800">{totalDistributors}</strong> distributors
-              </div>
-
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setDistributorPage((p) => Math.max(1, p - 1))}
-                  disabled={distributorPage === 1}
-                  className="px-3 py-1.5 rounded-xl border border-slate-200 font-bold bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 transition-colors"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                  <span>Prev</span>
-                </button>
-
-                {Array.from({ length: totalDistributorPages }, (_, idx) => idx + 1)
-                  .filter((p) => p === 1 || p === totalDistributorPages || Math.abs(p - distributorPage) <= 1)
-                  .map((p, i, arr) => {
-                    const prev = arr[i - 1];
-                    return (
-                      <React.Fragment key={p}>
-                        {prev && p - prev > 1 && <span className="px-1 text-slate-400 font-mono">...</span>}
-                        <button
-                          onClick={() => setDistributorPage(p)}
-                          className={`w-8 h-8 rounded-xl font-bold transition-all ${
-                            distributorPage === p
-                              ? 'bg-teal-700 text-white shadow-sm'
-                              : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                      {/* Status */}
+                      <td className="px-4 py-4">
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1 ${
+                            dist.status === 'approved'
+                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                              : dist.status === 'rejected'
+                              ? 'bg-rose-50 text-rose-800 border border-rose-200'
+                              : 'bg-amber-50 text-amber-800 border border-amber-200'
                           }`}
                         >
-                          {p}
-                        </button>
-                      </React.Fragment>
-                    );
-                  })}
+                          {dist.status === 'approved' && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
+                          {dist.status === 'rejected' && <XCircle className="w-3 h-3 text-rose-600" />}
+                          {dist.status === 'pending_approval' && <Clock className="w-3 h-3 text-amber-600" />}
+                          <span className="capitalize">{dist.status.replace('_', ' ')}</span>
+                        </span>
+                      </td>
 
-                <button
-                  onClick={() => setDistributorPage((p) => Math.min(totalDistributorPages, p + 1))}
-                  disabled={distributorPage === totalDistributorPages}
-                  className="px-3 py-1.5 rounded-xl border border-slate-200 font-bold bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 transition-colors"
-                >
-                  <span>Next</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+                      {/* Actions */}
+                      <td className="px-5 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {dist.status === 'pending_approval' && (
+                            <>
+                              <button
+                                onClick={() => handleApprove(dist._id, dist.firmName)}
+                                className="p-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg transition-colors"
+                                title="Approve Distributor"
+                              >
+                                <Check className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleOpenReject(dist)}
+                                className="p-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg transition-colors"
+                                title="Reject Distributor"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
 
-      {/* ================= MODAL: REJECT ITEM ================= */}
-      {rejectingItem && (
-        <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-          <div className="relative w-full max-w-md bg-white rounded-3xl p-6 space-y-4 shadow-2xl">
-            <div className="flex items-start justify-between pb-3 border-b border-slate-200">
-              <h4 className="font-bold text-slate-900 text-sm">
-                Reject Listing: {rejectingItem.title}
-              </h4>
+                          <button
+                            onClick={() => setDetailsDistributor(dist)}
+                            className="p-1.5 text-slate-500 hover:text-teal-700 hover:bg-teal-50 rounded-lg transition-colors"
+                            title="View Full Profile"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            onClick={() => handleOpenEditModal(dist)}
+                            className="p-1.5 text-slate-500 hover:text-sky-700 hover:bg-sky-50 rounded-lg transition-colors"
+                            title="Edit Details"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            onClick={() => handleDelete(dist._id, dist.firmName)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                            title="Delete Listing"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Pagination Bar */}
+        {totalPages > 1 && (
+          <div className="px-5 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 font-semibold bg-slate-50/50">
+            <span>
+              Showing Page {currentPage} of {totalPages} ({totalDistributors} total entries)
+            </span>
+            <div className="flex items-center gap-2">
               <button
-                onClick={() => setRejectingItem(null)}
-                className="p-1 text-slate-400 hover:text-slate-700 rounded-lg"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-bold"
               >
-                <X className="w-4 h-4" />
+                <ChevronLeft className="w-4 h-4" />
+                <span>Prev</span>
+              </button>
+              <button
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-bold"
+              >
+                <span>Next</span>
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
-
-            <form onSubmit={handleConfirmReject} className="space-y-3 text-xs">
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">
-                  Rejection Reason / Guidance for User:
-                </label>
-                <textarea
-                  rows={3}
-                  required
-                  placeholder="e.g. Please provide accurate salt composition or valid drug license."
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-rose-600"
-                />
-              </div>
-
-              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setRejectingItem(null)}
-                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-700 shadow-sm transition-colors"
-                >
-                  Confirm Rejection
-                </button>
-              </div>
-            </form>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* ================= MODAL: EDIT PRODUCT (ADMIN) ================= */}
-      {editingProduct && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
-          <div className="relative w-full max-w-2xl bg-white rounded-3xl p-6 sm:p-8 space-y-4 my-8 max-h-[90vh] overflow-y-auto shadow-2xl text-xs">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-              <h3 className="font-black text-slate-900 text-base">Edit Product Catalog Entry</h3>
-              <button onClick={() => setEditingProduct(null)} className="p-1 text-slate-400 hover:text-slate-700">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                const numMrp = Number(editingProduct.mrp);
-                if (isNaN(numMrp) || numMrp < 0 || numMrp > 500000) {
-                  showModal({
-                    title: 'Invalid MRP',
-                    message: 'MRP must be a valid number between Rs. 0 and Rs. 5,00,000.',
-                    type: 'error'
-                  });
-                  return;
-                }
-                try {
-                  await catalogApi.put(`/admin/products/${editingProduct._id}`, {
-                    ...editingProduct,
-                    mrp: numMrp
-                  });
-                  showNotification('Product details updated successfully.');
-                  setEditingProduct(null);
-                  fetchAdminProducts();
-                } catch (err) {
-                  showModal({
-                    title: 'Update Failed',
-                    message: err.response?.data?.message || 'Failed to update product.',
-                    type: 'error'
-                  });
-                }
-              }}
-              className="space-y-4"
+      {/* ================= MODAL: CREATE / EDIT DISTRIBUTOR ================= */}
+      <AnimatePresence>
+        {(createDistributorOpen || Boolean(editingDistributor)) && (
+          <motion.div
+            key="admin-distributor-form-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            onClick={() => {
+              setCreateDistributorOpen(false);
+              setEditingDistributor(null);
+            }}
+            className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm p-2 sm:p-4 md:p-6 flex items-center justify-center overscroll-contain transform-gpu"
+          >
+            <motion.div
+              key="admin-distributor-form-card"
+              initial={{ opacity: 0, scale: 0.98, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98, y: 8 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl flex flex-col max-h-[92dvh] sm:max-h-[88vh] overflow-hidden overscroll-contain my-auto border border-slate-100"
             >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="font-bold text-slate-700">Product Name *</label>
-                    <span className="text-[10px] text-slate-400 font-mono">{(editingProduct.name || '').length}/120</span>
-                  </div>
-                  <input
-                    type="text"
-                    required
-                    maxLength={120}
-                    value={editingProduct.name || ''}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
-                  />
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="font-bold text-slate-700">Brand Name</label>
-                    <span className="text-[10px] text-slate-400 font-mono">{(editingProduct.brandName || '').length}/80</span>
-                  </div>
-                  <input
-                    type="text"
-                    maxLength={80}
-                    value={editingProduct.brandName || ''}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, brandName: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
-                  />
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="font-bold text-slate-700">Manufacturer *</label>
-                    <span className="text-[10px] text-slate-400 font-mono">{(editingProduct.manufacturer || '').length}/120</span>
-                  </div>
-                  <input
-                    type="text"
-                    required
-                    maxLength={120}
-                    value={editingProduct.manufacturer || ''}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, manufacturer: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Category</label>
-                  <select
-                    value={editingProduct.category || 'Allopathic'}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 font-semibold"
-                  >
-                    {PHARMACY_CATEGORIES.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            {/* Header */}
+            <div className="flex-shrink-0 px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-white z-10">
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                  {editingDistributor ? 'Edit Listing' : 'Admin Direct Entry'}
+                </span>
+                <h3 className="font-extrabold text-slate-900 text-base sm:text-lg font-outfit">
+                  {editingDistributor ? `Edit: ${editingDistributor.firmName}` : 'Add Distributor to Directory'}
+                </h3>
               </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="font-bold text-slate-700">Salt Composition *</label>
-                  <span className="text-[10px] text-slate-400 font-mono">{(editingProduct.saltComposition || '').length}/300</span>
-                </div>
-                <textarea
-                  rows={2}
-                  required
-                  maxLength={300}
-                  value={editingProduct.saltComposition || ''}
-                  onChange={(e) => setEditingProduct({ ...editingProduct, saltComposition: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Dosage Form</label>
-                  <select
-                    value={editingProduct.dosageForm || 'Tablet'}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, dosageForm: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 font-semibold"
-                  >
-                    {DOSAGE_FORMS.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Packaging</label>
-                  <input
-                    type="text"
-                    maxLength={60}
-                    value={editingProduct.packaging || ''}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, packaging: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">MRP (INR)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="500000"
-                    value={editingProduct.mrp ?? 0}
-                    onKeyDown={(e) => {
-                      if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
-                    }}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, mrp: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-                <label className="flex items-center gap-2 font-bold cursor-pointer p-2 rounded-xl bg-slate-50 border border-slate-200">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(editingProduct.prescriptionRequired)}
-                    onChange={(e) =>
-                      setEditingProduct({ ...editingProduct, prescriptionRequired: e.target.checked })
-                    }
-                    className="rounded text-teal-600 w-4 h-4"
-                  />
-                  <span>Prescription Required (Rx)</span>
-                </label>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Status</label>
-                  <select
-                    value={editingProduct.status || 'approved'}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, status: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 font-semibold"
-                  >
-                    <option value="approved">Approved</option>
-                    <option value="pending_approval">Pending Approval</option>
-                    <option value="rejected">Rejected</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Admin Notes / Feedback</label>
-                <input
-                  type="text"
-                  maxLength={500}
-                  value={editingProduct.adminNotes || ''}
-                  onChange={(e) => setEditingProduct({ ...editingProduct, adminNotes: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200"
-                />
-              </div>
-
-              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-3 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setEditingProduct(null)}
-                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="w-full sm:w-auto px-5 py-2 rounded-xl bg-teal-700 text-white font-bold hover:bg-teal-800 transition-colors">
-                  Save Changes
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL: EDIT DISTRIBUTOR (ADMIN) ================= */}
-      {editingDistributor && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
-          <div className="relative w-full max-w-2xl bg-white rounded-3xl p-6 sm:p-8 space-y-4 my-8 max-h-[90vh] overflow-y-auto shadow-2xl text-xs">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-              <h3 className="font-black text-slate-900 text-base">Edit Distributor Profile</h3>
-              <button onClick={() => setEditingDistributor(null)} className="p-1 text-slate-400 hover:text-slate-700">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (!/^[6-9]\d{9}$/.test(editingDistributor.mobile || '')) {
-                  showModal({
-                    title: 'Invalid Mobile Number',
-                    message: 'Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.',
-                    type: 'error'
-                  });
-                  return;
-                }
-                if (editingDistributor.whatsappNumber && !/^[6-9]\d{9}$/.test(editingDistributor.whatsappNumber)) {
-                  showModal({
-                    title: 'Invalid WhatsApp Number',
-                    message: 'WhatsApp number must be a valid 10-digit Indian mobile number.',
-                    type: 'error'
-                  });
-                  return;
-                }
-                if (editingDistributor.pincode && !/^\d{6}$/.test(editingDistributor.pincode)) {
-                  showModal({
-                    title: 'Invalid Pincode',
-                    message: 'Pincode must be exactly 6 digits.',
-                    type: 'error'
-                  });
-                  return;
-                }
-                try {
-                  await catalogApi.put(`/admin/distributors/${editingDistributor._id}`, editingDistributor);
-                  showNotification('Distributor profile updated.');
+              <button
+                onClick={() => {
+                  setCreateDistributorOpen(false);
                   setEditingDistributor(null);
-                  fetchAdminDistributors();
-                } catch (err) {
-                  showModal({
-                    title: 'Update Failed',
-                    message: err.response?.data?.message || 'Failed to update distributor.',
-                    type: 'error'
-                  });
-                }
-              }}
-              className="space-y-4"
-            >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="font-bold text-slate-700">Firm Name *</label>
-                    <span className="text-[10px] text-slate-400 font-mono">{(editingDistributor.firmName || '').length}/120</span>
-                  </div>
-                  <input
-                    type="text"
-                    required
-                    maxLength={120}
-                    value={editingDistributor.firmName || ''}
-                    onChange={(e) => setEditingDistributor({ ...editingDistributor, firmName: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
-                  />
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="font-bold text-slate-700">Contact Person *</label>
-                    <span className="text-[10px] text-slate-400 font-mono">{(editingDistributor.contactPerson || '').length}/80</span>
-                  </div>
-                  <input
-                    type="text"
-                    required
-                    maxLength={80}
-                    value={editingDistributor.contactPerson || ''}
-                    onChange={(e) => setEditingDistributor({ ...editingDistributor, contactPerson: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Mobile (10 digits) *</label>
-                  <input
-                    type="tel"
-                    required
-                    maxLength={10}
-                    placeholder="10-digit Indian number"
-                    value={editingDistributor.mobile || ''}
-                    onChange={(e) =>
-                      setEditingDistributor({
-                        ...editingDistributor,
-                        mobile: e.target.value.replace(/\D/g, '').slice(0, 10)
-                      })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">WhatsApp</label>
-                  <input
-                    type="tel"
-                    maxLength={10}
-                    placeholder="10-digit number"
-                    value={editingDistributor.whatsappNumber || ''}
-                    onChange={(e) =>
-                      setEditingDistributor({
-                        ...editingDistributor,
-                        whatsappNumber: e.target.value.replace(/\D/g, '').slice(0, 10)
-                      })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">City *</label>
-                  <input
-                    type="text"
-                    required
-                    maxLength={60}
-                    value={editingDistributor.city || ''}
-                    onChange={(e) => setEditingDistributor({ ...editingDistributor, city: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">State *</label>
-                  <select
-                    value={editingDistributor.state || 'Uttar Pradesh'}
-                    onChange={(e) => setEditingDistributor({ ...editingDistributor, state: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 font-semibold"
-                  >
-                    {INDIAN_STATES.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Pincode (6 digits)</label>
-                  <input
-                    type="text"
-                    maxLength={6}
-                    placeholder="6 digits"
-                    value={editingDistributor.pincode || ''}
-                    onChange={(e) =>
-                      setEditingDistributor({
-                        ...editingDistributor,
-                        pincode: e.target.value.replace(/\D/g, '').slice(0, 6)
-                      })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="font-bold text-slate-700">Office Address *</label>
-                  <span className="text-[10px] text-slate-400 font-mono">{(editingDistributor.officeAddress || '').length}/200</span>
-                </div>
-                <input
-                  type="text"
-                  required
-                  maxLength={200}
-                  value={editingDistributor.officeAddress || ''}
-                  onChange={(e) => setEditingDistributor({ ...editingDistributor, officeAddress: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Drug License (DL)</label>
-                  <input
-                    type="text"
-                    maxLength={60}
-                    value={editingDistributor.drugLicenseNumber || ''}
-                    onChange={(e) => setEditingDistributor({ ...editingDistributor, drugLicenseNumber: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">GST Number</label>
-                  <input
-                    type="text"
-                    maxLength={15}
-                    value={editingDistributor.gstNumber || ''}
-                    onChange={(e) =>
-                      setEditingDistributor({ ...editingDistributor, gstNumber: e.target.value.toUpperCase() })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200"
-                  />
-                </div>
-              </div>
-
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-                <div>
-                  <span className="font-bold text-slate-800 block">Pan-India Coverage</span>
-                  <span className="text-[11px] text-slate-500">Supplies nationwide across India</span>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={Boolean(editingDistributor.supplyCoverage?.panIndia)}
-                  onChange={(e) =>
-                    setEditingDistributor({
-                      ...editingDistributor,
-                      supplyCoverage: {
-                        ...editingDistributor.supplyCoverage,
-                        panIndia: e.target.checked
-                      }
-                    })
-                  }
-                  className="rounded text-teal-600 w-4 h-4 cursor-pointer"
-                />
-              </div>
-
-              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-3 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setEditingDistributor(null)}
-                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="w-full sm:w-auto px-5 py-2 rounded-xl bg-teal-700 text-white font-bold hover:bg-teal-800 transition-colors">
-                  Save Changes
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL: CREATE PRODUCT DIRECTLY (ADMIN) ================= */}
-      {createProductOpen && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
-          <div className="relative w-full max-w-2xl bg-white rounded-3xl p-6 sm:p-8 space-y-4 my-8 max-h-[90vh] overflow-y-auto shadow-2xl text-xs">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-              <div>
-                <h3 className="font-black text-slate-900 text-base">Add Product (Direct Admin Entry)</h3>
-                <p className="text-[11px] text-slate-500 mt-0.5">Entries added by admin are immediately approved and published to the public catalog.</p>
-              </div>
-              <button
-                onClick={() => {
-                  setCreateProductOpen(false);
-                  setNewProductForm(initialNewProductForm);
                 }}
-                className="p-1 text-slate-400 hover:text-slate-700"
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                let parsedMrp = 0;
-                if (newProductForm.mrp !== undefined && newProductForm.mrp !== null && newProductForm.mrp !== '') {
-                  parsedMrp = Number(newProductForm.mrp);
-                  if (isNaN(parsedMrp) || parsedMrp < 0 || parsedMrp > 500000) {
-                    showModal({
-                      title: 'Invalid MRP',
-                      message: 'MRP must be a valid number between Rs. 0 and Rs. 5,00,000.',
-                      type: 'error'
-                    });
-                    return;
-                  }
-                }
-
-                try {
-                  await catalogApi.post('/admin/products', {
-                    ...newProductForm,
-                    mrp: parsedMrp
-                  });
-                  showNotification('Product created and published directly.');
-                  setCreateProductOpen(false);
-                  setNewProductForm(initialNewProductForm);
-                  fetchAdminProducts();
-                  fetchStats();
-                } catch (err) {
-                  showModal({
-                    title: 'Creation Failed',
-                    message: err.response?.data?.message || 'Failed to create product.',
-                    type: 'error'
-                  });
-                }
-              }}
-              className="space-y-4"
-            >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="font-bold text-slate-700">Product Name *</label>
-                    <span className="text-[10px] text-slate-400 font-mono">{(newProductForm.name || '').length}/120</span>
+            {/* Scrollable Form Body */}
+            <form onSubmit={handleSaveDistributor} className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5 overscroll-contain touch-pan-y text-xs">
+                {formError && (
+                  <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-700 font-semibold rounded-xl flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    <span>{formError}</span>
                   </div>
-                  <input
-                    type="text"
-                    required
-                    maxLength={120}
-                    placeholder="e.g. Augmentin 625 Duo"
-                    value={newProductForm.name}
-                    onChange={(e) => setNewProductForm({ ...newProductForm, name: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
-                  />
-                </div>
+                )}
 
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="font-bold text-slate-700">Brand Name</label>
-                    <span className="text-[10px] text-slate-400 font-mono">{(newProductForm.brandName || '').length}/80</span>
+                {/* Firm Name & Contact Person */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Distributor / Firm Name <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formDistributor.firmName}
+                      onChange={(e) => setFormDistributor({ ...formDistributor, firmName: e.target.value })}
+                      placeholder="e.g. MediCore Pharmaceuticals"
+                      maxLength={120}
+                      className="w-full h-10 px-3 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
+                    />
                   </div>
-                  <input
-                    type="text"
-                    maxLength={80}
-                    placeholder="e.g. Augmentin"
-                    value={newProductForm.brandName}
-                    onChange={(e) => setNewProductForm({ ...newProductForm, brandName: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
-                  />
-                </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="font-bold text-slate-700">Manufacturer *</label>
-                    <span className="text-[10px] text-slate-400 font-mono">{(newProductForm.manufacturer || '').length}/120</span>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Contact Person Name</label>
+                    <input
+                      type="text"
+                      value={formDistributor.contactPerson}
+                      onChange={(e) => setFormDistributor({ ...formDistributor, contactPerson: e.target.value })}
+                      placeholder="e.g. Ramesh Chandra"
+                      maxLength={80}
+                      className="w-full h-10 px-3 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
+                    />
                   </div>
-                  <input
-                    type="text"
-                    required
-                    maxLength={120}
-                    placeholder="e.g. GlaxoSmithKline"
-                    value={newProductForm.manufacturer}
-                    onChange={(e) => setNewProductForm({ ...newProductForm, manufacturer: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
-                  />
                 </div>
 
+                {/* Mobile & WhatsApp */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Primary Mobile Number <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      value={formDistributor.mobile}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                        setFormDistributor({ ...formDistributor, mobile: val });
+                      }}
+                      placeholder="10-digit mobile"
+                      maxLength={10}
+                      className="w-full h-10 px-3 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">WhatsApp Number (Optional)</label>
+                    <input
+                      type="tel"
+                      value={formDistributor.whatsappNumber}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                        setFormDistributor({ ...formDistributor, whatsappNumber: val });
+                      }}
+                      placeholder="10-digit WhatsApp"
+                      maxLength={10}
+                      className="w-full h-10 px-3 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
+                    />
+                  </div>
+                </div>
+
+                {/* Categories Dealt In */}
+                <div className="space-y-2">
+                  <label className="block font-bold text-slate-700">
+                    Categories Dealt In <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {PHARMACY_CATEGORIES.map((cat) => {
+                      const isSelected = formDistributor.categories.includes(cat);
+                      return (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => toggleCategory(cat)}
+                          className={`p-2 rounded-xl border text-left font-semibold flex items-center gap-1.5 transition-colors ${
+                            isSelected
+                              ? 'bg-teal-50 border-teal-600 text-teal-900 font-bold'
+                              : 'bg-slate-50 border-slate-200 text-slate-700'
+                          }`}
+                        >
+                          {isSelected ? (
+                            <CheckSquare className="w-3.5 h-3.5 text-teal-600 flex-shrink-0" />
+                          ) : (
+                            <Square className="w-3.5 h-3.5 text-slate-300 flex-shrink-0" />
+                          )}
+                          <span className="truncate">{cat}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Address & Location (Single Consolidated Field) */}
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Category *</label>
-                  <select
-                    value={newProductForm.category}
-                    onChange={(e) => setNewProductForm({ ...newProductForm, category: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 font-semibold focus:outline-none focus:border-teal-600"
-                  >
-                    {PHARMACY_CATEGORIES.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="font-bold text-slate-700">Active Salt Composition *</label>
-                  <span className="text-[10px] text-slate-400 font-mono">{(newProductForm.saltComposition || '').length}/300</span>
-                </div>
-                <textarea
-                  rows={2}
-                  required
-                  maxLength={300}
-                  placeholder="e.g. Amoxicillin (500mg) + Clavulanic Acid (125mg)"
-                  value={newProductForm.saltComposition}
-                  onChange={(e) => setNewProductForm({ ...newProductForm, saltComposition: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Dosage Form</label>
-                  <select
-                    value={newProductForm.dosageForm}
-                    onChange={(e) => setNewProductForm({ ...newProductForm, dosageForm: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 font-semibold focus:outline-none focus:border-teal-600"
-                  >
-                    {DOSAGE_FORMS.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Packaging Unit</label>
-                  <input
-                    type="text"
-                    maxLength={60}
-                    placeholder="e.g. 10 Tablets in 1 Strip"
-                    value={newProductForm.packaging}
-                    onChange={(e) => setNewProductForm({ ...newProductForm, packaging: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">MRP in INR (Max 5,00,000)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="500000"
-                    placeholder="e.g. 215.50"
-                    value={newProductForm.mrp}
-                    onKeyDown={(e) => {
-                      if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
+                  <SingleAddressAutocomplete
+                    value={formDistributor.officeAddress}
+                    onChange={(loc) => {
+                      setFormDistributor({
+                        ...formDistributor,
+                        officeAddress: loc.address,
+                        city: loc.city || formDistributor.city,
+                        state: loc.state || formDistributor.state,
+                        pincode: loc.pincode || formDistributor.pincode,
+                        coordinates: loc.coordinates || formDistributor.coordinates
+                      });
                     }}
-                    onChange={(e) => setNewProductForm({ ...newProductForm, mrp: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
+                    allowGps={true}
+                    placeholder="Search address or location, or detect with GPS..."
+                    helperText="Single unified address field with automatic city, state, and coordinates extraction."
                   />
                 </div>
-              </div>
 
-              <label className="flex items-center gap-2 font-bold cursor-pointer p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                <input
-                  type="checkbox"
-                  checked={newProductForm.prescriptionRequired}
-                  onChange={(e) => setNewProductForm({ ...newProductForm, prescriptionRequired: e.target.checked })}
-                  className="rounded text-teal-600 w-4 h-4 cursor-pointer"
-                />
-                <span>Prescription Required (Rx Drug)</span>
-              </label>
-
-              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-3 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCreateProductOpen(false);
-                    setNewProductForm(initialNewProductForm);
-                  }}
-                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="w-full sm:w-auto px-5 py-2 rounded-xl bg-teal-700 text-white font-bold hover:bg-teal-800 transition-colors">
-                  Publish Directly
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL: CREATE DISTRIBUTOR DIRECTLY (ADMIN) ================= */}
-      {createDistributorOpen && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-hidden">
-          <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-xs animate-in fade-in zoom-in-95 duration-200">
-            {/* Sticky Header Flush with Top (No gap) */}
-            <div className="sticky top-0 z-20 bg-white px-6 py-4 sm:px-8 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
-              <div>
-                <h3 className="font-black text-slate-900 text-base">Add Distributor (Direct Admin Entry)</h3>
-                <p className="text-[11px] text-slate-500 mt-0.5">Direct entries are immediately marked as approved and verified in the directory.</p>
-              </div>
-              <button
-                onClick={() => {
-                  setCreateDistributorOpen(false);
-                  setNewDistributorForm(initialNewDistributorForm);
-                }}
-                className="p-1 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 flex-shrink-0"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (!/^[6-9]\d{9}$/.test(newDistributorForm.mobile)) {
-                  showModal({
-                    title: 'Invalid Mobile Number',
-                    message: 'Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.',
-                    type: 'error'
-                  });
-                  return;
-                }
-                if (newDistributorForm.whatsappNumber && !/^[6-9]\d{9}$/.test(newDistributorForm.whatsappNumber)) {
-                  showModal({
-                    title: 'Invalid WhatsApp Number',
-                    message: 'WhatsApp number must be a valid 10-digit Indian mobile number.',
-                    type: 'error'
-                  });
-                  return;
-                }
-
-                try {
-                  await catalogApi.post('/admin/distributors', newDistributorForm);
-                  showNotification('Distributor created and verified directly.');
-                  setCreateDistributorOpen(false);
-                  setNewDistributorForm(initialNewDistributorForm);
-                  fetchAdminDistributors();
-                  fetchStats();
-                } catch (err) {
-                  showModal({
-                    title: 'Creation Failed',
-                    message: err.response?.data?.message || 'Failed to create distributor.',
-                    type: 'error'
-                  });
-                }
-              }}
-              className="flex-1 flex flex-col min-h-0 overflow-hidden"
-            >
-              {/* Scrollable Body */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-4 text-xs">
-                {/* Location Search via Maps API */}
-                <div className="p-3.5 bg-teal-50/60 rounded-2xl border border-teal-200 space-y-2">
+                {/* Delivery Coverage */}
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-teal-900 flex items-center gap-1.5">
-                      <Search className="w-3.5 h-3.5 text-teal-600" />
-                      <span>Search Location via Map (Auto-fills Address, City, State & Pincode)</span>
+                    <div>
+                      <span className="font-bold text-slate-800">Pan-India Delivery</span>
+                      <p className="text-[11px] text-slate-500">Enable if distributor ships across all states</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormDistributor({ ...formDistributor, panIndia: !formDistributor.panIndia })}
+                      className={`w-9 h-5 flex items-center rounded-full p-0.5 transition-colors ${
+                        formDistributor.panIndia ? 'bg-teal-700' : 'bg-slate-300'
+                      }`}
+                    >
+                      <div
+                        className={`bg-white w-4 h-4 rounded-full shadow-sm transform transition-transform ${
+                          formDistributor.panIndia ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {!formDistributor.panIndia && (
+                    <div className="pt-2 border-t border-slate-200 space-y-1.5">
+                      <label className="block font-bold text-slate-700">Covered States</label>
+                      <div className="max-h-28 overflow-y-auto p-1.5 bg-white rounded-lg border border-slate-200 grid grid-cols-2 gap-1">
+                        {INDIAN_STATES.map((st) => (
+                          <label key={st} className="flex items-center gap-1.5 text-[11px] cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={formDistributor.statesCovered.includes(st)}
+                              onChange={() => toggleCoveredState(st)}
+                              className="rounded text-teal-600"
+                            />
+                            <span className="truncate">{st}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Upload Catalog PDF */}
+                <div className="p-3.5 bg-teal-50/40 rounded-xl border border-teal-100 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-teal-700" />
+                      Product Catalog Document (PDF / DOC / XLS)
                     </span>
-                    {newDistributorForm.coordinates && newDistributorForm.coordinates[0] !== 0 && (
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                        GPS Geocoded
-                      </span>
+                    {formDistributor.catalogDocument && (
+                      <button
+                        type="button"
+                        onClick={() => setFormDistributor({ ...formDistributor, catalogDocument: null })}
+                        className="text-[11px] text-rose-600 font-bold hover:underline"
+                      >
+                        Remove
+                      </button>
                     )}
                   </div>
-                  <LocationPicker
-                    value={{
-                      address: newDistributorForm.officeAddress,
-                      city: newDistributorForm.city,
-                      state: newDistributorForm.state,
-                      pincode: newDistributorForm.pincode,
-                      coordinates: newDistributorForm.coordinates || [0, 0]
-                    }}
-                    onChange={(loc) => {
-                      setNewDistributorForm((prev) => ({
-                        ...prev,
-                        officeAddress: loc.address || prev.officeAddress,
-                        city: loc.city || prev.city,
-                        state: loc.state || prev.state,
-                        pincode: loc.pincode || prev.pincode,
-                        coordinates: loc.coordinates || prev.coordinates
-                      }));
-                    }}
-                    showMapPreview={false}
-                  />
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="font-bold text-slate-700">Firm Name *</label>
-                      <span className="text-[10px] text-slate-400 font-mono">{(newDistributorForm.firmName || '').length}/120</span>
+                  {formDistributor.catalogDocument ? (
+                    <div className="p-2 bg-emerald-50 rounded-lg border border-emerald-200 flex items-center justify-between text-xs text-emerald-800 font-semibold">
+                      <span className="truncate">{formDistributor.catalogDocument.originalName || 'Catalog uploaded'}</span>
+                      <span className="text-[10px] bg-emerald-100 px-2 py-0.5 rounded-full">Sanitized & Safe</span>
                     </div>
-                    <input
-                      type="text"
-                      required
-                      maxLength={120}
-                      placeholder="e.g. Apex Pharma Agency"
-                      value={newDistributorForm.firmName}
-                      onChange={(e) => setNewDistributorForm({ ...newDistributorForm, firmName: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="font-bold text-slate-700">Contact Person *</label>
-                      <span className="text-[10px] text-slate-400 font-mono">{(newDistributorForm.contactPerson || '').length}/80</span>
+                  ) : (
+                    <div>
+                      <label
+                        className={`w-full py-2 px-3 border border-dashed rounded-xl flex items-center justify-center gap-2 font-bold cursor-pointer transition-colors ${
+                          uploadingCatalog
+                            ? 'bg-slate-100 text-slate-400 border-slate-300'
+                            : 'border-teal-300 text-teal-800 hover:bg-teal-50'
+                        }`}
+                      >
+                        {uploadingCatalog ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-600" />
+                            <span>Sanitizing document...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-3.5 h-3.5 text-teal-600" />
+                            <span>Upload Catalog File (Max 10MB)</span>
+                          </>
+                        )}
+                        <input
+                          type="file"
+                          disabled={uploadingCatalog}
+                          onChange={(e) => handleFileUpload(e, 'catalog')}
+                          accept=".pdf,.doc,.docx,.xls,.xlsx,.csv"
+                          className="hidden"
+                        />
+                      </label>
                     </div>
-                    <input
-                      type="text"
-                      required
-                      maxLength={80}
-                      placeholder="e.g. Rajesh Kumar"
-                      value={newDistributorForm.contactPerson}
-                      onChange={(e) => setNewDistributorForm({ ...newDistributorForm, contactPerson: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">Mobile (10 digits) *</label>
-                    <input
-                      type="tel"
-                      required
-                      maxLength={10}
-                      placeholder="10-digit Indian number"
-                      value={newDistributorForm.mobile}
-                      onChange={(e) =>
-                        setNewDistributorForm({
-                          ...newDistributorForm,
-                          mobile: e.target.value.replace(/\D/g, '').slice(0, 10)
-                        })
-                      }
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">WhatsApp</label>
-                    <input
-                      type="tel"
-                      maxLength={10}
-                      placeholder="10-digit WhatsApp number"
-                      value={newDistributorForm.whatsappNumber}
-                      onChange={(e) =>
-                        setNewDistributorForm({
-                          ...newDistributorForm,
-                          whatsappNumber: e.target.value.replace(/\D/g, '').slice(0, 10)
-                        })
-                      }
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
-                    />
-                  </div>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Drug license & GST */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">City *</label>
+                    <label className="block font-bold text-slate-700 mb-1">Drug License Number</label>
                     <input
                       type="text"
-                      required
+                      value={formDistributor.drugLicenseNumber}
+                      onChange={(e) => setFormDistributor({ ...formDistributor, drugLicenseNumber: e.target.value })}
+                      placeholder="e.g. DL-20B/21B-XXXX"
                       maxLength={60}
-                      placeholder="e.g. Ghaziabad / Delhi"
-                      value={newDistributorForm.city}
-                      onChange={(e) => setNewDistributorForm({ ...newDistributorForm, city: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
+                      className="w-full h-10 px-3 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
                     />
                   </div>
 
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">State *</label>
-                    <select
-                      value={newDistributorForm.state}
-                      onChange={(e) => setNewDistributorForm({ ...newDistributorForm, state: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 font-semibold focus:outline-none focus:border-teal-600"
-                    >
-                      {INDIAN_STATES.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">Pincode</label>
+                    <label className="block font-bold text-slate-700 mb-1">GST Number</label>
                     <input
                       type="text"
-                      maxLength={6}
-                      placeholder="e.g. 201005"
-                      value={newDistributorForm.pincode}
-                      onChange={(e) =>
-                        setNewDistributorForm({
-                          ...newDistributorForm,
-                          pincode: e.target.value.replace(/\D/g, '').slice(0, 6)
-                        })
-                      }
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="font-bold text-slate-700">Office / Warehouse Address *</label>
-                    <span className="text-[10px] text-slate-400 font-mono">{(newDistributorForm.officeAddress || '').length}/200</span>
-                  </div>
-                  <input
-                    type="text"
-                    required
-                    maxLength={200}
-                    placeholder="e.g. Shop No. 14, Commercial Complex, Shalimar Garden"
-                    value={newDistributorForm.officeAddress}
-                    onChange={(e) => setNewDistributorForm({ ...newDistributorForm, officeAddress: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">Drug License (DL)</label>
-                    <input
-                      type="text"
-                      maxLength={60}
-                      placeholder="e.g. DL-20B/21B-12345"
-                      value={newDistributorForm.drugLicenseNumber}
-                      onChange={(e) =>
-                        setNewDistributorForm({ ...newDistributorForm, drugLicenseNumber: e.target.value })
-                      }
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">GST Number</label>
-                    <input
-                      type="text"
+                      value={formDistributor.gstNumber}
+                      onChange={(e) => setFormDistributor({ ...formDistributor, gstNumber: e.target.value.toUpperCase() })}
+                      placeholder="e.g. 07AAAAA0000A1Z5"
                       maxLength={15}
-                      placeholder="15-digit GSTIN"
-                      value={newDistributorForm.gstNumber}
-                      onChange={(e) =>
-                        setNewDistributorForm({ ...newDistributorForm, gstNumber: e.target.value.toUpperCase() })
-                      }
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
+                      className="w-full h-10 px-3 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
                     />
                   </div>
                 </div>
 
-                <label className="flex items-center gap-2 font-bold cursor-pointer p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                  <input
-                    type="checkbox"
-                    checked={newDistributorForm.panIndia}
-                    onChange={(e) => setNewDistributorForm({ ...newDistributorForm, panIndia: e.target.checked })}
-                    className="rounded text-teal-600 w-4 h-4 cursor-pointer"
+                {/* Admin Notes */}
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Admin Notes / Remarks</label>
+                  <textarea
+                    rows={2}
+                    value={formDistributor.adminNotes}
+                    onChange={(e) => setFormDistributor({ ...formDistributor, adminNotes: e.target.value })}
+                    placeholder="Internal verification notes or remarks..."
+                    maxLength={500}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 resize-none"
                   />
-                  <span>Supplies Pan-India (All States)</span>
-                </label>
+                </div>
               </div>
 
-              {/* Sticky Footer */}
-              <div className="sticky bottom-0 z-20 bg-slate-50 px-6 py-3.5 sm:px-8 border-t border-slate-200 flex flex-col-reverse sm:flex-row items-center justify-end gap-2 flex-shrink-0">
+              {/* Fixed Footer */}
+              <div className="flex-shrink-0 px-5 py-3.5 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3 z-10">
                 <button
                   type="button"
                   onClick={() => {
                     setCreateDistributorOpen(false);
-                    setNewDistributorForm(initialNewDistributorForm);
+                    setEditingDistributor(null);
                   }}
-                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 font-bold hover:bg-slate-100 transition-colors"
+                  className="px-4 py-2 font-bold text-slate-600 hover:text-slate-800"
                 >
                   Cancel
                 </button>
+
                 <button
                   type="submit"
-                  className="w-full sm:w-auto px-5 py-2 rounded-xl bg-teal-700 text-white font-bold hover:bg-teal-800 transition-all shadow-md shadow-teal-700/20"
+                  disabled={submittingForm || uploadingCatalog}
+                  className="px-5 py-2.5 bg-teal-700 hover:bg-teal-800 text-white font-bold rounded-xl shadow-md disabled:opacity-50 flex items-center gap-2"
                 >
-                  Save & Verify Directly
+                  {submittingForm && <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />}
+                  <span>{editingDistributor ? 'Update Distributor' : 'Save & Publish'}</span>
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+    </AnimatePresence>
 
-      {/* ================= MODAL: VIEW PRODUCT DETAILS (ADMIN) ================= */}
-      {selectedProductForDetails && (
-        <div className="fixed inset-0 z-[160] flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-hidden">
-          <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-xs animate-in fade-in zoom-in-95 duration-200">
-            {/* Sticky Header Flush with Top (No gap) & Posted By Badge */}
-            <div className="sticky top-0 z-20 bg-white px-6 py-4 sm:px-8 border-b border-slate-200 flex items-start justify-between flex-shrink-0">
-              <div className="space-y-1.5 pr-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200">
-                    {selectedProductForDetails.category}
-                  </span>
-                  <span
-                    className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full ${
-                      selectedProductForDetails.status === 'approved'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : selectedProductForDetails.status === 'rejected'
-                        ? 'bg-rose-100 text-rose-800'
-                        : 'bg-amber-100 text-amber-800'
-                    }`}
-                  >
-                    {selectedProductForDetails.status}
-                  </span>
-
-                  {/* Posted By Badge */}
-                  {selectedProductForDetails.isDirectAdminEntry || selectedProductForDetails.submittedByModel === 'AdminUser' ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-teal-100/80 text-teal-900 border border-teal-300">
-                      <ShieldCheck className="w-3 h-3 text-teal-700" />
-                      <span>Posted by Admin</span>
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-100 text-slate-700 border border-slate-200">
-                      <User className="w-3 h-3 text-slate-500" />
-                      <span>Posted by {selectedProductForDetails.submitterName || 'Registered User'}</span>
-                    </span>
-                  )}
-                </div>
-                <h3 className="text-xl font-black text-slate-900 font-outfit break-words break-all">
-                  {selectedProductForDetails.name}
+      {/* ================= MODAL: DETAILS VIEW ================= */}
+      <AnimatePresence>
+        {detailsDistributor && (
+          <motion.div
+            key="admin-distributor-details-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            onClick={() => setDetailsDistributor(null)}
+            className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm p-2 sm:p-4 md:p-6 flex items-center justify-center overscroll-contain transform-gpu"
+          >
+            <motion.div
+              key="admin-distributor-details-card"
+              initial={{ opacity: 0, scale: 0.98, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98, y: 8 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl flex flex-col max-h-[92dvh] sm:max-h-[88vh] overflow-hidden overscroll-contain my-auto border border-slate-100"
+            >
+            <div className="flex-shrink-0 px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-base sm:text-lg font-outfit">
+                  {detailsDistributor.firmName}
                 </h3>
-                {selectedProductForDetails.brandName && (
-                  <p className="text-xs text-slate-500 font-semibold break-words break-all">
-                    Brand: {selectedProductForDetails.brandName}
-                  </p>
-                )}
+                <span className="text-xs text-slate-500">ID: {detailsDistributor._id}</span>
               </div>
               <button
-                onClick={() => setSelectedProductForDetails(null)}
-                className="p-1 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 flex-shrink-0"
+                onClick={() => setDetailsDistributor(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Scrollable Body */}
-            <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-5 text-xs">
-              {/* Salt Formulation */}
-              <div className="p-3.5 bg-teal-50 rounded-2xl border border-teal-100 space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-800 block">
-                  Active Salt Composition
-                </span>
-                <p className="font-bold text-slate-900 break-words break-all leading-relaxed">
-                  {selectedProductForDetails.saltComposition}
-                </p>
+            <div className="flex-1 overflow-y-auto p-5 space-y-4 overscroll-contain touch-pan-y text-xs text-slate-700">
+              <div className="p-3 bg-slate-50 rounded-xl space-y-1">
+                <span className="font-bold text-slate-500 uppercase tracking-wider text-[10px]">Location</span>
+                <p className="font-semibold text-slate-900">{detailsDistributor.officeAddress || 'India'}</p>
               </div>
 
-              {/* Specs Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <div className="p-3 bg-slate-50 rounded-xl space-y-0.5">
-                  <span className="text-[10px] font-bold uppercase text-slate-400">Manufacturer</span>
-                  <p className="font-bold text-slate-900 break-words break-all">{selectedProductForDetails.manufacturer}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <span className="font-bold text-slate-400 text-[10px] uppercase">Contact Person</span>
+                  <p className="font-bold text-slate-900 mt-0.5">{detailsDistributor.contactPerson || 'None'}</p>
                 </div>
-                <div className="p-3 bg-slate-50 rounded-xl space-y-0.5">
-                  <span className="text-[10px] font-bold uppercase text-slate-400">Dosage Form</span>
-                  <p className="font-bold text-slate-900">{selectedProductForDetails.dosageForm}</p>
+                <div>
+                  <span className="font-bold text-slate-400 text-[10px] uppercase">Primary Mobile</span>
+                  <p className="font-bold text-slate-900 mt-0.5">{detailsDistributor.mobile}</p>
                 </div>
-                <div className="p-3 bg-slate-50 rounded-xl space-y-0.5">
-                  <span className="text-[10px] font-bold uppercase text-slate-400">Packaging</span>
-                  <p className="font-bold text-slate-900 break-words break-all">{selectedProductForDetails.packaging || 'Standard'}</p>
+                <div>
+                  <span className="font-bold text-slate-400 text-[10px] uppercase">Drug License</span>
+                  <p className="font-bold text-slate-900 mt-0.5">{detailsDistributor.drugLicenseNumber || 'None'}</p>
                 </div>
-                {selectedProductForDetails.mrp > 0 && (
-                  <div className="p-3 bg-slate-50 rounded-xl space-y-0.5">
-                    <span className="text-[10px] font-bold uppercase text-slate-400">MRP</span>
-                    <p className="font-bold text-emerald-700">Rs. {Number(selectedProductForDetails.mrp).toFixed(2)}</p>
+                <div>
+                  <span className="font-bold text-slate-400 text-[10px] uppercase">GST Number</span>
+                  <p className="font-bold text-slate-900 mt-0.5">{detailsDistributor.gstNumber || 'None'}</p>
+                </div>
+              </div>
+
+              {Array.isArray(detailsDistributor.categories) && detailsDistributor.categories.length > 0 && (
+                <div>
+                  <span className="font-bold text-slate-400 text-[10px] uppercase block mb-1">Categories</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {detailsDistributor.categories.map((c) => (
+                      <span key={c} className="px-2 py-0.5 bg-teal-50 text-teal-800 rounded-md font-semibold text-xs border border-teal-200/60">
+                        {c}
+                      </span>
+                    ))}
                   </div>
-                )}
-                {selectedProductForDetails.strength && (
-                  <div className="p-3 bg-slate-50 rounded-xl space-y-0.5">
-                    <span className="text-[10px] font-bold uppercase text-slate-400">Strength</span>
-                    <p className="font-bold text-slate-900 break-words break-all">{selectedProductForDetails.strength}</p>
-                  </div>
-                )}
-                <div className="p-3 bg-slate-50 rounded-xl space-y-0.5">
-                  <span className="text-[10px] font-bold uppercase text-slate-400">Prescription Rx</span>
-                  <p className="font-bold text-slate-900">
-                    {selectedProductForDetails.prescriptionRequired ? 'Required (Rx)' : 'Non-Rx / OTC'}
-                  </p>
                 </div>
-              </div>
+              )}
 
-              {/* Submitter Details */}
-              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-slate-700 space-y-1">
-                <span className="text-[10px] font-bold uppercase text-slate-400 block">Submitted By</span>
-                <p className="font-bold text-slate-900 break-words break-all">
-                  {selectedProductForDetails.isDirectAdminEntry ? 'Admin (Direct Entry)' : selectedProductForDetails.submitterName || 'User Contribution'}
-                </p>
-                {selectedProductForDetails.submitterContact && (
-                  <p className="text-[11px] text-slate-500 break-words break-all">
-                    Contact: {selectedProductForDetails.submitterContact}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Sticky Footer */}
-            <div className="sticky bottom-0 z-20 bg-slate-50 px-6 py-3.5 sm:px-8 border-t border-slate-200 flex justify-end gap-2 flex-shrink-0">
-              <button
-                type="button"
-                onClick={() => setSelectedProductForDetails(null)}
-                className="px-5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL: VIEW DISTRIBUTOR DETAILS (ADMIN) ================= */}
-      {selectedDistributorForDetails && (
-        <div className="fixed inset-0 z-[160] flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-hidden">
-          <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-xs animate-in fade-in zoom-in-95 duration-200">
-            {/* Sticky Header Flush with Top (No gap) & Posted By Badge */}
-            <div className="sticky top-0 z-20 bg-white px-6 py-4 sm:px-8 border-b border-slate-200 flex items-start justify-between flex-shrink-0">
-              <div className="space-y-1.5 pr-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  {selectedDistributorForDetails.supplyCoverage?.panIndia ? (
-                    <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                      Pan-India Supplier
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                      Regional ({selectedDistributorForDetails.state})
-                    </span>
-                  )}
-                  <span
-                    className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full ${
-                      selectedDistributorForDetails.status === 'approved'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : selectedDistributorForDetails.status === 'rejected'
-                        ? 'bg-rose-100 text-rose-800'
-                        : 'bg-amber-100 text-amber-800'
-                    }`}
+              {detailsDistributor.catalogDocument?.url && (
+                <div className="pt-2">
+                  <a
+                    href={detailsDistributor.catalogDocument.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-2.5 px-3 bg-teal-700 hover:bg-teal-800 text-white rounded-xl font-bold flex items-center justify-center gap-2"
                   >
-                    {selectedDistributorForDetails.status}
-                  </span>
-
-                  {/* Posted By Badge */}
-                  {selectedDistributorForDetails.isDirectAdminEntry || selectedDistributorForDetails.submittedByModel === 'AdminUser' ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-teal-100/80 text-teal-900 border border-teal-300">
-                      <ShieldCheck className="w-3 h-3 text-teal-700" />
-                      <span>Posted by Admin</span>
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-100 text-slate-700 border border-slate-200">
-                      <User className="w-3 h-3 text-slate-500" />
-                      <span>Posted by {selectedDistributorForDetails.submitterName || 'User Contribution'}</span>
-                    </span>
-                  )}
+                    <Download className="w-4 h-4" />
+                    <span>Download Product Catalog Document</span>
+                  </a>
                 </div>
-                <h3 className="text-xl font-black text-slate-900 font-outfit break-words break-all">
-                  {selectedDistributorForDetails.firmName}
-                </h3>
-                <p className="text-xs text-slate-500 font-semibold break-words break-all">
-                  Contact Person: {selectedDistributorForDetails.contactPerson}
-                </p>
-              </div>
-              <button
-                onClick={() => setSelectedDistributorForDetails(null)}
-                className="p-1 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 flex-shrink-0"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              )}
+
+              {detailsDistributor.adminNotes && (
+                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 space-y-1">
+                  <span className="font-bold text-amber-800 text-[10px] uppercase">Admin Remarks</span>
+                  <p className="text-amber-900">{detailsDistributor.adminNotes}</p>
+                </div>
+              )}
             </div>
 
-            {/* Scrollable Body */}
-            <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-5 text-xs">
-              {/* Address banner */}
-              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                  Office / Warehouse Location
-                </span>
-                <p className="font-semibold text-slate-800 break-words break-all leading-relaxed">
-                  {selectedDistributorForDetails.officeAddress}, {selectedDistributorForDetails.city},{' '}
-                  {selectedDistributorForDetails.state}{' '}
-                  {selectedDistributorForDetails.pincode ? `- ${selectedDistributorForDetails.pincode}` : ''}
-                </p>
-              </div>
-
-              {/* Contact details */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <div className="p-3 bg-slate-50 rounded-xl space-y-0.5">
-                  <span className="text-[10px] font-bold uppercase text-slate-400">Mobile Number</span>
-                  <p className="font-bold text-slate-900 font-mono">{selectedDistributorForDetails.mobile}</p>
-                </div>
-                {selectedDistributorForDetails.whatsappNumber && (
-                  <div className="p-3 bg-slate-50 rounded-xl space-y-0.5">
-                    <span className="text-[10px] font-bold uppercase text-slate-400">WhatsApp</span>
-                    <p className="font-bold text-slate-900 font-mono">{selectedDistributorForDetails.whatsappNumber}</p>
-                  </div>
-                )}
-                {selectedDistributorForDetails.drugLicenseNumber && (
-                  <div className="p-3 bg-slate-50 rounded-xl space-y-0.5">
-                    <span className="text-[10px] font-bold uppercase text-slate-400">Drug License</span>
-                    <p className="font-bold text-slate-900 font-mono break-words break-all">
-                      {selectedDistributorForDetails.drugLicenseNumber}
-                    </p>
-                  </div>
-                )}
-                {selectedDistributorForDetails.gstNumber && (
-                  <div className="p-3 bg-slate-50 rounded-xl space-y-0.5">
-                    <span className="text-[10px] font-bold uppercase text-slate-400">GSTIN</span>
-                    <p className="font-bold text-slate-900 font-mono break-words break-all">
-                      {selectedDistributorForDetails.gstNumber}
-                    </p>
-                  </div>
-                )}
-                {selectedDistributorForDetails.minimumOrderValue > 0 && (
-                  <div className="p-3 bg-slate-50 rounded-xl space-y-0.5">
-                    <span className="text-[10px] font-bold uppercase text-slate-400">Min Order Value</span>
-                    <p className="font-bold text-emerald-700">
-                      Rs. {Number(selectedDistributorForDetails.minimumOrderValue).toLocaleString('en-IN')}
-                    </p>
-                  </div>
-                )}
-                {selectedDistributorForDetails.deliveryLeadTime && (
-                  <div className="p-3 bg-slate-50 rounded-xl space-y-0.5">
-                    <span className="text-[10px] font-bold uppercase text-slate-400">Lead Time</span>
-                    <p className="font-bold text-slate-900">{selectedDistributorForDetails.deliveryLeadTime}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Submitter */}
-              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-slate-700 space-y-1">
-                <span className="text-[10px] font-bold uppercase text-slate-400 block">Submitted By</span>
-                <p className="font-bold text-slate-900 break-words break-all">
-                  {selectedDistributorForDetails.isDirectAdminEntry ? 'Admin (Direct Entry)' : selectedDistributorForDetails.submitterName || 'User Contribution'}
-                </p>
-              </div>
-            </div>
-
-            {/* Sticky Footer */}
-            <div className="sticky bottom-0 z-20 bg-slate-50 px-6 py-3.5 sm:px-8 border-t border-slate-200 flex justify-end gap-2 flex-shrink-0">
+            <div className="flex-shrink-0 px-5 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-end">
               <button
-                type="button"
-                onClick={() => setSelectedDistributorForDetails(null)}
-                className="px-5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition-colors"
+                onClick={() => setDetailsDistributor(null)}
+                className="px-4 py-1.5 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300"
               >
                 Close
               </button>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+    </AnimatePresence>
+
+    {/* ================= MODAL: REJECT CONFIRMATION WITH REASON ================= */}
+    <AnimatePresence>
+      {rejectingDistributor && (
+        <motion.div
+          key="admin-distributor-reject-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+          onClick={() => setRejectingDistributor(null)}
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm p-3 sm:p-6 flex items-center justify-center overscroll-contain transform-gpu"
+        >
+          <motion.div
+            key="admin-distributor-reject-card"
+            initial={{ opacity: 0, scale: 0.98, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.98, y: 8 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 space-y-4 my-auto border border-slate-100"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-rose-100 text-rose-700 rounded-2xl flex-shrink-0">
+                <XCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-base">Reject Distributor Listing</h3>
+                <p className="text-xs text-slate-500">{rejectingDistributor.firmName}</p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                Reason for Rejection / Revision Note
+              </label>
+              <textarea
+                rows={3}
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="e.g. Drug license copy is missing or illegible. Please re-upload with clear credentials."
+                maxLength={300}
+                className="w-full p-3 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-rose-600 resize-none"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setRejectingDistributor(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={rejectingLoading}
+                onClick={handleConfirmReject}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {rejectingLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />}
+                <span>Confirm Rejection</span>
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
     </div>
   );
 }

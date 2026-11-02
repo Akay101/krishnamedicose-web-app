@@ -665,7 +665,7 @@ export default function ServicesPage() {
               <span className="text-[11px] font-bold text-slate-400">Active Service:</span>
               <span className="px-2.5 py-1 rounded-full bg-teal-50 border border-teal-200 text-teal-800 text-[11px] font-black uppercase tracking-wider">
                 {selectedService === "staffing" && "Staffing & Doctors"}
-                {selectedService === "catalogs" && "Product Catalogs"}
+                {selectedService === "catalogs" && "Distributors Directory"}
                 {selectedService === "medicine-data" && "Medicine Data"}
                 {selectedService === "links" && "Useful Links"}
               </span>
@@ -720,7 +720,7 @@ export default function ServicesPage() {
               </div>
             </button>
 
-            {/* 2. Product Catalogs & Distributors */}
+            {/* 2. Distributors Directory */}
             <button
               type="button"
               onClick={() => handleSelectService("catalogs")}
@@ -738,7 +738,7 @@ export default function ServicesPage() {
                       : "bg-teal-100 text-teal-800"
                   }`}
                 >
-                  <Pill className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <Building2 className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
                 <span
                   className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
@@ -752,7 +752,7 @@ export default function ServicesPage() {
               </div>
               <div>
                 <h3 className="font-extrabold text-xs sm:text-sm font-outfit leading-snug">
-                  Product Catalogs
+                  Distributors Directory
                 </h3>
                 <p
                   className={`text-[11px] line-clamp-1 mt-0.5 ${
@@ -761,7 +761,7 @@ export default function ServicesPage() {
                       : "text-slate-500"
                   }`}
                 >
-                  Formulations & stockists
+                  Pharma distributors & stockists
                 </p>
               </div>
             </button>

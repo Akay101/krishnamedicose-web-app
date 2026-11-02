@@ -38,15 +38,18 @@ export const INDIAN_STATES = [
 ];
 
 export const PHARMACY_CATEGORIES = [
-  'Allopathic',
+  'Allopathic Medicines',
   'Ayurvedic & Herbal',
-  'Homeopathic',
-  'OTC Healthcare',
+  'Generic Medicines',
+  'PCD / Pharma Franchise',
+  'OTC Healthcare & Wellness',
+  'Narcotics & Controlled Substances',
   'Cosmetics & Derma',
   'Surgical & Medical Devices',
-  'Generic Medicine',
-  'Nutrition & Supplements',
-  'Veterinary',
+  'Veterinary & Animal Healthcare',
+  'Critical Care & Injectables',
+  'Nutraceuticals & Supplements',
+  'Homeopathic',
   'Other'
 ];
 

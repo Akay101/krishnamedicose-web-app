@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
   Building2,
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react';
 import servicesApi from '../../utils/servicesApi';
 import LocationPicker from './LocationPicker';
+import { lockScroll, unlockScroll } from '../../utils/scrollLock';
 
 export default function ServicesAuthModal({
   isOpen,
@@ -130,7 +132,14 @@ export default function ServicesAuthModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (isOpen) {
+      lockScroll();
+      return () => {
+        unlockScroll();
+      };
+    }
+  }, [isOpen]);
 
   // Handle Intent Selection
   const handleSelectPrimaryIntent = (role) => {
@@ -410,8 +419,26 @@ export default function ServicesAuthModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-950/75 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto">
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          key="services-auth-modal-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+          onClick={onClose}
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-950/75 backdrop-blur-sm overflow-y-auto transform-gpu overscroll-contain"
+        >
+          <motion.div
+            key="services-auth-modal-card"
+            initial={{ opacity: 0, scale: 0.98, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.98, y: 8 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto"
+          >
         {/* Header */}
         <div className="bg-gradient-to-r from-teal-700 via-teal-800 to-slate-900 px-6 sm:px-8 py-5 text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -1190,7 +1217,9 @@ export default function ServicesAuthModal({
             </form>
           )}
         </div>
-      </div>
-    </div>
-  );
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
+);
 }

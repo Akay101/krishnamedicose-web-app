@@ -1,5 +1,7 @@
+import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, AlertCircle, CheckCircle2, Info, HelpCircle } from 'lucide-react';
+import { lockScroll, unlockScroll } from '../utils/scrollLock';
 
 export default function CustomModal({ 
   isOpen, 
@@ -11,6 +13,14 @@ export default function CustomModal({
   confirmText = 'Confirm',
   cancelText = 'Cancel'
 }) {
+  useEffect(() => {
+    if (isOpen) {
+      lockScroll();
+      return () => {
+        unlockScroll();
+      };
+    }
+  }, [isOpen]);
   const icons = {
     info: <Info className="w-8 h-8 text-primary" />,
     success: <CheckCircle2 className="w-8 h-8 text-green-400" />,
@@ -28,19 +38,21 @@ export default function CustomModal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+        <motion.div
+          key="custom-modal-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+          onClick={onClose}
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm transform-gpu overscroll-contain"
+        >
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="absolute inset-0 bg-slate-900/40"
-          />
-          
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            initial={{ scale: 0.95, opacity: 0, y: 12 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+            exit={{ scale: 0.95, opacity: 0, y: 12 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            onClick={(e) => e.stopPropagation()}
             className={`relative w-full max-w-2xl bg-white border ${colors[type]} rounded-3xl sm:rounded-[2.5rem] p-5 sm:p-8 shadow-2xl overflow-hidden`}
           >
             {/* Close Button */}
@@ -94,7 +106,7 @@ export default function CustomModal({
             </div>
 
           </motion.div>
-        </div>
+        </motion.div>
       )}
     </AnimatePresence>
   );

@@ -1,5 +1,39 @@
 const mongoose = require('mongoose');
 
+const documentAttachmentSchema = new mongoose.Schema(
+  {
+    url: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    filename: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    originalName: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    mimeType: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    size: {
+      type: Number,
+      default: 0
+    },
+    uploadedAt: {
+      type: Date,
+      default: Date.now
+    }
+  },
+  { _id: false }
+);
+
 const productDistributorSchema = new mongoose.Schema(
   {
     firmName: {
@@ -10,12 +44,17 @@ const productDistributorSchema = new mongoose.Schema(
       maxlength: [120, 'Firm name cannot exceed 120 characters'],
       index: true
     },
+    entryType: {
+      type: String,
+      enum: ['distributor_self', 'pharmacist_entry', 'admin_entry'],
+      default: 'distributor_self',
+      index: true
+    },
     contactPerson: {
       type: String,
-      required: [true, 'Contact person name is required'],
       trim: true,
-      minlength: [2, 'Contact person must be at least 2 characters'],
-      maxlength: [80, 'Contact person cannot exceed 80 characters']
+      maxlength: [80, 'Contact person cannot exceed 80 characters'],
+      default: ''
     },
     mobile: {
       type: String,
@@ -40,6 +79,18 @@ const productDistributorSchema = new mongoose.Schema(
       maxlength: [80, 'Email cannot exceed 80 characters'],
       default: ''
     },
+    categories: [
+      {
+        type: String,
+        trim: true
+      }
+    ],
+    otherCategory: {
+      type: String,
+      trim: true,
+      maxlength: [100, 'Other category cannot exceed 100 characters'],
+      default: ''
+    },
     drugLicenseNumber: {
       type: String,
       trim: true,
@@ -53,24 +104,25 @@ const productDistributorSchema = new mongoose.Schema(
       maxlength: [15, 'GST number cannot exceed 15 characters'],
       default: ''
     },
+    // Single consolidated address string
     officeAddress: {
       type: String,
-      required: [true, 'Office or warehouse address is required'],
+      required: [true, 'Address or location is required'],
       trim: true,
-      maxlength: [200, 'Address cannot exceed 200 characters']
+      maxlength: [300, 'Address cannot exceed 300 characters']
     },
     city: {
       type: String,
-      required: [true, 'City is required'],
       trim: true,
       maxlength: [60, 'City cannot exceed 60 characters'],
+      default: '',
       index: true
     },
     state: {
       type: String,
-      required: [true, 'State is required'],
       trim: true,
       maxlength: [60, 'State cannot exceed 60 characters'],
+      default: '',
       index: true
     },
     pincode: {
@@ -109,10 +161,19 @@ const productDistributorSchema = new mongoose.Schema(
         }
       ]
     },
+    // Documents attached
+    catalogDocument: {
+      type: documentAttachmentSchema,
+      default: () => ({})
+    },
+    drugLicenseDocument: {
+      type: documentAttachmentSchema,
+      default: () => ({})
+    },
     minimumOrderValue: {
       type: Number,
       min: [0, 'Minimum order value cannot be negative'],
-      max: [10000000, 'Minimum order value cannot exceed ₹1,00,00,000'],
+      max: [10000000, 'Minimum order value cannot exceed 1,00,00,000'],
       default: 0
     },
     deliveryLeadTime: {
@@ -158,6 +219,11 @@ const productDistributorSchema = new mongoose.Schema(
       trim: true,
       default: ''
     },
+    submitterRole: {
+      type: String,
+      enum: ['distributor', 'pharmacist', 'admin'],
+      default: 'distributor'
+    },
     adminNotes: {
       type: String,
       trim: true,
@@ -178,7 +244,16 @@ const productDistributorSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-productDistributorSchema.index({ firmName: 'text', city: 'text', state: 'text' });
+productDistributorSchema.index({
+  firmName: 'text',
+  city: 'text',
+  state: 'text',
+  officeAddress: 'text',
+  categories: 'text'
+});
 productDistributorSchema.index({ location: '2dsphere' });
+productDistributorSchema.index({ categories: 1 });
+productDistributorSchema.index({ status: 1 });
+productDistributorSchema.index({ entryType: 1 });
 
 module.exports = mongoose.model('ProductDistributor', productDistributorSchema);

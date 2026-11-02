@@ -2,11 +2,43 @@ const ProductCatalog = require('../models/ProductCatalog');
 const ProductDistributor = require('../models/ProductDistributor');
 const ServiceUser = require('../models/ServiceUser');
 const User = require('../models/User');
+const catalogUploadService = require('../services/catalogUploadService');
 
 // Helper to sanitize text input
 const sanitizeText = (str) => {
   if (typeof str !== 'string') return '';
   return str.replace(/<[^>]*>?/gm, '').trim();
+};
+
+/**
+ * Upload and sanitize catalog document or drug license file
+ * POST /api/catalogs/upload-document
+ */
+exports.uploadDocument = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file provided for upload.' });
+    }
+
+    const folder = req.query.folder === 'licenses' ? 'licenses' : 'catalogs';
+    const uploadResult = await catalogUploadService.uploadSanitizedDocument(req.file, folder);
+
+    res.status(201).json({
+      success: true,
+      message: 'Document successfully verified and uploaded.',
+      document: {
+        url: uploadResult.url,
+        filename: uploadResult.filename,
+        originalName: uploadResult.originalName,
+        mimeType: uploadResult.mimeType,
+        size: uploadResult.size,
+        uploadedAt: new Date()
+      }
+    });
+  } catch (error) {
+    console.error('Document upload sanitization error:', error);
+    res.status(400).json({ message: error.message || 'File upload failed validation checks.' });
+  }
 };
 
 /**
@@ -420,11 +452,12 @@ exports.createProduct = async (req, res) => {
  */
 exports.getDistributors = async (req, res) => {
   try {
-    const { search, state, city, panIndiaOnly, page = 1, limit = 20 } = req.query;
+    const { search, category, state, city, panIndiaOnly, page = 1, limit = 20 } = req.query;
 
     const query = { status: 'approved' };
     const andConditions = [];
 
+    // Keyword search across firm name, contact person, drug license, categories, address, city, and state
     if (search && search.trim()) {
       const sanitized = sanitizeText(search);
       const searchRegex = new RegExp(sanitized, 'i');
@@ -432,9 +465,23 @@ exports.getDistributors = async (req, res) => {
         $or: [
           { firmName: searchRegex },
           { contactPerson: searchRegex },
+          { categories: searchRegex },
+          { otherCategory: searchRegex },
+          { officeAddress: searchRegex },
           { drugLicenseNumber: searchRegex },
           { city: searchRegex },
           { state: searchRegex }
+        ]
+      });
+    }
+
+    // Category filter
+    if (category && category !== 'All') {
+      const sanitizedCat = sanitizeText(category);
+      andConditions.push({
+        $or: [
+          { categories: sanitizedCat },
+          { otherCategory: new RegExp(sanitizedCat, 'i') }
         ]
       });
     }
@@ -448,12 +495,14 @@ exports.getDistributors = async (req, res) => {
         const stateRegex = new RegExp(`^${sanitizeText(state)}$`, 'i');
         locConditions.push({ state: stateRegex });
         locConditions.push({ 'supplyCoverage.statesCovered': stateRegex });
+        locConditions.push({ officeAddress: stateRegex });
       }
 
       if (city && city.trim()) {
         const cityRegex = new RegExp(sanitizeText(city), 'i');
         locConditions.push({ city: cityRegex });
         locConditions.push({ 'supplyCoverage.citiesCovered': cityRegex });
+        locConditions.push({ officeAddress: cityRegex });
       }
 
       andConditions.push({ $or: locConditions });
@@ -511,7 +560,7 @@ exports.getDistributorById = async (req, res) => {
       }
     }
 
-    // Find products supplied by this distributor
+    // Find products supplied by this distributor (if any)
     const productsSupplied = await ProductCatalog.find({
       distributors: distributor._id,
       status: 'approved'
@@ -525,18 +574,21 @@ exports.getDistributorById = async (req, res) => {
 };
 
 /**
- * Add standalone distributor
+ * Add standalone distributor (Distributor Self-Registration OR Pharmacist Recommendation OR Direct Admin Entry)
  * POST /api/catalogs/distributors
  */
 exports.createDistributor = async (req, res) => {
   try {
     const {
+      entryType = 'distributor_self',
       firmName,
       contactPerson,
       mobile,
       alternateMobile,
       whatsappNumber,
       email,
+      categories,
+      otherCategory,
       drugLicenseNumber,
       gstNumber,
       officeAddress,
@@ -546,11 +598,18 @@ exports.createDistributor = async (req, res) => {
       panIndia,
       statesCovered,
       citiesCovered,
+      catalogDocument,
+      drugLicenseDocument,
       minimumOrderValue,
       deliveryLeadTime,
       paymentTerms,
       notes
     } = req.body;
+
+    const isAdmin = Boolean(req.isAdmin);
+    const validEntryType = ['distributor_self', 'pharmacist_entry', 'admin_entry'].includes(entryType)
+      ? (isAdmin && entryType === 'admin_entry' ? 'admin_entry' : entryType)
+      : 'distributor_self';
 
     const sanitizedFirm = sanitizeText(firmName);
     const sanitizedContact = sanitizeText(contactPerson);
@@ -564,21 +623,56 @@ exports.createDistributor = async (req, res) => {
     const sanitizedAltMobile = sanitizeText(alternateMobile);
     const sanitizedWhatsapp = sanitizeText(whatsappNumber);
     const sanitizedEmail = sanitizeText(email);
+    const sanitizedOtherCat = sanitizeText(otherCategory);
 
+    // Process categories array
+    let processedCategories = [];
+    if (Array.isArray(categories)) {
+      processedCategories = categories.map(sanitizeText).filter(Boolean);
+    } else if (typeof categories === 'string' && categories.trim()) {
+      processedCategories = [sanitizeText(categories)];
+    }
+
+    // Common validations
     if (!sanitizedFirm) {
       return res.status(400).json({ message: 'Distributor firm name is required.' });
     }
-    if (!sanitizedContact) {
-      return res.status(400).json({ message: 'Contact person name is required.' });
+    if (sanitizedFirm.length > 120) {
+      return res.status(400).json({ message: 'Firm name cannot exceed 120 characters.' });
     }
+
+    if (!sanitizedAddress) {
+      return res.status(400).json({ message: 'Consolidated address / location is required.' });
+    }
+    if (sanitizedAddress.length > 300) {
+      return res.status(400).json({ message: 'Address cannot exceed 300 characters.' });
+    }
+
     if (!sanitizedMobile) {
       return res.status(400).json({ message: 'Primary mobile number is required.' });
     }
     if (!/^[6-9]\d{9}$/.test(sanitizedMobile)) {
       return res.status(400).json({
-        message: 'Mobile number must be a valid 10-digit Indian number.'
+        message: 'Primary mobile number must be a valid 10-digit Indian phone number.'
       });
     }
+
+    if (processedCategories.length === 0 && !sanitizedOtherCat) {
+      return res.status(400).json({
+        message: 'Please select at least one product category (e.g., Allopathic, OTC, Ayurvedic, etc.).'
+      });
+    }
+
+    // Persona-specific validation
+    if (validEntryType === 'distributor_self' || validEntryType === 'admin_entry') {
+      if (!sanitizedContact) {
+        return res.status(400).json({ message: 'Contact person name is required for distributor registration.' });
+      }
+      if (sanitizedContact.length > 80) {
+        return res.status(400).json({ message: 'Contact person cannot exceed 80 characters.' });
+      }
+    }
+
     if (sanitizedAltMobile && !/^[6-9]\d{9}$/.test(sanitizedAltMobile)) {
       return res.status(400).json({
         message: 'Alternate mobile number must be a valid 10-digit Indian number.'
@@ -589,34 +683,8 @@ exports.createDistributor = async (req, res) => {
         message: 'WhatsApp number must be a valid 10-digit Indian number.'
       });
     }
-    if (!sanitizedAddress) {
-      return res.status(400).json({ message: 'Office / Warehouse address is required.' });
-    }
-    if (!sanitizedCity) {
-      return res.status(400).json({ message: 'City is required.' });
-    }
-    if (!sanitizedState) {
-      return res.status(400).json({ message: 'State is required.' });
-    }
-
-    // Length checks
-    if (sanitizedFirm.length > 120) {
-      return res.status(400).json({ message: 'Firm name cannot exceed 120 characters.' });
-    }
-    if (sanitizedContact.length > 80) {
-      return res.status(400).json({ message: 'Contact person cannot exceed 80 characters.' });
-    }
-    if (sanitizedAddress.length > 200) {
-      return res.status(400).json({ message: 'Office address cannot exceed 200 characters.' });
-    }
-    if (sanitizedCity.length > 60) {
-      return res.status(400).json({ message: 'City cannot exceed 60 characters.' });
-    }
-    if (sanitizedState.length > 60) {
-      return res.status(400).json({ message: 'State cannot exceed 60 characters.' });
-    }
-    if (sanitizedPincode && !/^\d{6}$/.test(sanitizedPincode)) {
-      return res.status(400).json({ message: 'Pincode must be exactly 6 digits.' });
+    if (sanitizedEmail && sanitizedEmail.length > 100) {
+      return res.status(400).json({ message: 'Email address cannot exceed 100 characters.' });
     }
     if (sanitizedDl && sanitizedDl.length > 60) {
       return res.status(400).json({ message: 'Drug License number cannot exceed 60 characters.' });
@@ -624,8 +692,8 @@ exports.createDistributor = async (req, res) => {
     if (sanitizedGst && sanitizedGst.length > 15) {
       return res.status(400).json({ message: 'GST number cannot exceed 15 characters.' });
     }
-    if (sanitizedEmail && sanitizedEmail.length > 100) {
-      return res.status(400).json({ message: 'Email address cannot exceed 100 characters.' });
+    if (sanitizedPincode && !/^\d{6}$/.test(sanitizedPincode)) {
+      return res.status(400).json({ message: 'Pincode must be exactly 6 digits.' });
     }
 
     let parsedMov = 0;
@@ -636,33 +704,61 @@ exports.createDistributor = async (req, res) => {
       }
     }
 
-    const isAdmin = Boolean(req.isAdmin);
     const initialStatus = isAdmin ? 'approved' : 'pending_approval';
 
     let submittedBy = null;
     let submittedByModel = 'ServiceUser';
     let submitterName = '';
     let submitterContact = '';
+    let submitterRole = 'distributor';
 
     if (isAdmin && req.user) {
       submittedBy = req.user._id;
       submittedByModel = 'User';
       submitterName = req.user.name || 'Admin';
       submitterContact = req.user.email || '';
+      submitterRole = 'admin';
     } else if (req.serviceUser) {
       submittedBy = req.serviceUser._id;
       submittedByModel = 'ServiceUser';
       submitterName = req.serviceUser.name || '';
       submitterContact = req.serviceUser.mobile || req.serviceUser.email || '';
+      submitterRole = validEntryType === 'pharmacist_entry' ? 'pharmacist' : 'distributor';
     }
+
+    // Safe document structure builders
+    const safeCatalogDoc = catalogDocument && typeof catalogDocument === 'object' && catalogDocument.url
+      ? {
+          url: sanitizeText(catalogDocument.url),
+          filename: sanitizeText(catalogDocument.filename),
+          originalName: sanitizeText(catalogDocument.originalName),
+          mimeType: sanitizeText(catalogDocument.mimeType),
+          size: Number(catalogDocument.size) || 0,
+          uploadedAt: new Date()
+        }
+      : {};
+
+    const safeLicenseDoc = drugLicenseDocument && typeof drugLicenseDocument === 'object' && drugLicenseDocument.url
+      ? {
+          url: sanitizeText(drugLicenseDocument.url),
+          filename: sanitizeText(drugLicenseDocument.filename),
+          originalName: sanitizeText(drugLicenseDocument.originalName),
+          mimeType: sanitizeText(drugLicenseDocument.mimeType),
+          size: Number(drugLicenseDocument.size) || 0,
+          uploadedAt: new Date()
+        }
+      : {};
 
     const newDistributor = new ProductDistributor({
       firmName: sanitizedFirm,
-      contactPerson: sanitizedContact,
+      entryType: validEntryType,
+      contactPerson: sanitizedContact || (validEntryType === 'pharmacist_entry' ? submitterName : ''),
       mobile: sanitizedMobile,
       alternateMobile: sanitizedAltMobile,
       whatsappNumber: sanitizedWhatsapp,
       email: sanitizedEmail,
+      categories: processedCategories,
+      otherCategory: sanitizedOtherCat,
       drugLicenseNumber: sanitizedDl,
       gstNumber: sanitizedGst,
       officeAddress: sanitizedAddress,
@@ -681,6 +777,8 @@ exports.createDistributor = async (req, res) => {
         statesCovered: Array.isArray(statesCovered) ? statesCovered.map(sanitizeText).filter(Boolean) : [],
         citiesCovered: Array.isArray(citiesCovered) ? citiesCovered.map(sanitizeText).filter(Boolean) : []
       },
+      catalogDocument: safeCatalogDoc,
+      drugLicenseDocument: safeLicenseDoc,
       minimumOrderValue: parsedMov,
       deliveryLeadTime: sanitizeText(deliveryLeadTime) || '24-48 Hours',
       paymentTerms: sanitizeText(paymentTerms) || 'Credit / COD / Advance',
@@ -690,6 +788,7 @@ exports.createDistributor = async (req, res) => {
       submittedByModel,
       submitterName,
       submitterContact,
+      submitterRole,
       approvedBy: isAdmin && req.user ? req.user._id : undefined,
       approvedAt: isAdmin ? new Date() : undefined,
       isDirectAdminEntry: isAdmin
@@ -701,7 +800,7 @@ exports.createDistributor = async (req, res) => {
       success: true,
       message: isAdmin
         ? 'Distributor directory entry added and approved.'
-        : 'Distributor entry submitted successfully. It will be listed after administrative approval.',
+        : 'Distributor entry submitted successfully. It will be visible in the directory after administrative verification.',
       distributor: newDistributor
     });
   } catch (error) {
@@ -753,36 +852,36 @@ exports.getUserContributions = async (req, res) => {
 exports.getAdminStats = async (req, res) => {
   try {
     const [
-      totalProducts,
-      pendingProducts,
-      approvedProducts,
-      rejectedProducts,
       totalDistributors,
       pendingDistributors,
       approvedDistributors,
-      panIndiaDistributors
+      rejectedDistributors,
+      panIndiaDistributors,
+      distributorSelfCount,
+      pharmacistEntryCount,
+      adminEntryCount
     ] = await Promise.all([
-      ProductCatalog.countDocuments(),
-      ProductCatalog.countDocuments({ status: 'pending_approval' }),
-      ProductCatalog.countDocuments({ status: 'approved' }),
-      ProductCatalog.countDocuments({ status: 'rejected' }),
       ProductDistributor.countDocuments(),
       ProductDistributor.countDocuments({ status: 'pending_approval' }),
       ProductDistributor.countDocuments({ status: 'approved' }),
-      ProductDistributor.countDocuments({ 'supplyCoverage.panIndia': true, status: 'approved' })
+      ProductDistributor.countDocuments({ status: 'rejected' }),
+      ProductDistributor.countDocuments({ 'supplyCoverage.panIndia': true, status: 'approved' }),
+      ProductDistributor.countDocuments({ entryType: 'distributor_self' }),
+      ProductDistributor.countDocuments({ entryType: 'pharmacist_entry' }),
+      ProductDistributor.countDocuments({ entryType: 'admin_entry' })
     ]);
 
     res.json({
       success: true,
       stats: {
-        totalProducts,
-        pendingProducts,
-        approvedProducts,
-        rejectedProducts,
         totalDistributors,
         pendingDistributors,
         approvedDistributors,
-        panIndiaDistributors
+        rejectedDistributors,
+        panIndiaDistributors,
+        distributorSelfCount,
+        pharmacistEntryCount,
+        adminEntryCount
       }
     });
   } catch (error) {
@@ -1010,32 +1109,64 @@ exports.deleteProduct = async (req, res) => {
  */
 exports.getAdminDistributors = async (req, res) => {
   try {
-    const { status, search, state, page = 1, limit = 30 } = req.query;
+    const { status, entryType, category, search, state, page = 1, limit = 30 } = req.query;
     const query = {};
 
     if (status && status !== 'All') {
       query.status = status;
     }
 
-    if (state && state !== 'All') {
+    if (entryType && entryType !== 'All') {
+      query.entryType = entryType;
+    }
+
+    if (category && category !== 'All') {
+      const sanitizedCat = sanitizeText(category);
       query.$or = [
+        { categories: sanitizedCat },
+        { otherCategory: new RegExp(sanitizedCat, 'i') }
+      ];
+    }
+
+    if (state && state !== 'All') {
+      const stateConds = [
         { 'supplyCoverage.panIndia': true },
         { state: new RegExp(`^${sanitizeText(state)}$`, 'i') },
-        { 'supplyCoverage.statesCovered': new RegExp(`^${sanitizeText(state)}$`, 'i') }
+        { 'supplyCoverage.statesCovered': new RegExp(`^${sanitizeText(state)}$`, 'i') },
+        { officeAddress: new RegExp(sanitizeText(state), 'i') }
       ];
+      if (query.$or) {
+        query.$and = [{ $or: query.$or }, { $or: stateConds }];
+        delete query.$or;
+      } else {
+        query.$or = stateConds;
+      }
     }
 
     if (search && search.trim()) {
       const sanitized = sanitizeText(search);
       const searchRegex = new RegExp(sanitized, 'i');
-      query.$or = [
+      const searchConds = [
         { firmName: searchRegex },
         { contactPerson: searchRegex },
         { mobile: searchRegex },
+        { categories: searchRegex },
+        { otherCategory: searchRegex },
+        { officeAddress: searchRegex },
         { drugLicenseNumber: searchRegex },
         { gstNumber: searchRegex },
-        { city: searchRegex }
+        { city: searchRegex },
+        { state: searchRegex }
       ];
+
+      if (query.$and) {
+        query.$and.push({ $or: searchConds });
+      } else if (query.$or) {
+        query.$and = [{ $or: query.$or }, { $or: searchConds }];
+        delete query.$or;
+      } else {
+        query.$or = searchConds;
+      }
     }
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -1123,7 +1254,6 @@ exports.updateDistributor = async (req, res) => {
     }
     if (updates.contactPerson !== undefined) {
       const cp = sanitizeText(updates.contactPerson);
-      if (!cp) return res.status(400).json({ message: 'Contact person cannot be empty.' });
       if (cp.length > 80) return res.status(400).json({ message: 'Contact person cannot exceed 80 characters.' });
       distributor.contactPerson = cp;
     }
@@ -1153,6 +1283,16 @@ exports.updateDistributor = async (req, res) => {
       if (em.length > 100) return res.status(400).json({ message: 'Email cannot exceed 100 characters.' });
       distributor.email = em;
     }
+    if (updates.categories !== undefined) {
+      if (Array.isArray(updates.categories)) {
+        distributor.categories = updates.categories.map(sanitizeText).filter(Boolean);
+      } else if (typeof updates.categories === 'string' && updates.categories.trim()) {
+        distributor.categories = [sanitizeText(updates.categories)];
+      }
+    }
+    if (updates.otherCategory !== undefined) {
+      distributor.otherCategory = sanitizeText(updates.otherCategory).substring(0, 100);
+    }
     if (updates.drugLicenseNumber !== undefined) {
       const dl = sanitizeText(updates.drugLicenseNumber);
       if (dl.length > 60) return res.status(400).json({ message: 'Drug License cannot exceed 60 characters.' });
@@ -1166,20 +1306,14 @@ exports.updateDistributor = async (req, res) => {
     if (updates.officeAddress !== undefined) {
       const addr = sanitizeText(updates.officeAddress);
       if (!addr) return res.status(400).json({ message: 'Office address cannot be empty.' });
-      if (addr.length > 200) return res.status(400).json({ message: 'Office address cannot exceed 200 characters.' });
+      if (addr.length > 300) return res.status(400).json({ message: 'Office address cannot exceed 300 characters.' });
       distributor.officeAddress = addr;
     }
     if (updates.city !== undefined) {
-      const ct = sanitizeText(updates.city);
-      if (!ct) return res.status(400).json({ message: 'City cannot be empty.' });
-      if (ct.length > 60) return res.status(400).json({ message: 'City cannot exceed 60 characters.' });
-      distributor.city = ct;
+      distributor.city = sanitizeText(updates.city).substring(0, 60);
     }
     if (updates.state !== undefined) {
-      const st = sanitizeText(updates.state);
-      if (!st) return res.status(400).json({ message: 'State cannot be empty.' });
-      if (st.length > 60) return res.status(400).json({ message: 'State cannot exceed 60 characters.' });
-      distributor.state = st;
+      distributor.state = sanitizeText(updates.state).substring(0, 60);
     }
     if (updates.pincode !== undefined) {
       const pin = sanitizeText(updates.pincode);
@@ -1187,6 +1321,40 @@ exports.updateDistributor = async (req, res) => {
         return res.status(400).json({ message: 'Pincode must be exactly 6 digits.' });
       }
       distributor.pincode = pin;
+    }
+    if (Array.isArray(updates.coordinates) && updates.coordinates.length === 2) {
+      distributor.location = {
+        type: 'Point',
+        coordinates: [Number(updates.coordinates[0]), Number(updates.coordinates[1])]
+      };
+    }
+    if (updates.catalogDocument !== undefined) {
+      if (updates.catalogDocument && typeof updates.catalogDocument === 'object' && updates.catalogDocument.url) {
+        distributor.catalogDocument = {
+          url: sanitizeText(updates.catalogDocument.url),
+          filename: sanitizeText(updates.catalogDocument.filename),
+          originalName: sanitizeText(updates.catalogDocument.originalName),
+          mimeType: sanitizeText(updates.catalogDocument.mimeType),
+          size: Number(updates.catalogDocument.size) || 0,
+          uploadedAt: new Date()
+        };
+      } else {
+        distributor.catalogDocument = {};
+      }
+    }
+    if (updates.drugLicenseDocument !== undefined) {
+      if (updates.drugLicenseDocument && typeof updates.drugLicenseDocument === 'object' && updates.drugLicenseDocument.url) {
+        distributor.drugLicenseDocument = {
+          url: sanitizeText(updates.drugLicenseDocument.url),
+          filename: sanitizeText(updates.drugLicenseDocument.filename),
+          originalName: sanitizeText(updates.drugLicenseDocument.originalName),
+          mimeType: sanitizeText(updates.drugLicenseDocument.mimeType),
+          size: Number(updates.drugLicenseDocument.size) || 0,
+          uploadedAt: new Date()
+        };
+      } else {
+        distributor.drugLicenseDocument = {};
+      }
     }
 
     if (updates.supplyCoverage !== undefined) {
@@ -1220,7 +1388,7 @@ exports.updateDistributor = async (req, res) => {
     }
     if (updates.notes !== undefined) {
       const nt = sanitizeText(updates.notes);
-      if (nt.length > 500) return res.status(400).json({ message: 'Notes cannot exceed 500 characters.' });
+      if (nt.length > 1000) return res.status(400).json({ message: 'Notes cannot exceed 1000 characters.' });
       distributor.notes = nt;
     }
 

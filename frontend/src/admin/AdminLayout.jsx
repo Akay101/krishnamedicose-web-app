@@ -20,7 +20,7 @@ export default function AdminLayout() {
   const menuItems = [
     { name: 'Dashboard', path: '/admin', icon: LayoutDashboard, show: true },
     { 
-      name: 'Product Catalogs', 
+      name: 'Distributors Directory', 
       path: '/admin/catalogs', 
       icon: Pill, 
       show: isRootAdmin || user.permissions?.website 
