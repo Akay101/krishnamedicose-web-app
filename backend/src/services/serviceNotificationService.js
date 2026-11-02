@@ -360,17 +360,25 @@ const notifyDoctorOfInquiryStatusUpdate = async (inquiry, collab, newStatus) => 
  */
 const sendOtpEmail = async ({ to, otp, purpose, userName }) => {
   const isRegister = purpose === 'register';
-  const subject = isRegister
-    ? `Your Registration Verification Code: ${otp} - Krishna Medicose`
-    : `Your Sign In Verification Code: ${otp} - Krishna Medicose`;
+  const isForgot = purpose === 'forgot_password';
 
-  const title = isRegister
-    ? 'Verify Your Email Address'
-    : 'Two-Step Sign In Verification';
+  let subject = `Your Sign In Verification Code: ${otp} - Krishna Medicose`;
+  let title = 'Two-Step Sign In Verification';
+  let actionText = 'sign in';
+
+  if (isRegister) {
+    subject = `Your Registration Verification Code: ${otp} - Krishna Medicose`;
+    title = 'Verify Your Email Address';
+    actionText = 'account registration';
+  } else if (isForgot) {
+    subject = `Your Password Reset Code: ${otp} - Krishna Medicose`;
+    title = 'Reset Your Password';
+    actionText = 'password reset';
+  }
 
   const bodyContent = `
     <p>Hello${userName ? ' <strong>' + escapeHtml(userName) + '</strong>' : ''},</p>
-    <p>Please use the following 6-digit verification code to complete your ${isRegister ? 'account registration' : 'sign in'}:</p>
+    <p>Please use the following 6-digit verification code to complete your ${actionText}:</p>
     <div style="margin:24px 0;padding:20px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;text-align:center;">
       <span style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#0f766e;font-family:monospace;">${escapeHtml(otp)}</span>
     </div>

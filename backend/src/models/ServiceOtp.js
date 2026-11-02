@@ -16,7 +16,7 @@ const serviceOtpSchema = new mongoose.Schema(
     purpose: {
       type: String,
       required: true,
-      enum: ['register', 'login']
+      enum: ['register', 'login', 'forgot_password']
     },
     attempts: {
       type: Number,

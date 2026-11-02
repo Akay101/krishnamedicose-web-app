@@ -4,6 +4,7 @@ const rateLimit = require('express-rate-limit');
 
 const {
   serviceAuthMiddleware,
+  optionalServiceAuth,
   requireAdmin
 } = require('../middleware/serviceAuthMiddleware');
 
@@ -21,7 +22,9 @@ const contributionLimiter = rateLimit({
 
 /**
  * =========================================================================
- * AUTHENTICATED USER ENDPOINTS (Registered & Signed-in users + Admins)
+ * PUBLIC & USER DIRECTORY ENDPOINTS
+ * Browsing approved entries is open to all visitors;
+ * Uploads & submissions require signed-in authentication.
  * =========================================================================
  */
 
@@ -33,11 +36,11 @@ router.post(
   catalogController.uploadDocument
 );
 
-// Search / browse approved distributors directory
-router.get('/distributors', serviceAuthMiddleware, catalogController.getDistributors);
+// Search / browse approved distributors directory (open to public, enhanced if authenticated)
+router.get('/distributors', optionalServiceAuth, catalogController.getDistributors);
 
-// Get single distributor details by ID
-router.get('/distributors/:id', serviceAuthMiddleware, catalogController.getDistributorById);
+// Get single distributor details by ID (approved is public; pending requires owner or admin)
+router.get('/distributors/:id', optionalServiceAuth, catalogController.getDistributorById);
 
 // Add distributor (Distributor Self-Registration or Pharmacist Recommendation)
 router.post('/distributors', serviceAuthMiddleware, contributionLimiter, catalogController.createDistributor);
@@ -46,8 +49,8 @@ router.post('/distributors', serviceAuthMiddleware, contributionLimiter, catalog
 router.get('/my-contributions', serviceAuthMiddleware, catalogController.getUserContributions);
 
 // Products endpoints (preserved for backwards-compatibility)
-router.get('/products', serviceAuthMiddleware, catalogController.getProducts);
-router.get('/products/:id', serviceAuthMiddleware, catalogController.getProductById);
+router.get('/products', optionalServiceAuth, catalogController.getProducts);
+router.get('/products/:id', optionalServiceAuth, catalogController.getProductById);
 router.post('/products', serviceAuthMiddleware, contributionLimiter, catalogController.createProduct);
 
 /**

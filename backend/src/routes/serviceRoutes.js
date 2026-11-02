@@ -81,8 +81,14 @@ router.post('/auth/login', serviceAuthLimiter, authController.login);
 // Sign in Step 2: Verify 6-digit OTP & issue 24-hour JWT token
 router.post('/auth/verify-login-otp', otpVerifyLimiter, authController.verifyLoginOtp);
 
-// Resend OTP for either registration or sign in (with 60s cooldown)
+// Resend OTP for registration, sign in, or forgot password (with 60s cooldown)
 router.post('/auth/resend-otp', otpSendLimiter, authController.resendOtp);
+
+// Forgot Password Step 1: Request 6-digit OTP to registered email
+router.post('/auth/forgot-password', otpSendLimiter, authController.forgotPassword);
+
+// Forgot Password Step 2: Verify 6-digit OTP & reset password
+router.post('/auth/reset-password', otpVerifyLimiter, authController.resetPassword);
 
 // Get authenticated service user profile
 router.get('/auth/me', serviceAuthMiddleware, authController.getMe);

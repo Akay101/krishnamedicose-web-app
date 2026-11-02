@@ -41,14 +41,30 @@ import catalogApi from '../utils/catalogApi';
 import { INDIAN_STATES, PHARMACY_CATEGORIES } from '../utils/catalogConstants';
 import { useModal } from '../context/ModalContext';
 import { lockScroll, unlockScroll } from '../utils/scrollLock';
+import { resolveDocumentUrl, formatFileSize } from '../utils/documentUtils';
 
-export default function CatalogPage({ embedded = false }) {
+export default function CatalogPage({ embedded = false, parentUser, onOpenAuth }) {
   const { showModal } = useModal();
 
   // Authentication state
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => {
+    if (embedded && parentUser !== undefined) {
+      return parentUser;
+    }
+    try {
+      const rawUser = localStorage.getItem('service_user');
+      const token = localStorage.getItem('service_token');
+      if (rawUser && token) {
+        return JSON.parse(rawUser);
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  });
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState('login');
+  const [pendingAddAfterAuth, setPendingAddAfterAuth] = useState(false);
 
   // Directory view: 'directory' | 'my_submissions'
   const [activeTab, setActiveTab] = useState('directory');
@@ -136,11 +152,26 @@ export default function CatalogPage({ embedded = false }) {
 
   // Read current user
   useEffect(() => {
+    if (embedded && parentUser !== undefined) {
+      setCurrentUser(parentUser);
+      return;
+    }
+
     const checkAuth = () => {
       try {
-        const rawUser = localStorage.getItem('service_user') || localStorage.getItem('user');
-        const token = localStorage.getItem('service_token') || localStorage.getItem('token');
+        const rawUser = localStorage.getItem('service_user');
+        const token = localStorage.getItem('service_token');
         if (rawUser && token) {
+          const parts = token.split('.');
+          if (parts.length === 3) {
+            const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+            if (payload.exp && payload.exp * 1000 <= Date.now()) {
+              localStorage.removeItem('service_token');
+              localStorage.removeItem('service_user');
+              setCurrentUser(null);
+              return;
+            }
+          }
           setCurrentUser(JSON.parse(rawUser));
         } else {
           setCurrentUser(null);
@@ -153,7 +184,16 @@ export default function CatalogPage({ embedded = false }) {
     checkAuth();
     window.addEventListener('service_auth_change', checkAuth);
     return () => window.removeEventListener('service_auth_change', checkAuth);
-  }, []);
+  }, [embedded, parentUser]);
+
+  // When user signs in after requesting to add distributor, automatically open the add workflow
+  useEffect(() => {
+    if (currentUser && pendingAddAfterAuth) {
+      setPendingAddAfterAuth(false);
+      setAddModalStep('select');
+      setAddModalOpen(true);
+    }
+  }, [currentUser, pendingAddAfterAuth]);
 
   // Debounce search query (350ms)
   useEffect(() => {
@@ -226,8 +266,13 @@ export default function CatalogPage({ embedded = false }) {
   // Open "Add Distributor" flow
   const handleOpenAddDistributor = () => {
     if (!currentUser) {
-      setAuthModalMode('login');
-      setAuthModalOpen(true);
+      setPendingAddAfterAuth(true);
+      if (embedded && onOpenAuth) {
+        onOpenAuth('login');
+      } else {
+        setAuthModalMode('login');
+        setAuthModalOpen(true);
+      }
       return;
     }
     setAddModalStep('select');
@@ -236,6 +281,17 @@ export default function CatalogPage({ embedded = false }) {
 
   // Select persona and open form
   const handleSelectPersona = (persona) => {
+    if (!currentUser) {
+      setAddModalOpen(false);
+      setPendingAddAfterAuth(true);
+      if (embedded && onOpenAuth) {
+        onOpenAuth('login');
+      } else {
+        setAuthModalMode('login');
+        setAuthModalOpen(true);
+      }
+      return;
+    }
     setSelectedPersona(persona);
     setFormData({
       ...initialDistributorForm,
@@ -269,10 +325,25 @@ export default function CatalogPage({ embedded = false }) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 10 * 1024 * 1024) {
+    if (!currentUser) {
+      showModal({
+        title: 'Authentication Required',
+        message: 'Please sign in or create an account to upload documents.',
+        type: 'warning'
+      });
+      if (embedded && onOpenAuth) {
+        onOpenAuth('login');
+      } else {
+        setAuthModalMode('login');
+        setAuthModalOpen(true);
+      }
+      return;
+    }
+
+    if (file.size > 100 * 1024 * 1024) {
       showModal({
         title: 'File Too Large',
-        message: 'The selected file exceeds the 10 MB size limit. Please choose a smaller document.',
+        message: 'The selected file exceeds the 100 MB size limit. Please choose a document under 100 MB.',
         type: 'warning'
       });
       return;
@@ -317,6 +388,17 @@ export default function CatalogPage({ embedded = false }) {
   const handleSubmitDistributor = async (e) => {
     e.preventDefault();
     setFormError('');
+
+    if (!currentUser) {
+      setFormError('Authentication required. Please sign in to submit distributor details.');
+      if (embedded && onOpenAuth) {
+        onOpenAuth('login');
+      } else {
+        setAuthModalMode('login');
+        setAuthModalOpen(true);
+      }
+      return;
+    }
 
     // Validations
     if (!formData.firmName.trim()) {
@@ -477,8 +559,12 @@ export default function CatalogPage({ embedded = false }) {
                 <div className="flex items-center gap-2.5">
                   <button
                     onClick={() => {
-                      setAuthModalMode('login');
-                      setAuthModalOpen(true);
+                      if (embedded && onOpenAuth) {
+                        onOpenAuth('login');
+                      } else {
+                        setAuthModalMode('login');
+                        setAuthModalOpen(true);
+                      }
                     }}
                     className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors"
                   >
@@ -486,10 +572,10 @@ export default function CatalogPage({ embedded = false }) {
                   </button>
                   <button
                     onClick={handleOpenAddDistributor}
-                    className="px-4 py-2.5 rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-xs font-bold shadow-md transition-all flex items-center gap-2"
+                    className="px-4 py-2.5 rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2"
                   >
-                    <Plus className="w-4 h-4" />
-                    <span>Add Distributor</span>
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Sign In to Add Distributor</span>
                   </button>
                 </div>
               )}
@@ -655,10 +741,10 @@ export default function CatalogPage({ embedded = false }) {
                 </div>
                 <button
                   onClick={handleOpenAddDistributor}
-                  className="px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold inline-flex items-center gap-2"
+                  className="px-4 py-2.5 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold inline-flex items-center gap-2 shadow-md transition-all"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>Add First Distributor</span>
+                  {currentUser ? <Plus className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                  <span>{currentUser ? 'Add First Distributor' : 'Sign In to Add Distributor'}</span>
                 </button>
               </div>
             ) : (
@@ -748,13 +834,19 @@ export default function CatalogPage({ embedded = false }) {
                         {/* Download Catalog PDF Button (if attached) */}
                         {hasCatalog && (
                           <a
-                            href={dist.catalogDocument.url}
+                            href={resolveDocumentUrl(dist.catalogDocument.url)}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="w-full py-2 px-3 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
+                            className="w-full py-2 px-3 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
                           >
                             <Download className="w-3.5 h-3.5" />
-                            <span>Download Product Catalog (PDF)</span>
+                            <span>Download Product Catalog</span>
+                            {dist.catalogDocument.size > 0 && (
+                              <span className="text-[10px] text-teal-700 font-semibold opacity-90">
+                                ({formatFileSize(dist.catalogDocument.size)})
+                              </span>
+                            )}
+                            <ExternalLink className="w-3 h-3 opacity-70 ml-0.5" />
                           </a>
                         )}
 
@@ -909,7 +1001,7 @@ export default function CatalogPage({ embedded = false }) {
 
       {/* ================= UNIFIED ADD DISTRIBUTOR MODAL ================= */}
       <AnimatePresence>
-        {addModalOpen && (
+        {addModalOpen && currentUser && (
           <motion.div
             key="add-distributor-backdrop"
             initial={{ opacity: 0 }}
@@ -1244,6 +1336,11 @@ export default function CatalogPage({ embedded = false }) {
                             <span className="truncate">
                               {formData.catalogDocument.originalName || 'Catalog uploaded'}
                             </span>
+                            {formData.catalogDocument.size > 0 && (
+                              <span className="text-[10px] text-emerald-600 font-medium flex-shrink-0">
+                                ({formatFileSize(formData.catalogDocument.size)})
+                              </span>
+                            )}
                           </div>
                           <span className="text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold flex-shrink-0">
                             Verified
@@ -1266,7 +1363,7 @@ export default function CatalogPage({ embedded = false }) {
                             ) : (
                               <>
                                 <Upload className="w-4 h-4 text-teal-600" />
-                                <span>Upload Catalog PDF (Optional, Max 10MB)</span>
+                                <span>Upload Catalog PDF (Optional, Max 100MB)</span>
                               </>
                             )}
                             <input
@@ -1362,11 +1459,19 @@ export default function CatalogPage({ embedded = false }) {
                           </div>
 
                           {formData.catalogDocument ? (
-                            <div className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-200 flex items-center justify-between text-xs text-emerald-800 font-semibold">
-                              <span className="truncate">
-                                {formData.catalogDocument.originalName || 'Catalog uploaded'}
-                              </span>
-                              <span className="text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                            <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-between text-xs text-emerald-800 font-semibold gap-2">
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <FileText className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                                <span className="truncate">
+                                  {formData.catalogDocument.originalName || 'Catalog uploaded'}
+                                </span>
+                                {formData.catalogDocument.size > 0 && (
+                                  <span className="text-[10px] text-emerald-600 font-medium flex-shrink-0">
+                                    ({formatFileSize(formData.catalogDocument.size)})
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold flex-shrink-0">
                                 Verified
                               </span>
                             </div>
@@ -1387,7 +1492,7 @@ export default function CatalogPage({ embedded = false }) {
                                 ) : (
                                   <>
                                     <Upload className="w-4 h-4 text-teal-600" />
-                                    <span>Upload Catalog File (Max 10MB)</span>
+                                    <span>Upload Catalog File (Max 100MB)</span>
                                   </>
                                 )}
                                 <input
@@ -1669,16 +1774,29 @@ export default function CatalogPage({ embedded = false }) {
                 {/* Product Catalog PDF link if available */}
                 {detailsDistributor.catalogDocument?.url && (
                   <div className="pt-2">
-                    <a
-                      href={detailsDistributor.catalogDocument.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full py-2.5 px-4 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
-                    >
-                      <Download className="w-4 h-4" />
-                      <span>Download Product Catalog Document</span>
-                      <ExternalLink className="w-3.5 h-3.5 opacity-80" />
-                    </a>
+                    <div className="p-3 bg-teal-50/60 rounded-2xl border border-teal-200/80 space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-teal-900 flex items-center gap-1.5 truncate">
+                          <FileText className="w-3.5 h-3.5 text-teal-700 flex-shrink-0" />
+                          <span className="truncate">{detailsDistributor.catalogDocument.originalName || 'Product Catalog Document'}</span>
+                        </span>
+                        {detailsDistributor.catalogDocument.size > 0 && (
+                          <span className="text-[10px] text-teal-700 font-semibold bg-teal-100/80 px-2 py-0.5 rounded-full flex-shrink-0">
+                            {formatFileSize(detailsDistributor.catalogDocument.size)}
+                          </span>
+                        )}
+                      </div>
+                      <a
+                        href={resolveDocumentUrl(detailsDistributor.catalogDocument.url)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full py-2.5 px-4 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>Download Product Catalog</span>
+                        <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+                      </a>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1719,13 +1837,21 @@ export default function CatalogPage({ embedded = false }) {
       {/* Services Auth Modal for login/register */}
       <ServicesAuthModal
         isOpen={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
+        onClose={() => {
+          setAuthModalOpen(false);
+          setPendingAddAfterAuth(false);
+        }}
         initialMode={authModalMode}
         context="catalogs"
         onAuthSuccess={(user) => {
           setCurrentUser(user);
           setAuthModalOpen(false);
           showToast(`Welcome back, ${user.name || 'User'}!`);
+          if (pendingAddAfterAuth) {
+            setPendingAddAfterAuth(false);
+            setAddModalStep('select');
+            setAddModalOpen(true);
+          }
         }}
       />
 

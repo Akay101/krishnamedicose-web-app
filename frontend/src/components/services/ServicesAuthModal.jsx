@@ -18,7 +18,10 @@ import {
   KeyRound,
   Clock,
   RefreshCw,
-  Sparkles
+  Sparkles,
+  Eye,
+  EyeOff,
+  CheckCircle2
 } from 'lucide-react';
 import servicesApi from '../../utils/servicesApi';
 import LocationPicker from './LocationPicker';
@@ -78,6 +81,10 @@ export default function ServicesAuthModal({
       }
       setError('');
       setOtp('');
+      setResetSuccessMessage('');
+      setResetOtp('');
+      setNewPassword('');
+      setConfirmPassword('');
     }
   }, [isOpen, initialMode, initialRole, initialSubRole, isGeneralContext]);
 
@@ -127,6 +134,17 @@ export default function ServicesAuthModal({
   // Login form state
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+
+  // Forgot password & reset password states
+  const [forgotIdentifier, setForgotIdentifier] = useState('');
+  const [pendingResetIdentifier, setPendingResetIdentifier] = useState('');
+  const [resetOtp, setResetOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [resetSuccessMessage, setResetSuccessMessage] = useState('');
 
   // Loading and Error state
   const [loading, setLoading] = useState(false);
@@ -385,9 +403,16 @@ export default function ServicesAuthModal({
     setResendingOtp(true);
 
     try {
-      const targetEmail = purpose === 'register' ? formData.email.trim() : pendingIdentifier;
+      let targetEmail = pendingIdentifier;
+      if (purpose === 'register') {
+        targetEmail = formData.email.trim();
+      } else if (purpose === 'forgot_password') {
+        targetEmail = pendingResetIdentifier || forgotIdentifier.trim();
+      }
+
       await servicesApi.post('/auth/resend-otp', {
         email: targetEmail,
+        identifier: targetEmail,
         purpose
       });
       setCooldownSeconds(60);
@@ -398,9 +423,86 @@ export default function ServicesAuthModal({
     }
   };
 
+  // Step 1 of Forgot Password: Send OTP
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setError('');
+    setResetSuccessMessage('');
+
+    const cleanId = forgotIdentifier.trim();
+    if (!cleanId) {
+      setError('Please provide your registered email or mobile number.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const res = await servicesApi.post('/auth/forgot-password', {
+        identifier: cleanId
+      });
+
+      setPendingResetIdentifier(cleanId);
+      setOtpSentEmail(res.data?.email || cleanId);
+      setCooldownSeconds(60);
+      setResetOtp('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setStep('reset_password');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to send password reset code. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 2 of Forgot Password: Verify OTP & update password
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    const cleanOtp = resetOtp.trim();
+    if (cleanOtp.length !== 6) {
+      setError('Please enter a valid 6-digit verification code.');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setError('New password must be at least 6 characters long.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError('New password and confirm password do not match.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const res = await servicesApi.post('/auth/reset-password', {
+        identifier: pendingResetIdentifier,
+        otp: cleanOtp,
+        newPassword
+      });
+
+      setResetSuccessMessage(res.data?.message || 'Password reset successfully! Please sign in with your new password.');
+      setLoginIdentifier(pendingResetIdentifier);
+      setLoginPassword('');
+      setStep('login');
+      setError('');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to reset password. Please check your verification code.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getHeaderTitle = () => {
     if (step === 'login') return t.signInBtn || 'Sign In';
     if (step === 'verify_login_otp' || step === 'verify_register_otp') return t.enterOtp || 'Enter Verification Code';
+    if (step === 'forgot_password') return 'Forgot Password';
+    if (step === 'reset_password') return 'Reset Your Password';
     if (context === 'catalogs') return 'Product Catalogs & Distributors';
     if (context === 'medicine-data') return 'Medicine Data Hub';
     if (context === 'links') return 'Useful Pharmacy Links';
@@ -411,6 +513,8 @@ export default function ServicesAuthModal({
   const getHeaderSubtitle = () => {
     if (step === 'login') return 'Access your verified healthcare services account';
     if (step === 'verify_login_otp' || step === 'verify_register_otp') return 'Enter the 6-digit OTP sent to your registered email';
+    if (step === 'forgot_password') return 'Receive a 6-digit verification code to reset your password';
+    if (step === 'reset_password') return 'Verify the 6-digit code and set your new account password';
     if (context === 'catalogs') return 'Pan-India Pharmaceutical Supply Directory';
     if (context === 'medicine-data') return 'Comprehensive Indian Medicine Database';
     if (context === 'links') return 'Official Regulatory & Pharmacy Resources';
@@ -467,6 +571,13 @@ export default function ServicesAuthModal({
             <div className="mb-6 p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3 text-rose-800 text-xs font-semibold">
               <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-600" />
               <span>{error}</span>
+            </div>
+          )}
+
+          {resetSuccessMessage && (
+            <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start gap-3 text-emerald-800 text-xs font-semibold">
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5 text-emerald-600" />
+              <span>{resetSuccessMessage}</span>
             </div>
           )}
 
@@ -1067,20 +1178,42 @@ export default function ServicesAuthModal({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    {t.password || 'Password'} *
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-slate-700">
+                      {t.password || 'Password'} *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError('');
+                        setResetSuccessMessage('');
+                        setForgotIdentifier(loginIdentifier);
+                        setStep('forgot_password');
+                      }}
+                      className="text-xs font-bold text-teal-700 hover:text-teal-900 transition-colors"
+                    >
+                      Forgot Password?
+                    </button>
+                  </div>
                   <div className="relative">
                     <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                     <input
-                      type="password"
+                      type={showLoginPassword ? 'text' : 'password'}
                       required
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
                       placeholder="Enter your password"
-                      className="w-full h-11 pl-11 pr-4 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 transition-colors"
+                      className="w-full h-11 pl-11 pr-10 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 transition-colors"
                       maxLength={50}
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowLoginPassword(!showLoginPassword)}
+                      className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 p-0.5"
+                      aria-label="Toggle password visibility"
+                    >
+                      {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1105,6 +1238,7 @@ export default function ServicesAuthModal({
                   type="button"
                   onClick={() => {
                     setError('');
+                    setResetSuccessMessage('');
                     if (isGeneralContext) {
                       setSelectedRole('general_user');
                       setSelectedSubRole('general_access');
@@ -1118,6 +1252,251 @@ export default function ServicesAuthModal({
                   {t.newHere || 'New here? Register Account'}
                 </button>
               </div>
+            </form>
+          )}
+
+          {/* ================= STEP 4: FORGOT PASSWORD FORM ================= */}
+          {step === 'forgot_password' && (
+            <form onSubmit={handleForgotPassword} className="space-y-6">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError('');
+                    setStep('login');
+                  }}
+                  className="flex items-center gap-1.5 text-xs font-bold text-teal-700 hover:text-teal-800"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Back to Sign In</span>
+                </button>
+                <span className="text-xs font-bold px-3 py-1 bg-teal-50 text-teal-800 rounded-full flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
+                  Password Recovery
+                </span>
+              </div>
+
+              <div className="text-center space-y-1.5 mb-2">
+                <div className="w-12 h-12 bg-teal-50 border border-teal-100 rounded-2xl mx-auto flex items-center justify-center text-teal-700 shadow-sm mb-3">
+                  <KeyRound className="w-6 h-6" />
+                </div>
+                <h3 className="text-2xl font-extrabold text-slate-900 font-outfit">
+                  Forgot Password
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-500 max-w-sm mx-auto leading-relaxed">
+                  Enter your registered email address or mobile number to receive a secure 6-digit password reset code.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Registered Email or Mobile Number *
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                    <input
+                      type="text"
+                      required
+                      value={forgotIdentifier}
+                      onChange={(e) => setForgotIdentifier(e.target.value)}
+                      placeholder="e.g. 9876543210 or name@mail.com"
+                      className="w-full h-11 pl-11 pr-4 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 transition-colors"
+                      maxLength={80}
+                      autoFocus
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1.5 font-medium">
+                    A single-use verification code valid for 10 minutes will be delivered to the associated email inbox.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full h-12 bg-teal-700 hover:bg-teal-800 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 mt-4 disabled:opacity-50"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Sending Reset Code...</span>
+                  </>
+                ) : (
+                  <span>Send Reset Code</span>
+                )}
+              </button>
+
+              <div className="pt-4 border-t border-slate-100 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError('');
+                    setStep('login');
+                  }}
+                  className="text-xs sm:text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors"
+                >
+                  Remember your password? Sign In
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* ================= STEP 5: RESET PASSWORD FORM ================= */}
+          {step === 'reset_password' && (
+            <form onSubmit={handleResetPassword} className="space-y-5">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError('');
+                    setStep('forgot_password');
+                  }}
+                  className="flex items-center gap-1.5 text-xs font-bold text-teal-700 hover:text-teal-800"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Change Email / Mobile</span>
+                </button>
+                <span className="text-xs font-bold px-3 py-1 bg-teal-50 text-teal-800 rounded-full flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
+                  10-min Code
+                </span>
+              </div>
+
+              <div className="text-center space-y-1 mb-2">
+                <h3 className="text-2xl font-extrabold text-slate-900 font-outfit">
+                  Set New Password
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Enter the 6-digit code sent to{' '}
+                  <strong className="text-slate-800">{otpSentEmail || pendingResetIdentifier}</strong>{' '}
+                  and choose a new password.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {/* 6-Digit OTP */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-slate-700">
+                      6-Digit Verification Code *
+                    </label>
+                    <button
+                      type="button"
+                      disabled={cooldownSeconds > 0 || resendingOtp}
+                      onClick={() => handleResendOtp('forgot_password')}
+                      className={`text-xs font-bold flex items-center gap-1 ${
+                        cooldownSeconds > 0 || resendingOtp
+                          ? 'text-slate-400 cursor-not-allowed'
+                          : 'text-teal-700 hover:text-teal-900'
+                      }`}
+                    >
+                      {resendingOtp && <Loader2 className="w-3 h-3 animate-spin" />}
+                      {cooldownSeconds > 0 ? (
+                        <span>Resend code in {cooldownSeconds}s</span>
+                      ) : (
+                        <span>Resend Code</span>
+                      )}
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      required
+                      value={resetOtp}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                        setResetOtp(val);
+                      }}
+                      placeholder="123456"
+                      className="w-full h-11 pl-11 pr-4 text-center tracking-[0.4em] font-mono font-bold text-base sm:text-lg rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 bg-slate-50/70 focus:bg-white transition-colors"
+                      maxLength={6}
+                      autoFocus
+                    />
+                  </div>
+                </div>
+
+                {/* New Password */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    New Password (min. 6 characters) *
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Enter new strong password"
+                      className="w-full h-11 pl-11 pr-10 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 transition-colors"
+                      minLength={6}
+                      maxLength={50}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 p-0.5"
+                      aria-label="Toggle password visibility"
+                    >
+                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Confirm New Password */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Confirm New Password *
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Re-enter new password"
+                      className={`w-full h-11 pl-11 pr-10 text-sm rounded-xl border transition-colors ${
+                        confirmPassword && confirmPassword !== newPassword
+                          ? 'border-rose-400 focus:border-rose-600 bg-rose-50/30'
+                          : 'border-slate-200 focus:border-teal-600'
+                      }`}
+                      minLength={6}
+                      maxLength={50}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 p-0.5"
+                      aria-label="Toggle password visibility"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {confirmPassword && confirmPassword !== newPassword && (
+                    <p className="text-[11px] text-rose-500 font-semibold mt-1">Passwords do not match.</p>
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || (confirmPassword && confirmPassword !== newPassword) || resetOtp.length !== 6}
+                className="w-full h-12 bg-teal-700 hover:bg-teal-800 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Resetting Password...</span>
+                  </>
+                ) : (
+                  <span>Reset Password & Sign In</span>
+                )}
+              </button>
             </form>
           )}
 

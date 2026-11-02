@@ -2697,7 +2697,14 @@ export default function ServicesPage() {
 
     {/* ================= SERVICE 2: PRODUCT CATALOGS & DISTRIBUTORS ================= */}
     {selectedService === "catalogs" && (
-      <CatalogPage embedded={true} />
+      <CatalogPage
+        embedded={true}
+        parentUser={currentUser}
+        onOpenAuth={(mode) => {
+          setAuthInitialMode(mode || "login");
+          setAuthModalOpen(true);
+        }}
+      />
     )}
 
     {/* ================= SERVICE 3: MEDICINE DATA HUB ================= */}

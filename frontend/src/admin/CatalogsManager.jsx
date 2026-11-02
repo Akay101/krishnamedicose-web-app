@@ -37,6 +37,7 @@ import SingleAddressAutocomplete from '../components/services/SingleAddressAutoc
 import { INDIAN_STATES, PHARMACY_CATEGORIES } from '../utils/catalogConstants';
 import { useModal } from '../context/ModalContext';
 import { lockScroll, unlockScroll } from '../utils/scrollLock';
+import { resolveDocumentUrl, formatFileSize } from '../utils/documentUtils';
 
 export default function CatalogsManager() {
   const { showModal } = useModal();
@@ -321,10 +322,10 @@ export default function CatalogsManager() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > 100 * 1024 * 1024) {
       showModal({
         title: 'File Too Large',
-        message: 'The file exceeds the 10 MB limit. Please select a smaller document.',
+        message: 'The file exceeds the 100 MB limit. Please select a document under 100 MB.',
         type: 'warning'
       });
       return;
@@ -495,7 +496,7 @@ export default function CatalogsManager() {
       )}
 
       {/* Overview Metric Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 sm:gap-4">
         {/* Total */}
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-sm space-y-1">
           <div className="flex items-center justify-between">
@@ -532,6 +533,18 @@ export default function CatalogsManager() {
           <span className="text-[11px] text-emerald-700 font-medium">Publicly listed</span>
         </div>
 
+        {/* Catalogs Uploaded */}
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-teal-200/90 bg-teal-50/20 shadow-sm space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-teal-800">Catalogs Uploaded</span>
+            <FileText className="w-4 h-4 text-teal-600" />
+          </div>
+          <div className="text-xl sm:text-2xl font-black text-teal-900 font-outfit">
+            {loadingStats ? <Loader2 className="w-5 h-5 animate-spin text-teal-600" /> : stats?.withCatalogCount || 0}
+          </div>
+          <span className="text-[11px] text-teal-700 font-medium">Entities with catalog doc</span>
+        </div>
+
         {/* Pan-India Delivery */}
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-sm space-y-1">
           <div className="flex items-center justify-between">
@@ -545,7 +558,7 @@ export default function CatalogsManager() {
         </div>
 
         {/* Pharmacist Recommended */}
-        <div className="col-span-2 sm:col-span-1 bg-white p-4 sm:p-5 rounded-2xl border border-sky-200/90 bg-sky-50/20 shadow-sm space-y-1">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-sky-200/90 bg-sky-50/20 shadow-sm space-y-1">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-sky-800">Pharmacist Inputs</span>
             <User className="w-4 h-4 text-sky-600" />
@@ -772,20 +785,31 @@ export default function CatalogsManager() {
                         </div>
                       </td>
 
-                      {/* Catalog PDF */}
+                      {/* Catalog Doc */}
                       <td className="px-4 py-4">
                         {hasCatalog ? (
-                          <a
-                            href={dist.catalogDocument.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 text-teal-800 hover:bg-teal-100 border border-teal-200 text-[11px] font-bold transition-colors"
-                          >
-                            <Download className="w-3 h-3" />
-                            <span>PDF</span>
-                          </a>
+                          <div className="space-y-1">
+                            <a
+                              href={resolveDocumentUrl(dist.catalogDocument.url)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50 text-teal-800 hover:bg-teal-100 border border-teal-200 text-[11px] font-bold transition-colors"
+                              title={dist.catalogDocument.originalName || 'Download Catalog Document'}
+                            >
+                              <FileText className="w-3.5 h-3.5 text-teal-700 flex-shrink-0" />
+                              <span className="max-w-[110px] truncate">{dist.catalogDocument.originalName || 'Catalog Doc'}</span>
+                              <ExternalLink className="w-3 h-3 text-teal-600 flex-shrink-0 ml-0.5" />
+                            </a>
+                            {dist.catalogDocument.size > 0 && (
+                              <div className="text-[10px] text-slate-400 font-medium pl-0.5">
+                                {formatFileSize(dist.catalogDocument.size)}
+                              </div>
+                            )}
+                          </div>
                         ) : (
-                          <span className="text-[11px] text-slate-400">None</span>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-400 text-[10px] font-medium">
+                            No Catalog
+                          </span>
                         )}
                       </td>
 
@@ -1124,14 +1148,35 @@ export default function CatalogsManager() {
                   </div>
 
                   {formDistributor.catalogDocument ? (
-                    <div className="p-2 bg-emerald-50 rounded-lg border border-emerald-200 flex items-center justify-between text-xs text-emerald-800 font-semibold">
-                      <span className="truncate">{formDistributor.catalogDocument.originalName || 'Catalog uploaded'}</span>
-                      <span className="text-[10px] bg-emerald-100 px-2 py-0.5 rounded-full">Sanitized & Safe</span>
+                    <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-between gap-2 text-xs text-emerald-800 font-semibold">
+                      <div className="min-w-0 flex-1 flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-emerald-700 flex-shrink-0" />
+                        <span className="truncate">{formDistributor.catalogDocument.originalName || 'Catalog uploaded'}</span>
+                        {formDistributor.catalogDocument.size > 0 && (
+                          <span className="text-[10px] text-emerald-600 font-medium flex-shrink-0">
+                            ({formatFileSize(formDistributor.catalogDocument.size)})
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {formDistributor.catalogDocument.url && (
+                          <a
+                            href={resolveDocumentUrl(formDistributor.catalogDocument.url)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 text-emerald-700 hover:text-emerald-900 rounded hover:bg-emerald-100"
+                            title="Preview Document"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                        <span className="text-[10px] bg-emerald-100 px-2 py-0.5 rounded-full font-bold">Verified</span>
+                      </div>
                     </div>
                   ) : (
                     <div>
                       <label
-                        className={`w-full py-2 px-3 border border-dashed rounded-xl flex items-center justify-center gap-2 font-bold cursor-pointer transition-colors ${
+                        className={`w-full py-2.5 px-3 border border-dashed rounded-xl flex items-center justify-center gap-2 font-bold cursor-pointer transition-colors ${
                           uploadingCatalog
                             ? 'bg-slate-100 text-slate-400 border-slate-300'
                             : 'border-teal-300 text-teal-800 hover:bg-teal-50'
@@ -1145,7 +1190,7 @@ export default function CatalogsManager() {
                         ) : (
                           <>
                             <Upload className="w-3.5 h-3.5 text-teal-600" />
-                            <span>Upload Catalog File (Max 10MB)</span>
+                            <span>Upload Catalog File (Max 100MB)</span>
                           </>
                         )}
                         <input
@@ -1303,19 +1348,91 @@ export default function CatalogsManager() {
                 </div>
               )}
 
-              {detailsDistributor.catalogDocument?.url && (
-                <div className="pt-2">
-                  <a
-                    href={detailsDistributor.catalogDocument.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full py-2.5 px-3 bg-teal-700 hover:bg-teal-800 text-white rounded-xl font-bold flex items-center justify-center gap-2"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>Download Product Catalog Document</span>
-                  </a>
+              {/* Attached Documents & Verification Section */}
+              <div className="p-4 bg-slate-50/90 rounded-2xl border border-slate-200/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-teal-700" />
+                    Attached Documents & Verification
+                  </span>
+                  {detailsDistributor.catalogDocument?.url ? (
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      Catalog Available
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full bg-slate-200/70 text-slate-600 text-[10px] font-semibold">
+                      No Catalog
+                    </span>
+                  )}
                 </div>
-              )}
+
+                {/* Product Catalog Document Card */}
+                {detailsDistributor.catalogDocument?.url ? (
+                  <div className="bg-white p-3 rounded-xl border border-teal-200/80 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-bold text-slate-900 truncate">
+                          {detailsDistributor.catalogDocument.originalName || 'Product Catalog Document'}
+                        </div>
+                        <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5">
+                          {detailsDistributor.catalogDocument.size > 0 && (
+                            <span className="font-medium">{formatFileSize(detailsDistributor.catalogDocument.size)}</span>
+                          )}
+                          {detailsDistributor.catalogDocument.uploadedAt && (
+                            <span>• Uploaded {new Date(detailsDistributor.catalogDocument.uploadedAt).toLocaleDateString()}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <a
+                      href={resolveDocumentUrl(detailsDistributor.catalogDocument.url)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full py-2 px-3 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>View / Download Product Catalog</span>
+                      <ExternalLink className="w-3 h-3 opacity-80" />
+                    </a>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-white rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400">
+                    No product catalog document was uploaded for this distributor.
+                  </div>
+                )}
+
+                {/* Drug License Document (if uploaded) */}
+                {detailsDistributor.drugLicenseDocument?.url && (
+                  <div className="bg-white p-3 rounded-xl border border-indigo-200/80 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-bold text-slate-900 truncate">
+                          {detailsDistributor.drugLicenseDocument.originalName || 'Drug License Copy'}
+                        </div>
+                        <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5">
+                          {detailsDistributor.drugLicenseDocument.size > 0 && (
+                            <span className="font-medium">{formatFileSize(detailsDistributor.drugLicenseDocument.size)}</span>
+                          )}
+                          {detailsDistributor.drugLicenseDocument.uploadedAt && (
+                            <span>• Uploaded {new Date(detailsDistributor.drugLicenseDocument.uploadedAt).toLocaleDateString()}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <a
+                      href={resolveDocumentUrl(detailsDistributor.drugLicenseDocument.url)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full py-2 px-3 bg-indigo-700 hover:bg-indigo-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>View Drug License Copy</span>
+                      <ExternalLink className="w-3 h-3 opacity-80" />
+                    </a>
+                  </div>
+                )}
+              </div>
 
               {detailsDistributor.adminNotes && (
                 <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 space-y-1">

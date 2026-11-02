@@ -63,7 +63,7 @@ const DANGEROUS_EXTENSIONS = new Set([
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 10 * 1024 * 1024 // 10 MB maximum
+    fileSize: 100 * 1024 * 1024 // 100 MB maximum for large catalogs and documents
   },
   fileFilter: (req, file, cb) => {
     const rawExt = path.extname(file.originalname).toLowerCase();

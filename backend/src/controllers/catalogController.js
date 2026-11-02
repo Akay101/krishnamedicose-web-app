@@ -859,7 +859,8 @@ exports.getAdminStats = async (req, res) => {
       panIndiaDistributors,
       distributorSelfCount,
       pharmacistEntryCount,
-      adminEntryCount
+      adminEntryCount,
+      withCatalogCount
     ] = await Promise.all([
       ProductDistributor.countDocuments(),
       ProductDistributor.countDocuments({ status: 'pending_approval' }),
@@ -868,7 +869,8 @@ exports.getAdminStats = async (req, res) => {
       ProductDistributor.countDocuments({ 'supplyCoverage.panIndia': true, status: 'approved' }),
       ProductDistributor.countDocuments({ entryType: 'distributor_self' }),
       ProductDistributor.countDocuments({ entryType: 'pharmacist_entry' }),
-      ProductDistributor.countDocuments({ entryType: 'admin_entry' })
+      ProductDistributor.countDocuments({ entryType: 'admin_entry' }),
+      ProductDistributor.countDocuments({ 'catalogDocument.url': { $exists: true, $ne: '' } })
     ]);
 
     res.json({
@@ -881,7 +883,8 @@ exports.getAdminStats = async (req, res) => {
         panIndiaDistributors,
         distributorSelfCount,
         pharmacistEntryCount,
-        adminEntryCount
+        adminEntryCount,
+        withCatalogCount
       }
     });
   } catch (error) {
@@ -1336,7 +1339,7 @@ exports.updateDistributor = async (req, res) => {
           originalName: sanitizeText(updates.catalogDocument.originalName),
           mimeType: sanitizeText(updates.catalogDocument.mimeType),
           size: Number(updates.catalogDocument.size) || 0,
-          uploadedAt: new Date()
+          uploadedAt: updates.catalogDocument.uploadedAt || new Date()
         };
       } else {
         distributor.catalogDocument = {};
@@ -1350,7 +1353,7 @@ exports.updateDistributor = async (req, res) => {
           originalName: sanitizeText(updates.drugLicenseDocument.originalName),
           mimeType: sanitizeText(updates.drugLicenseDocument.mimeType),
           size: Number(updates.drugLicenseDocument.size) || 0,
-          uploadedAt: new Date()
+          uploadedAt: updates.drugLicenseDocument.uploadedAt || new Date()
         };
       } else {
         distributor.drugLicenseDocument = {};

@@ -448,25 +448,46 @@ exports.verifyLoginOtp = async (req, res) => {
 };
 
 /**
- * Resend OTP (for Register or Login)
+ * Resend OTP (for Register, Login, or Forgot Password)
  * POST /api/services/auth/resend-otp
  */
 exports.resendOtp = async (req, res) => {
   try {
     const { identifier, email, purpose, name } = req.body;
-    const targetPurpose = purpose === 'register' ? 'register' : 'login';
+    const targetPurpose = ['register', 'login', 'forgot_password'].includes(purpose)
+      ? purpose
+      : 'login';
 
     let targetEmail = '';
     let targetName = name || '';
 
-    if (targetPurpose === 'login') {
+    if (targetPurpose === 'login' || targetPurpose === 'forgot_password') {
       const cleanId = String(identifier || email).trim().toLowerCase();
+      const cleanMobile = String(identifier || email).replace(/\D/g, '');
       const user = await ServiceUser.findOne({
-        $or: [{ email: cleanId }, { mobile: String(identifier || email).trim() }]
+        $or: [
+          { email: cleanId },
+          ...(cleanMobile.length === 10 ? [{ mobile: cleanMobile }] : [])
+        ]
       });
+
       if (!user) {
-        return res.status(404).json({ message: 'User not found.' });
+        if (targetPurpose === 'forgot_password') {
+          return res.json({
+            success: true,
+            message: 'If an account exists, a new verification code has been sent.'
+          });
+        }
+        return res.status(404).json({ message: 'Account not found.' });
       }
+
+      if (user.isBlocked) {
+        return res.status(403).json({
+          message: 'Account access has been restricted by administration.',
+          reason: user.blockReason || 'Terms of service violation.'
+        });
+      }
+
       targetEmail = user.email;
       targetName = user.name;
     } else {
@@ -512,6 +533,190 @@ exports.resendOtp = async (req, res) => {
   } catch (error) {
     console.error('Resend OTP Error:', error);
     res.status(500).json({ message: 'Failed to resend verification code.' });
+  }
+};
+
+/**
+ * Request Password Reset OTP
+ * POST /api/services/auth/forgot-password
+ */
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { identifier } = req.body;
+
+    if (!identifier || typeof identifier !== 'string') {
+      return res.status(400).json({ message: 'Please provide your registered email or mobile number.' });
+    }
+
+    const cleanInput = identifier.trim();
+    if (!cleanInput) {
+      return res.status(400).json({ message: 'Please provide your registered email or mobile number.' });
+    }
+
+    const cleanId = cleanInput.toLowerCase();
+    const cleanMobile = cleanInput.replace(/\D/g, '');
+
+    const user = await ServiceUser.findOne({
+      $or: [
+        { email: cleanId },
+        ...(cleanMobile.length === 10 ? [{ mobile: cleanMobile }] : [])
+      ]
+    });
+
+    // Timing-safe generic response to prevent enumeration
+    if (!user) {
+      return res.json({
+        success: true,
+        email: cleanId.includes('@') ? maskEmail(cleanId) : '',
+        message: 'If an account exists with this credential, a password reset code has been sent to the registered email.'
+      });
+    }
+
+    if (user.isBlocked) {
+      return res.status(403).json({
+        message: 'Account access has been restricted by administration.',
+        reason: user.blockReason || 'Terms of service violation.'
+      });
+    }
+
+    // Cooldown check (60s minimum interval)
+    const recentOtp = await ServiceOtp.findOne({ email: user.email, purpose: 'forgot_password' });
+    if (recentOtp && Date.now() - recentOtp.createdAt.getTime() < 60 * 1000) {
+      const waitSec = Math.ceil((60 * 1000 - (Date.now() - recentOtp.createdAt.getTime())) / 1000);
+      return res.status(429).json({
+        message: `Please wait ${waitSec} seconds before requesting a new code.`,
+        email: maskEmail(user.email)
+      });
+    }
+
+    // Generate crypto-secure 6-digit numeric OTP
+    const otp = crypto.randomInt(100000, 1000000).toString();
+    const otpHash = hashOtp(otp);
+
+    // Save with 10-minute expiry
+    await ServiceOtp.deleteMany({ email: user.email, purpose: 'forgot_password' });
+    await ServiceOtp.create({
+      email: user.email,
+      otpHash,
+      purpose: 'forgot_password',
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000)
+    });
+
+    await sendOtpEmail({
+      to: user.email,
+      otp,
+      purpose: 'forgot_password',
+      userName: user.name
+    });
+
+    console.log(`[SERVICE OTP - FORGOT_PASSWORD] Generated for ${user.email}: ${otp}`);
+
+    res.json({
+      success: true,
+      email: maskEmail(user.email),
+      message: `Password reset verification code sent to ${maskEmail(user.email)}.`
+    });
+  } catch (error) {
+    console.error('Forgot Password Error:', error);
+    res.status(500).json({ message: 'Failed to process password reset request. Please try again.' });
+  }
+};
+
+/**
+ * Verify OTP & Reset Password
+ * POST /api/services/auth/reset-password
+ */
+exports.resetPassword = async (req, res) => {
+  try {
+    const { identifier, email, otp, newPassword } = req.body;
+
+    const rawId = String(email || identifier || '').trim();
+    if (!rawId) {
+      return res.status(400).json({ message: 'Registered email or mobile number is required.' });
+    }
+
+    if (!otp) {
+      return res.status(400).json({ message: 'Please provide the 6-digit verification code.' });
+    }
+
+    const cleanOtp = String(otp).replace(/\D/g, '').trim();
+    if (cleanOtp.length !== 6) {
+      return res.status(400).json({ message: 'Verification code must be exactly 6 digits.' });
+    }
+
+    if (!newPassword || typeof newPassword !== 'string') {
+      return res.status(400).json({ message: 'New password is required.' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
+    }
+
+    if (newPassword.length > 100) {
+      return res.status(400).json({ message: 'Password cannot exceed 100 characters.' });
+    }
+
+    const cleanId = rawId.toLowerCase();
+    const cleanMobile = rawId.replace(/\D/g, '');
+
+    const user = await ServiceUser.findOne({
+      $or: [
+        { email: cleanId },
+        ...(cleanMobile.length === 10 ? [{ mobile: cleanMobile }] : [])
+      ]
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid request or account not found.' });
+    }
+
+    if (user.isBlocked) {
+      return res.status(403).json({
+        message: 'Account access has been restricted by administration.',
+        reason: user.blockReason || 'Terms of service violation.'
+      });
+    }
+
+    // Verify OTP from ServiceOtp
+    const otpDoc = await ServiceOtp.findOne({ email: user.email, purpose: 'forgot_password' });
+    if (!otpDoc || otpDoc.expiresAt < new Date()) {
+      return res.status(400).json({
+        message: 'Verification code has expired or was not requested. Please request a new code.'
+      });
+    }
+
+    if (otpDoc.attempts >= otpDoc.maxAttempts) {
+      await ServiceOtp.deleteMany({ email: user.email, purpose: 'forgot_password' });
+      return res.status(400).json({
+        message: 'Maximum verification attempts exceeded. Please request a new password reset code.'
+      });
+    }
+
+    if (hashOtp(cleanOtp) !== otpDoc.otpHash) {
+      otpDoc.attempts += 1;
+      await otpDoc.save();
+      const remaining = otpDoc.maxAttempts - otpDoc.attempts;
+      return res.status(400).json({
+        message: `Invalid verification code. ${remaining > 0 ? remaining + ' attempt(s) remaining.' : 'Please request a new code.'}`
+      });
+    }
+
+    // OTP Verified! Single-use: delete OTP record immediately
+    await ServiceOtp.deleteMany({ email: user.email, purpose: 'forgot_password' });
+
+    // Set new password (pre('save') hook in ServiceUser hashes with bcrypt)
+    user.password = newPassword;
+    await user.save();
+
+    console.log(`[SERVICE AUTH - PASSWORD RESET] Password successfully reset for: ${user.email}`);
+
+    res.json({
+      success: true,
+      message: 'Your password has been successfully reset. You can now sign in with your new password.'
+    });
+  } catch (error) {
+    console.error('Reset Password Error:', error);
+    res.status(500).json({ message: 'Failed to reset password. Please try again.' });
   }
 };
 

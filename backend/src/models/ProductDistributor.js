@@ -253,7 +253,5 @@ productDistributorSchema.index({
 });
 productDistributorSchema.index({ location: '2dsphere' });
 productDistributorSchema.index({ categories: 1 });
-productDistributorSchema.index({ status: 1 });
-productDistributorSchema.index({ entryType: 1 });
 
 module.exports = mongoose.model('ProductDistributor', productDistributorSchema);
