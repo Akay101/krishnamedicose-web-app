@@ -254,7 +254,7 @@ export default function CatalogsManager() {
     showModal({
       title: 'Delete Distributor Listing',
       message: `Are you sure you want to permanently delete "${firmName}"? This action cannot be reversed.`,
-      type: 'warning',
+      type: 'confirm',
       confirmText: 'Delete Permanently',
       cancelText: 'Cancel',
       onConfirm: async () => {
@@ -1442,13 +1442,41 @@ export default function CatalogsManager() {
               )}
             </div>
 
-            <div className="flex-shrink-0 px-5 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-end">
+            <div className="flex-shrink-0 px-5 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
               <button
-                onClick={() => setDetailsDistributor(null)}
-                className="px-4 py-1.5 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300"
+                type="button"
+                onClick={() => {
+                  const targetDist = detailsDistributor;
+                  setDetailsDistributor(null);
+                  handleDelete(targetDist._id, targetDist.firmName);
+                }}
+                className="px-3 py-1.5 text-rose-600 hover:bg-rose-50 text-xs font-bold rounded-xl border border-rose-200 flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Delete this distributor listing"
               >
-                Close
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete</span>
               </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const targetDist = detailsDistributor;
+                    setDetailsDistributor(null);
+                    handleOpenEditModal(targetDist);
+                  }}
+                  className="px-3 py-1.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 text-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Edit className="w-3.5 h-3.5" />
+                  <span>Edit</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDetailsDistributor(null)}
+                  className="px-4 py-1.5 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300 text-xs cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </motion.div>
         </motion.div>
