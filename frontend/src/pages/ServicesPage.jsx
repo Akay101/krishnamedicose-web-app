@@ -590,11 +590,11 @@ export default function ServicesPage() {
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-teal-600 animate-pulse" />
                 <h2 className="text-sm sm:text-base font-extrabold text-slate-900 font-outfit">
-                  Krishna Medicos Services Hub
+                  Krishna Medicose Services Hub
                 </h2>
               </div>
               <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5">
-                Select among our pharmaceutical and healthcare services. Any option is accessible with your verified account.
+                Choose a service — one Krishna Medicose account works across all of them.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -877,13 +877,10 @@ export default function ServicesPage() {
                     Krishna Medicose Services
                   </span>
                   <h2 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold font-outfit max-w-3xl leading-tight">
-                    {t.pharmacistsTabSubtitle ||
-                      "Pharmacy Staff Hiring & Pharmacist Job Search"}
+                    {t.heroPharmacistsTitle}
                   </h2>
                   <p className="text-sm sm:text-base text-slate-300 max-w-2xl leading-relaxed">
-                    Hire licensed pharmacists for your pharmacy with verified
-                    credentials, or search and apply to top pharmacy vacancies
-                    in your local area.
+                    {t.heroPharmacistsDesc}
                   </p>
                   <div className="pt-2 flex flex-wrap gap-4">
                     <button
@@ -944,7 +941,7 @@ export default function ServicesPage() {
                         }}
                         className="w-full py-3 sm:py-3.5 bg-teal-50 hover:bg-teal-700 text-teal-800 hover:text-white font-bold text-xs sm:text-sm rounded-xl transition-colors border border-teal-200 mt-2 flex items-center justify-center gap-2"
                       >
-                        <span>{t.hirePharmacistBtn || "Hire Pharmacist"}</span>
+                        <span>{t.hirePharmacistBtn || "Hire a Pharmacist"}</span>
                         <ArrowRight className="w-4 h-4" />
                       </button>
                     </div>
@@ -971,7 +968,7 @@ export default function ServicesPage() {
                         }}
                         className="w-full py-3 sm:py-3.5 bg-sky-50 hover:bg-sky-700 text-sky-800 hover:text-white font-bold text-xs sm:text-sm rounded-xl transition-colors border border-sky-200 mt-2 flex items-center justify-center gap-2"
                       >
-                        <span>{t.findJobsBtn || "Find Jobs"}</span>
+                        <span>{t.findJobsBtn || "Find Pharmacy Jobs"}</span>
                         <ArrowRight className="w-4 h-4" />
                       </button>
                     </div>
@@ -1221,7 +1218,7 @@ export default function ServicesPage() {
                 <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-teal-800 to-slate-900 text-white flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 shadow-lg">
                   <div className="w-full min-w-0 lg:w-auto lg:flex-1">
                     <span className="px-3 py-1 bg-white/10 text-teal-200 text-xs font-bold rounded-full">
-                      {t.pharmacyOwner} - Hiring Staff
+                      {currentUser.role === "general_user" ? "Hiring" : `${t.pharmacyOwner} · Hiring`}
                     </span>
                     <h2 className="text-xl sm:text-2xl font-extrabold font-outfit mt-2">
                       {currentUser.pharmacyDetails?.pharmacyName ||
@@ -1851,12 +1848,10 @@ export default function ServicesPage() {
                     Krishna Medicose Services
                   </span>
                   <h2 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold font-outfit max-w-3xl leading-tight">
-                    {t.doctorsTabSubtitle ||
-                      "Clinic Chambers, Consultations & Doctor Collaborations"}
+                    {t.heroDoctorsTitle}
                   </h2>
                   <p className="text-sm sm:text-base text-slate-300 max-w-2xl leading-relaxed">
-                    Connect specialist doctors with local clinics and pharmacies
-                    equipped for outpatient patient consultations.
+                    {t.heroDoctorsDesc}
                   </p>
                   <div className="pt-2 flex flex-wrap gap-4">
                     <button
@@ -1867,7 +1862,7 @@ export default function ServicesPage() {
                       }}
                       className="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center gap-2 whitespace-nowrap"
                     >
-                      <span>Join as Doctor</span>
+                      <span>{t.registerTitle || "Create Your Free Account"}</span>
                       <ArrowRight className="w-4 h-4" />
                     </button>
                     <button
@@ -1917,7 +1912,7 @@ export default function ServicesPage() {
                         }}
                         className="w-full py-3 sm:py-3.5 bg-emerald-50 hover:bg-emerald-700 text-emerald-800 hover:text-white font-bold text-xs sm:text-sm rounded-xl transition-colors border border-emerald-200 mt-2 flex items-center justify-center gap-2"
                       >
-                        <span>{t.connectDoctorBtn || "Connect as Doctor"}</span>
+                        <span>{t.connectDoctorBtn || "Find a Chamber"}</span>
                         <ArrowRight className="w-4 h-4" />
                       </button>
                     </div>
@@ -1930,7 +1925,7 @@ export default function ServicesPage() {
                         </div>
                         <h4 className="text-lg sm:text-xl font-extrabold text-slate-900">
                           {t.optDoctorConnectOwner ||
-                            "2. I own a pharmacy/clinic & want to connect with a doctor"}
+                            "I own a pharmacy or clinic with a chamber"}
                         </h4>
                         <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
                           {t.optDoctorConnectOwnerDesc ||
@@ -1946,7 +1941,7 @@ export default function ServicesPage() {
                         }}
                         className="w-full py-3 sm:py-3.5 bg-teal-50 hover:bg-teal-700 text-teal-800 hover:text-white font-bold text-xs sm:text-sm rounded-xl transition-colors border border-teal-200 mt-2 flex items-center justify-center gap-2"
                       >
-                        <span>{t.listChamberBtn || "List Clinic Chamber"}</span>
+                        <span>{t.listChamberBtn || "List My Chamber"}</span>
                         <ArrowRight className="w-4 h-4" />
                       </button>
                     </div>
@@ -2194,7 +2189,7 @@ export default function ServicesPage() {
                 <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-emerald-900 to-slate-900 text-white flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 shadow-lg">
                   <div className="w-full min-w-0 lg:w-auto lg:flex-1">
                     <span className="px-3 py-1 bg-white/10 text-emerald-200 text-xs font-bold rounded-full">
-                      {t.pharmacyOwner} - Doctor Chambers
+                      {currentUser.role === "general_user" ? "Doctor chambers" : `${t.pharmacyOwner} · Doctor chambers`}
                     </span>
                     <h2 className="text-xl sm:text-2xl font-extrabold font-outfit mt-2">
                       {currentUser.pharmacyDetails?.pharmacyName ||

@@ -511,7 +511,7 @@ export default function ServicesAuthModal({
     if (context === 'catalogs') return 'Product Catalogs & Distributors';
     if (context === 'medicine-data') return 'Medicine Data Hub';
     if (context === 'links') return 'Useful Pharmacy Links';
-    if (context === 'general') return 'Krishna Medicos Services';
+    if (context === 'general') return 'Krishna Medicose Services';
     return t.siteTitle || 'Find Jobs & Doctors';
   };
 
@@ -611,9 +611,9 @@ export default function ServicesAuthModal({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <h4 className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-teal-700 leading-snug">
-                        {t.opt1Title || '1. I am a pharmacist and own a pharmacy'}
+                        {t.opt1Title || 'I own a pharmacy and want to hire'}
                       </h4>
-                      <span className="text-xs bg-slate-100 text-slate-600 px-3 py-1 rounded-lg font-bold group-hover:bg-teal-600 group-hover:text-white flex-shrink-0 transition-colors">
+                      <span className="hidden sm:inline-flex text-xs bg-slate-100 text-slate-600 px-3 py-1 rounded-lg font-bold group-hover:bg-teal-600 group-hover:text-white flex-shrink-0 transition-colors">
                         {t.select || 'Select'}
                       </span>
                     </div>
@@ -635,9 +635,9 @@ export default function ServicesAuthModal({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <h4 className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-sky-700 leading-snug">
-                        {t.opt2Title || '2. I am a pharmacist looking for a job'}
+                        {t.opt2Title || "I'm a pharmacist looking for a job"}
                       </h4>
-                      <span className="text-xs bg-slate-100 text-slate-600 px-3 py-1 rounded-lg font-bold group-hover:bg-sky-600 group-hover:text-white flex-shrink-0 transition-colors">
+                      <span className="hidden sm:inline-flex text-xs bg-slate-100 text-slate-600 px-3 py-1 rounded-lg font-bold group-hover:bg-sky-600 group-hover:text-white flex-shrink-0 transition-colors">
                         {t.select || 'Select'}
                       </span>
                     </div>
@@ -659,9 +659,9 @@ export default function ServicesAuthModal({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <h4 className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-emerald-700 leading-snug">
-                        {t.opt3Title || '3. I am a doctor looking for a clinic or pharmacy'}
+                        {t.opt3Title || "I'm a doctor looking for a chamber"}
                       </h4>
-                      <span className="text-xs bg-slate-100 text-slate-600 px-3 py-1 rounded-lg font-bold group-hover:bg-emerald-600 group-hover:text-white flex-shrink-0 transition-colors">
+                      <span className="hidden sm:inline-flex text-xs bg-slate-100 text-slate-600 px-3 py-1 rounded-lg font-bold group-hover:bg-emerald-600 group-hover:text-white flex-shrink-0 transition-colors">
                         {t.select || 'Select'}
                       </span>
                     </div>
@@ -688,14 +688,14 @@ export default function ServicesAuthModal({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <h4 className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-teal-700 leading-snug">
-                        4. General User / Catalogs & Medicine Explorer
+                        {t.opt4Title || "I'm here for catalogs, medicine data & links"}
                       </h4>
-                      <span className="text-xs bg-slate-100 text-slate-600 px-3 py-1 rounded-lg font-bold group-hover:bg-teal-600 group-hover:text-white flex-shrink-0 transition-colors">
+                      <span className="hidden sm:inline-flex text-xs bg-slate-100 text-slate-600 px-3 py-1 rounded-lg font-bold group-hover:bg-teal-600 group-hover:text-white flex-shrink-0 transition-colors">
                         {t.select || 'Select'}
                       </span>
                     </div>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">
-                      Search pharmaceutical formulations, pan-India distributors, medicine database, and resources without job/clinic listings.
+                      {t.opt4Desc || 'Browse verified distributors, the medicine data bundle and useful pharmacy links. You can still post jobs or chambers any time.'}
                     </p>
                   </div>
                 </button>
@@ -745,7 +745,7 @@ export default function ServicesAuthModal({
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-teal-700 leading-snug">
-                      {t.ownerSub1 || 'Option 1: Hire a pharmacist for your pharmacy'}
+                      {t.ownerSub1 || 'Hire a pharmacist for my pharmacy'}
                     </h4>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">
                       {t.ownerSub1Desc || 'Post job vacancies with salary and timings. See pharmacists available in your area.'}
@@ -763,7 +763,7 @@ export default function ServicesAuthModal({
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-emerald-700 leading-snug">
-                      {t.ownerSub2 || 'Option 2: Connect with a doctor for consultation'}
+                      {t.ownerSub2 || 'Offer my chamber to a doctor'}
                     </h4>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">
                       {t.ownerSub2Desc || 'List your chamber setup, preferred doctor specialization, and timings.'}
@@ -911,7 +911,7 @@ export default function ServicesAuthModal({
                         required
                         value={formData.pharmacyName}
                         onChange={(e) => setFormData({ ...formData, pharmacyName: e.target.value })}
-                        placeholder="e.g. Krishna Medicos"
+                        placeholder="e.g. Krishna Medicose"
                         className="w-full h-11 px-4 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 transition-colors"
                         maxLength={80}
                       />
