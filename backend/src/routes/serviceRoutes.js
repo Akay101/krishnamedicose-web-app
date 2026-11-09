@@ -18,6 +18,7 @@ const collabController = require('../controllers/serviceCollabController');
 const talentController = require('../controllers/serviceTalentController');
 const adminController = require('../controllers/serviceAdminController');
 const locationController = require('../controllers/serviceLocationController');
+const doctorRequestController = require('../controllers/serviceDoctorRequestController');
 
 // Rate limiting configurations (Industry standard protection against spam & brute-force)
 const otpSendLimiter = rateLimit({
@@ -119,7 +120,7 @@ router.get('/location/reverse', locationController.reverseGeocode);
 router.post(
   '/jobs',
   serviceAuthMiddleware,
-  requireRole(['pharmacy_owner']),
+  requireRole(['pharmacy_owner', 'general_user']),
   postCreationLimiter,
   jobController.createJobPost
 );
@@ -128,9 +129,13 @@ router.post(
 router.get(
   '/jobs/my-jobs',
   serviceAuthMiddleware,
-  requireRole(['pharmacy_owner']),
+  requireRole(['pharmacy_owner', 'general_user']),
   jobController.getMyJobs
 );
+
+// NOTE: static paths must be registered before '/jobs/:id'.
+// Get submitted applications (Pharmacist)
+router.get('/jobs/my-applications', serviceAuthMiddleware, jobController.getMyApplications);
 
 // Job feed (Pharmacist job seekers, with distance calculations & filters)
 router.get('/jobs/feed', optionalServiceAuth, jobController.getJobFeed);
@@ -163,8 +168,6 @@ router.patch(
   jobController.updateApplicationStatus
 );
 
-// Get submitted applications (Pharmacist)
-router.get('/jobs/my-applications', serviceAuthMiddleware, jobController.getMyApplications);
 
 /* ===================================================
    DOCTOR COLLABORATION (PHARMACY OWNER & DOCTORS)
@@ -174,7 +177,7 @@ router.get('/jobs/my-applications', serviceAuthMiddleware, jobController.getMyAp
 router.post(
   '/collab-posts',
   serviceAuthMiddleware,
-  requireRole(['pharmacy_owner']),
+  requireRole(['pharmacy_owner', 'general_user']),
   postCreationLimiter,
   collabController.createCollabPost
 );
@@ -183,9 +186,13 @@ router.post(
 router.get(
   '/collab-posts/my-posts',
   serviceAuthMiddleware,
-  requireRole(['pharmacy_owner']),
+  requireRole(['pharmacy_owner', 'general_user']),
   collabController.getMyCollabPosts
 );
+
+// NOTE: static paths must be registered before '/collab-posts/:id'.
+// View sent inquiries (Doctor)
+router.get('/collab-posts/my-inquiries', serviceAuthMiddleware, collabController.getMyInquiries);
 
 // Doctor collaboration feed (Doctors looking for clinic/chamber)
 router.get('/collab-posts/feed', optionalServiceAuth, collabController.getCollabFeed);
@@ -218,8 +225,28 @@ router.patch(
   collabController.updateInquiryStatus
 );
 
-// View sent inquiries (Doctor)
-router.get('/collab-posts/my-inquiries', serviceAuthMiddleware, collabController.getMyInquiries);
+
+/* ===================================================
+   DOCTORS LOOKING FOR A CHAMBER (DOCTOR -> PHARMACY)
+=================================================== */
+
+// Static paths first (before '/doctor-requests/:id')
+router.get('/doctor-requests/feed', optionalServiceAuth, doctorRequestController.getFeed);
+router.get('/doctor-requests/my-requests', serviceAuthMiddleware, requireRole(['doctor']), doctorRequestController.getMyRequests);
+router.get('/doctor-requests/my-offers', serviceAuthMiddleware, doctorRequestController.getMyOffers);
+router.patch('/doctor-requests/responses/:responseId/status', serviceAuthMiddleware, requireRole(['doctor']), doctorRequestController.updateResponseStatus);
+
+router.post('/doctor-requests', serviceAuthMiddleware, requireRole(['doctor']), postCreationLimiter, doctorRequestController.createRequest);
+router.put('/doctor-requests/:id', serviceAuthMiddleware, requireRole(['doctor']), doctorRequestController.updateRequest);
+router.delete('/doctor-requests/:id', serviceAuthMiddleware, requireRole(['doctor']), doctorRequestController.deleteRequest);
+router.get('/doctor-requests/:id/responses', serviceAuthMiddleware, requireRole(['doctor']), doctorRequestController.getResponses);
+router.post(
+  '/doctor-requests/:id/respond',
+  serviceAuthMiddleware,
+  requireRole(['pharmacy_owner', 'general_user']),
+  applicationLimiter,
+  doctorRequestController.respondToRequest
+);
 
 /* ===================================================
    TALENT DISCOVERY (PHARMACISTS & DOCTORS DIRECTORY)
@@ -259,6 +286,12 @@ router.get('/admin/jobs', requireAdmin, adminController.getAdminJobs);
 // Toggle job status (Admin)
 router.patch('/admin/jobs/:id/status', requireAdmin, adminController.toggleJobStatus);
 
+// Approve / reject a job vacancy (verification)
+router.patch('/admin/jobs/:id/moderate', requireAdmin, adminController.moderateJob);
+
+// Edit any job post (admin edits never send it back for review)
+router.put('/admin/jobs/:id', requireAdmin, jobController.updateJobPost);
+
 // Delete any job post
 router.delete('/admin/jobs/:id', requireAdmin, adminController.deleteAdminJob);
 
@@ -267,6 +300,18 @@ router.get('/admin/collab-posts', requireAdmin, adminController.getAdminCollabPo
 
 // Toggle collaboration status (Admin)
 router.patch('/admin/collab-posts/:id/status', requireAdmin, adminController.toggleCollabStatus);
+
+// Doctor chamber requirements (admin)
+router.get('/admin/doctor-requests', requireAdmin, doctorRequestController.getAdminRequests);
+router.patch('/admin/doctor-requests/:id/moderate', requireAdmin, adminController.moderateDoctorRequest);
+router.put('/admin/doctor-requests/:id', requireAdmin, doctorRequestController.updateRequest);
+router.delete('/admin/doctor-requests/:id', requireAdmin, adminController.deleteAdminDoctorRequest);
+
+// Approve / reject a doctor chamber listing (verification)
+router.patch('/admin/collab-posts/:id/moderate', requireAdmin, adminController.moderateCollab);
+
+// Edit any collaboration post
+router.put('/admin/collab-posts/:id', requireAdmin, collabController.updateCollabPost);
 
 // Delete any collaboration post
 router.delete('/admin/collab-posts/:id', requireAdmin, adminController.deleteAdminCollabPost);

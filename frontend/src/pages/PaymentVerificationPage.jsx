@@ -2,8 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { CheckCircle2, XCircle, Loader2, Sparkles, Eye, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
-import Navbar from '../components/Navbar';
-import InteractiveBackground from '../components/InteractiveBackground';
+import SiteHeader from '../components/layout/SiteHeader';
 import api from '../utils/api';
 
 export default function PaymentVerificationPage() {
@@ -37,7 +36,15 @@ export default function PaymentVerificationPage() {
           ? { paymentId, paymentRequestId }
           : { orderId };
 
-        const response = await api.post('/medicine-bundle/verify-payment', payload);
+        const serviceToken = localStorage.getItem('service_token');
+        if (!serviceToken) {
+          setErrorMessage('Please sign in with the Krishna Medicose account you used for this purchase, then reopen this page.');
+          setStatus('FAILED');
+          return;
+        }
+        const response = await api.post('/medicine-bundle/verify-payment', payload, {
+          headers: { Authorization: `Bearer ${serviceToken}` }
+        });
         if (response.data.status === 'SUCCESS') {
           setPurchase(response.data.purchase);
           setStatus('SUCCESS');
@@ -64,11 +71,10 @@ export default function PaymentVerificationPage() {
   }, [orderId, paymentId, paymentRequestId]);
 
   return (
-    <main className="relative min-h-screen bg-slate-50 text-slate-900 selection:bg-teal-200 selection:text-teal-900 flex flex-col justify-center items-center p-6">
-      <InteractiveBackground />
-      <Navbar />
-
-      <div className="w-full max-w-lg z-10 pt-20">
+    <div className="min-h-screen bg-canvas">
+      <SiteHeader variant="compact" />
+    <main className="relative flex flex-col justify-center items-center p-6">
+      <div className="w-full max-w-lg z-10 pt-10">
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -168,5 +174,6 @@ export default function PaymentVerificationPage() {
         </motion.div>
       </div>
     </main>
+    </div>
   );
 }

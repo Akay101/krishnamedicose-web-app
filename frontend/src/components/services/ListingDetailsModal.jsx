@@ -1,4 +1,6 @@
 import React from 'react';
+import { ModerationBadge } from './ListingBadges';
+import { assetUrl } from '../../utils/assetUrl';
 import {
   X,
   Briefcase,
@@ -64,6 +66,7 @@ export default function ListingDetailsModal({
                 <span className="text-[11px] font-bold uppercase tracking-wider text-teal-700 bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-200">
                   {modalTitle()}
                 </span>
+                {(isJob || isCollab) && <ModerationBadge status={item.moderationStatus} />}
                 {item.distanceKm !== undefined && item.distanceKm !== null && (
                   <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full">
                     {item.distanceKm} {t.distanceAway || 'km away'}
@@ -96,6 +99,23 @@ export default function ListingDetailsModal({
 
         {/* Modal Scrollable Body */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1 text-slate-700 text-sm">
+          {/* Chamber photos */}
+          {isCollab && Array.isArray(item.images) && item.images.length > 0 && (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {item.images.map((url, i) => (
+                <a
+                  key={url}
+                  href={assetUrl(url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 ${i === 0 ? 'col-span-2 row-span-2 aspect-[4/3] sm:col-span-2' : 'aspect-square'}`}
+                >
+                  <img src={assetUrl(url)} alt={`Chamber photo ${i + 1}`} loading="lazy" className="h-full w-full object-cover transition hover:scale-105" />
+                </a>
+              ))}
+            </div>
+          )}
+
           {/* Key Parameters Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {isJob && (

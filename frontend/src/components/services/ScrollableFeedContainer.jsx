@@ -68,7 +68,7 @@ export default function ScrollableFeedContainer({
             <h4 className="text-lg sm:text-xl font-bold text-slate-900 font-outfit">{title}</h4>
             {badgeText && (
               <span className="text-xs font-bold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-full">
-                0 {badgeText}
+                {badgeText}
               </span>
             )}
           </div>
@@ -105,7 +105,7 @@ export default function ScrollableFeedContainer({
 
           <div className="flex items-center gap-2">
             {headerAction}
-            <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-xl">
+            <span className="whitespace-nowrap text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-xl">
               {t.showingCount || 'Showing'} {Math.min(visibleCount, total)} {t.of || 'of'} {total}
             </span>
           </div>
@@ -136,7 +136,7 @@ export default function ScrollableFeedContainer({
               <div className="flex flex-col items-center justify-center gap-1.5 py-2">
                 <button
                   onClick={loadMore}
-                  className="px-5 py-2 text-xs font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200/80 rounded-xl transition-all shadow-sm flex items-center gap-1.5"
+                  className="px-5 py-2 text-xs font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200/80 rounded-xl transition-all shadow-sm flex items-center gap-1.5 whitespace-nowrap shrink-0"
                 >
                   <span>{t.loadMore || 'Load More'}</span>
                   <span className="text-[10px] text-teal-600 font-medium">({total - visibleCount} more)</span>

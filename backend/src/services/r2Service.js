@@ -14,20 +14,22 @@ const s3Client = new S3Client({
 
 const crypto = require('crypto');
 
-const ALLOWED_MIME_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-  'image/svg+xml',
-  'application/pdf',
-  'audio/mpeg'
-];
+// SVG is intentionally excluded: it can carry executable script
+const MIME_EXTENSION = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+  'application/pdf': '.pdf',
+  'audio/mpeg': '.mp3'
+};
+const ALLOWED_MIME_TYPES = Object.keys(MIME_EXTENSION);
 
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
+    files: 5,
   },
   fileFilter: (req, file, cb) => {
     if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
@@ -39,8 +41,8 @@ const upload = multer({
 });
 
 const uploadToR2 = async (file) => {
-  const ext = path.extname(file.originalname).toLowerCase();
-  const safeBaseName = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 30);
+  const ext = MIME_EXTENSION[file.mimetype] || '.bin';
+  const safeBaseName = path.basename(file.originalname, path.extname(file.originalname)).replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 30);
   const fileKey = `assets/${crypto.randomUUID()}-${safeBaseName}${ext}`;
   
   const params = {

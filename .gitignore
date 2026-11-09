@@ -33,3 +33,6 @@ logs/
 .parcel-cache/
 .turbo/
 .vercel/
+
+# User-uploaded files (served from disk when R2 is not configured)
+backend/uploads/

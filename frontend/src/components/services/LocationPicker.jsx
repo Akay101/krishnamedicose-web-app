@@ -170,6 +170,18 @@ function formatDistance(distKm, isHi) {
   return isHi ? `${Math.round(distKm)} किमी` : `${Math.round(distKm)} km`;
 }
 
+// Google Maps preview. The keyless embed works everywhere; the official Embed API is used only
+// when it has been enabled for the project key (set VITE_GOOGLE_MAPS_EMBED_API=true), because an
+// un-enabled key renders "This API is not activated on your API project" instead of a map.
+const GOOGLE_MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+const USE_EMBED_API = String(import.meta.env.VITE_GOOGLE_MAPS_EMBED_API || '') === 'true';
+function googleMapEmbedUrl(lat, lng) {
+  const q = `${Number(lat).toFixed(6)},${Number(lng).toFixed(6)}`;
+  return USE_EMBED_API && GOOGLE_MAPS_KEY
+    ? `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(GOOGLE_MAPS_KEY)}&q=${q}&zoom=15`
+    : `https://maps.google.com/maps?q=${q}&z=15&hl=en&output=embed`;
+}
+
 // Retrieve stored or fallback coordinates for proximity anchoring
 function getStoredCoordinates(valueCoords) {
   if (
@@ -588,7 +600,7 @@ export default function LocationPicker({
             ) : (
               <>
                 <Navigation className="w-4 h-4 text-teal-700" />
-                <span>{t.useGps || (isHindi ? 'जीपीएस उपयोग करें' : 'Use My GPS Location')}</span>
+                <span>{t.useGps || (isHindi ? 'मेरा स्थान पता करें' : 'Detect my location')}</span>
               </>
             )}
           </button>
@@ -737,10 +749,17 @@ export default function LocationPicker({
               <MapPin className="w-3.5 h-3.5 text-teal-600" />
               <span>{isHindi ? 'मानचित्र निर्देशांक:' : 'Map Coordinates:'} {lat.toFixed(4)}, {lng.toFixed(4)}</span>
             </div>
-            <span className="text-[10px] text-slate-400">OpenStreetMap</span>
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] font-semibold text-teal-700 hover:underline"
+            >
+              {isHindi ? 'Google Maps में खोलें' : 'Open in Google Maps'}
+            </a>
           </div>
 
-          <div className="relative h-44 w-full bg-slate-200">
+          <div className="relative h-52 sm:h-56 w-full bg-slate-200">
             <iframe
               title="Location Map"
               width="100%"
@@ -749,7 +768,9 @@ export default function LocationPicker({
               scrolling="no"
               marginHeight="0"
               marginWidth="0"
-              src={`https://www.openstreetmap.org/export/embed.html?bbox=${lng - 0.02}%2C${lat - 0.015}%2C${lng + 0.02}%2C${lat + 0.015}&layer=mapnik&marker=${lat}%2C${lng}`}
+              src={googleMapEmbedUrl(lat, lng)}
+              referrerPolicy="no-referrer-when-downgrade"
+              allowFullScreen
               className="w-full h-full border-0"
             />
           </div>

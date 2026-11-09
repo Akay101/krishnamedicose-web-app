@@ -39,7 +39,6 @@ import {
 } from "lucide-react";
 import servicesApi from "../utils/servicesApi";
 import { translations } from "../utils/servicesTranslations";
-import ServicesAuthModal from "../components/services/ServicesAuthModal";
 import CreateJobModal from "../components/services/CreateJobModal";
 import CreateCollabModal from "../components/services/CreateCollabModal";
 import ApplyJobModal from "../components/services/ApplyJobModal";
@@ -53,6 +52,20 @@ import CatalogPage from "./CatalogPage";
 import MedicineDataPage from "./MedicineDataPage";
 import UsefulLinksPage from "./UsefulLinksPage";
 import { useModal } from "../context/ModalContext";
+import { useAccount } from "../context/AccountContext";
+import SiteHeader from "../components/layout/SiteHeader";
+import MemberGate from "../components/services/MemberGate";
+import { ModerationBadge, ModerationNotice, VerifiedBadge } from "../components/services/ListingBadges";
+import DoctorRequestsFeed from "../components/services/DoctorRequestsFeed";
+import MyDoctorRequests from "../components/services/MyDoctorRequests";
+
+// "S-29, Shalimar Garden, Ghaziabad" without repeating the city when the address already has it
+const formatUserAddress = (loc = {}) => {
+  const address = (loc.address || "").trim();
+  const city = (loc.city || "").trim();
+  if (!address) return city || "Location not set";
+  return city && !address.toLowerCase().includes(city.toLowerCase()) ? `${address}, ${city}` : address;
+};
 
 export default function ServicesPage() {
   const { showModal } = useModal();
@@ -94,21 +107,21 @@ export default function ServicesPage() {
     setSearchParams({ service: key });
   };
 
-  // Current authenticated user state
-  const [currentUser, setCurrentUser] = useState(() => {
-    try {
-      const saved = localStorage.getItem("service_user");
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
+  // Centralized Krishna Medicose account (shared with the whole site)
+  const { user: currentUser, setUser: setCurrentUser, openAuth, signOut } = useAccount();
+  // Pharmacy owners and general members can both post vacancies and chamber listings
+  const isPoster = Boolean(currentUser && (currentUser.role === "pharmacy_owner" || currentUser.role === "general_user"));
 
-  // Modals state
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [authInitialMode, setAuthInitialMode] = useState("register"); // 'register' or 'login'
-  const [authInitialRole, setAuthInitialRole] = useState(null);
-  const [authInitialSubRole, setAuthInitialSubRole] = useState(null);
+  // Existing call-sites describe the sign-in intent step by step; collect it and open the shared modal
+  const authIntent = useRef({ mode: "login", role: null, subRole: null });
+  const setAuthInitialMode = (mode) => { authIntent.current.mode = mode; };
+  const setAuthInitialRole = (role) => { authIntent.current.role = role; };
+  const setAuthInitialSubRole = (subRole) => { authIntent.current.subRole = subRole; };
+  const setAuthModalOpen = (open) => {
+    if (open) openAuth({ ...authIntent.current, context: selectedService });
+    authIntent.current = { mode: "login", role: null, subRole: null };
+  };
+
   const [createJobModalOpen, setCreateJobModalOpen] = useState(false);
   const [editingJob, setEditingJob] = useState(null);
   const [createCollabModalOpen, setCreateCollabModalOpen] = useState(false);
@@ -192,66 +205,16 @@ export default function ServicesPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Sync auth state
+  // Notifications follow the shared session; doctors land on their own tab
   useEffect(() => {
-    const handleAuthChange = () => {
-      try {
-        const saved = localStorage.getItem("service_user");
-        setCurrentUser(saved ? JSON.parse(saved) : null);
-      } catch {
-        setCurrentUser(null);
-      }
-    };
-
-    window.addEventListener("service_auth_change", handleAuthChange);
-    return () =>
-      window.removeEventListener("service_auth_change", handleAuthChange);
-  }, []);
-
-  // Fetch initial profile & notifications with 24h expiry verification
-  useEffect(() => {
-    const token = localStorage.getItem("service_token");
-    if (!token) return;
-
-    // Check if 24-hour token session has expired
-    let isExpired = false;
-    try {
-      const parts = token.split(".");
-      if (parts.length === 3) {
-        const payload = JSON.parse(
-          atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"))
-        );
-        if (payload.exp && payload.exp * 1000 <= Date.now()) {
-          isExpired = true;
-        }
-      } else {
-        isExpired = true;
-      }
-    } catch {
-      isExpired = true;
-    }
-
-    if (isExpired) {
-      localStorage.removeItem("service_token");
-      localStorage.removeItem("service_user");
-      setCurrentUser(null);
+    if (!currentUser) {
+      setNotifications([]);
+      setUnreadCount(0);
       return;
     }
-
-    servicesApi
-      .get("/auth/me")
-      .then((res) => {
-        setCurrentUser(res.data);
-        localStorage.setItem("service_user", JSON.stringify(res.data));
-      })
-      .catch(() => {
-        localStorage.removeItem("service_token");
-        localStorage.removeItem("service_user");
-        setCurrentUser(null);
-      });
-
+    if (currentUser.role === "doctor") setMainTab("doctors");
     fetchNotifications();
-  }, []);
+  }, [currentUser?._id]);
 
   const fetchNotifications = async () => {
     try {
@@ -307,16 +270,20 @@ export default function ServicesPage() {
         setCollabFeed(collabsRes.data || []);
         setOpenPharmacists(talentPharmRes.data || []);
         setOpenDoctors(talentDocRes.data || []);
-      } else if (currentUser.role === "pharmacy_owner") {
-        const [jobsRes, collabsRes, talentPharmRes, talentDocRes] =
+      } else if (isPoster) {
+        const [jobsRes, collabsRes, talentPharmRes, talentDocRes, feedJobsRes, feedCollabsRes] =
           await Promise.all([
             servicesApi.get("/jobs/my-jobs"),
             servicesApi.get("/collab-posts/my-posts"),
             servicesApi.get("/talent/pharmacists", { params }),
             servicesApi.get("/talent/doctors", { params }),
+            servicesApi.get("/jobs/feed", { params }).catch(() => ({ data: [] })),
+            servicesApi.get("/collab-posts/feed", { params }).catch(() => ({ data: [] })),
           ]);
         setMyJobs(jobsRes.data || []);
         setMyCollabs(collabsRes.data || []);
+        setJobFeed(feedJobsRes.data || []);
+        setCollabFeed(feedCollabsRes.data || []);
         setOpenPharmacists(talentPharmRes.data || []);
         setOpenDoctors(talentDocRes.data || []);
       } else if (currentUser.role === "job_seeker_pharmacist") {
@@ -393,11 +360,20 @@ export default function ServicesPage() {
   };
 
   // Sign out
-  const handleSignOut = () => {
-    localStorage.removeItem("service_token");
-    localStorage.removeItem("service_user");
-    setCurrentUser(null);
-    window.dispatchEvent(new Event("service_auth_change"));
+  const handleSignOut = () => signOut();
+
+  // Doctors can only send proposals to chambers once Krishna Medicose has verified their profile
+  const openInquire = (collab) => {
+    if (currentUser?.role === "doctor" && !currentUser.isVerified) {
+      showModal({
+        title: "Profile verification pending",
+        message:
+          "Your doctor profile is being verified by the Krishna Medicose team. You'll be able to send proposals as soon as it's verified — we'll email you.",
+        type: "info",
+      });
+      return;
+    }
+    openInquire(collab);
   };
 
   // Delete Job
@@ -448,29 +424,19 @@ export default function ServicesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-teal-500 selection:text-white">
-      {/* Top Header */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Link
-              to="/"
-              className="text-xs font-bold text-slate-500 hover:text-teal-700 transition-colors flex items-center gap-1 border border-slate-200 rounded-xl px-3 py-1.5 flex-shrink-0"
-            >
-              {t.backToMain || "Back"}
-            </Link>
-            <div className="h-6 w-[1px] bg-slate-200 hidden sm:block" />
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-teal-600 animate-pulse flex-shrink-0" />
-                <h1 className="text-base sm:text-lg font-extrabold text-slate-900 font-outfit tracking-tight truncate">
-                  {t.siteTitle || "Find Jobs & Doctors"}
-                </h1>
-              </div>
-              <p className="text-[11px] text-slate-500 hidden md:block truncate">
-                {t.siteSubtitle || "Pharmacy Hiring & Doctor Network"}
-              </p>
-            </div>
+    <div className="min-h-screen bg-canvas text-ink-900">
+      <SiteHeader variant="compact" />
+
+      {/* Services toolbar */}
+      <div className="border-b border-ink-200/70 bg-white">
+        <div className="container-page flex min-h-[64px] flex-wrap items-center justify-between gap-3 py-3">
+          <div className="min-w-0">
+            <h1 className="truncate font-display text-base font-bold text-ink-900 sm:text-lg">
+              {t.siteTitle || "Services hub"}
+            </h1>
+            <p className="hidden truncate text-xs text-ink-500 sm:block">
+              {t.siteSubtitle || "Pharmacy hiring, doctor network, catalogs, links & medicine data"}
+            </p>
           </div>
 
           {/* Right Controls: Language Toggle, Notifications, User */}
@@ -478,7 +444,7 @@ export default function ServicesPage() {
             {/* Hindi / English Toggle Button */}
             <button
               onClick={toggleLanguage}
-              className="px-3 py-1.5 rounded-xl border border-teal-200 bg-teal-50/70 hover:bg-teal-100 text-teal-800 text-xs font-extrabold transition-all flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-xl border border-teal-200 bg-teal-50/70 hover:bg-teal-100 text-teal-800 text-xs font-extrabold transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
               title="Toggle Hindi / English"
             >
               <Globe className="w-3.5 h-3.5 text-teal-700" />
@@ -609,44 +575,14 @@ export default function ServicesPage() {
                   </button>
                 )}
 
-                <button
-                  onClick={handleSignOut}
-                  className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
-                  title={t.signOut || "Sign Out"}
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
               </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                {/* Clean distinct triggers: Login opens Login, Register opens Register */}
-                <button
-                  onClick={() => {
-                    setAuthInitialMode("login");
-                    setAuthModalOpen(true);
-                  }}
-                  className="px-3.5 py-2 text-xs font-bold text-slate-700 hover:text-slate-900 rounded-xl border border-slate-200 hover:bg-slate-100 transition-all"
-                >
-                  {t.signInBtn || "Sign In"}
-                </button>
-                <button
-                  onClick={() => {
-                    setAuthInitialMode("register");
-                    setAuthModalOpen(true);
-                  }}
-                  className="px-3.5 py-2 text-xs font-bold text-white bg-teal-700 hover:bg-teal-800 rounded-xl shadow-md transition-all flex items-center gap-1.5"
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  <span>{t.registerTitle || "Register"}</span>
-                </button>
-              </div>
-            )}
+            ) : null}
           </div>
         </div>
-      </header>
+      </div>
 
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-10 sm:space-y-14">
+      <main className="container-page py-8 sm:py-12 space-y-10 sm:space-y-14">
         {/* ================= SERVICES SWITCHER HUB ================= */}
         <div className="bg-white border border-slate-200/90 rounded-3xl p-3 sm:p-5 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 mb-3 border-b border-slate-100">
@@ -887,7 +823,7 @@ export default function ServicesPage() {
                         : "bg-slate-300/80 text-slate-700"
                     }`}
                   >
-                    {currentUser?.role === "pharmacy_owner"
+                    {isPoster
                       ? myJobs.length
                       : jobFeed.length}
                   </span>
@@ -913,7 +849,7 @@ export default function ServicesPage() {
                         : "bg-slate-300/80 text-slate-700"
                     }`}
                   >
-                    {currentUser?.role === "pharmacy_owner"
+                    {isPoster
                       ? myCollabs.length
                       : collabFeed.length}
                   </span>
@@ -956,7 +892,7 @@ export default function ServicesPage() {
                         setAuthInitialRole(null);
                         setAuthModalOpen(true);
                       }}
-                      className="px-6 py-3.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center gap-2"
+                      className="px-6 py-3.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center gap-2 whitespace-nowrap"
                     >
                       <span>{t.registerTitle || "Create Free Account"}</span>
                       <ArrowRight className="w-4 h-4" />
@@ -1108,6 +1044,7 @@ export default function ServicesPage() {
                             <h5 className="font-bold text-slate-900 text-base break-words break-all truncate">
                               {job.title}
                             </h5>
+                            <VerifiedBadge compact />
                             <span className="text-[10px] font-bold px-2.5 py-0.5 bg-teal-50 text-teal-800 rounded-lg border border-teal-200/60">
                               {job.jobType}
                             </span>
@@ -1155,7 +1092,7 @@ export default function ServicesPage() {
                                 setDetailsModalType("job");
                               }, "job_seeker_pharmacist");
                             }}
-                            className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-teal-700 hover:border-teal-300 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5"
+                            className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-teal-700 hover:border-teal-300 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             <span>{t.seeDetails || "See Details"}</span>
@@ -1167,7 +1104,7 @@ export default function ServicesPage() {
                                 setApplyModalJob(job);
                               }, "job_seeker_pharmacist");
                             }}
-                            className="px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5"
+                            className="px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 whitespace-nowrap"
                           >
                             {job.hasApplied ? (
                               <span>{t.applied || "Applied"}</span>
@@ -1249,7 +1186,7 @@ export default function ServicesPage() {
                                   setDetailsModalType("pharmacist");
                                 }, "pharmacy_owner");
                               }}
-                              className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-teal-700 hover:border-teal-300 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5"
+                              className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-teal-700 hover:border-teal-300 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap"
                             >
                               <Eye className="w-3.5 h-3.5" />
                               <span>{t.seeDetails || "See Details"}</span>
@@ -1262,7 +1199,7 @@ export default function ServicesPage() {
                                   setDetailsModalType("pharmacist");
                                 }, "pharmacy_owner");
                               }}
-                              className="px-4 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors border border-teal-200"
+                              className="px-4 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors border border-teal-200 whitespace-nowrap"
                             >
                               <Phone className="w-3.5 h-3.5" />
                               <span>
@@ -1279,10 +1216,10 @@ export default function ServicesPage() {
             )}
 
             {/* LOGGED IN: PHARMACY OWNER (PHARMACISTS TAB) */}
-            {currentUser && currentUser.role === "pharmacy_owner" && (
+            {isPoster && (
               <div className="space-y-6">
-                <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-teal-800 to-slate-900 text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-5 shadow-lg">
-                  <div>
+                <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-teal-800 to-slate-900 text-white flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 shadow-lg">
+                  <div className="w-full min-w-0 lg:w-auto lg:flex-1">
                     <span className="px-3 py-1 bg-white/10 text-teal-200 text-xs font-bold rounded-full">
                       {t.pharmacyOwner} - Hiring Staff
                     </span>
@@ -1290,15 +1227,14 @@ export default function ServicesPage() {
                       {currentUser.pharmacyDetails?.pharmacyName ||
                         currentUser.name}
                     </h2>
-                    <div className="flex items-center gap-2 text-xs text-teal-100 mt-1">
-                      <MapPin className="w-3.5 h-3.5 text-teal-300" />
-                      <span>
-                        {currentUser.location?.address},{" "}
-                        {currentUser.location?.city}
+                    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-teal-100">
+                      <span className="flex min-w-0 max-w-full items-center gap-1.5 sm:max-w-xl">
+                        <MapPin className="w-3.5 h-3.5 text-teal-300 shrink-0" />
+                        <span className="truncate">{formatUserAddress(currentUser.location)}</span>
                       </span>
                       <button
                         onClick={() => setChangeLocationModalOpen(true)}
-                        className="underline text-teal-200 hover:text-white font-bold"
+                        className="shrink-0 whitespace-nowrap underline text-teal-200 hover:text-white font-bold"
                       >
                         ({t.changeLocation})
                       </button>
@@ -1310,7 +1246,7 @@ export default function ServicesPage() {
                       setEditingJob(null);
                       setCreateJobModalOpen(true);
                     }}
-                    className="px-5 py-3 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center gap-2"
+                    className="px-5 py-3 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center gap-2 w-full lg:w-auto shrink-0 justify-center whitespace-nowrap"
                   >
                     <Plus className="w-4 h-4" />
                     <span>{t.postNewJob}</span>
@@ -1345,6 +1281,19 @@ export default function ServicesPage() {
                       {t.openPharmacists} ({openPharmacists.length})
                     </span>
                   </button>
+                  <button
+                    onClick={() => setActiveTab("browse")}
+                    className={`pb-3.5 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-1.5 flex-shrink-0 ${
+                      activeTab === "browse"
+                        ? "border-teal-600 text-teal-700"
+                        : "border-transparent text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>
+                      Verified jobs ({jobFeed.length})
+                    </span>
+                  </button>
                 </div>
 
                 {/* Tab Content: My Jobs */}
@@ -1374,6 +1323,7 @@ export default function ServicesPage() {
                             <h4 className="font-bold text-slate-900 text-base break-words break-all truncate">
                               {job.title}
                             </h4>
+                            <ModerationBadge status={job.moderationStatus} />
                             <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200/60">
                               {job.status}
                             </span>
@@ -1388,6 +1338,7 @@ export default function ServicesPage() {
                           <p className="text-xs sm:text-sm text-slate-600 line-clamp-2 leading-relaxed break-words break-all">
                             {job.description}
                           </p>
+                          <ModerationNotice listing={job} />
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 flex-shrink-0 pt-3 md:pt-0 border-t md:border-t-0 border-slate-100">
@@ -1396,7 +1347,7 @@ export default function ServicesPage() {
                               setDetailsModalItem(job);
                               setDetailsModalType("job");
                             }}
-                            className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-teal-700 hover:border-teal-300 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5"
+                            className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-teal-700 hover:border-teal-300 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             <span>{t.seeDetails || "See Details"}</span>
@@ -1431,6 +1382,42 @@ export default function ServicesPage() {
                           </div>
                         </div>
                       </div>
+                    )}
+                  />
+                )}
+
+
+                {activeTab === "browse" && (
+                  <ScrollableFeedContainer
+                    items={jobFeed}
+                    pageSize={6}
+                    title="Verified jobs near you"
+                    badgeText={`${jobFeed.length} live`}
+                    lang={lang}
+                    t={t}
+                    emptyState={{
+                      icon: <ShieldCheck className="w-10 h-10 text-slate-300 mx-auto" />,
+                      message: "No verified listings in this area yet",
+                      actionText: "Show All Distance",
+                      onAction: () => setSelectedRadius("All"),
+                    }}
+                    renderItem={(job) => (
+                      <button
+                        type="button"
+                        key={job._id}
+                        onClick={() => {
+                          setDetailsModalItem(job);
+                          setDetailsModalType("job");
+                        }}
+                        className="w-full text-left p-5 rounded-2xl border border-slate-200/90 bg-white hover:border-teal-400 hover:shadow-md transition-all space-y-2"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h5 className="font-bold text-slate-900 text-base truncate">{job.title}</h5>
+                          <VerifiedBadge compact />
+                        </div>
+                        <p className="text-xs sm:text-sm text-slate-500 font-medium truncate">{`${job.pharmacyName} · ${job.location?.city || "Local area"} · ${job.salaryRange}`}</p>
+                        <p className="text-xs text-slate-600 line-clamp-2">{job.description}</p>
+                      </button>
                     )}
                   />
                 )}
@@ -1530,7 +1517,7 @@ export default function ServicesPage() {
                                 setDetailsModalItem(p);
                                 setDetailsModalType("pharmacist");
                               }}
-                              className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-teal-700 hover:border-teal-300 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5"
+                              className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-teal-700 hover:border-teal-300 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap"
                             >
                               <Eye className="w-3.5 h-3.5" />
                               <span>{t.seeDetails || "See Details"}</span>
@@ -1539,7 +1526,7 @@ export default function ServicesPage() {
                             {p.mobile && (
                               <a
                                 href={`tel:${p.mobile}`}
-                                className="px-3.5 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors border border-teal-200"
+                                className="px-3.5 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors border border-teal-200 whitespace-nowrap"
                               >
                                 <Phone className="w-3.5 h-3.5" /> Call
                               </a>
@@ -1547,7 +1534,7 @@ export default function ServicesPage() {
                             {p.email && (
                               <a
                                 href={`mailto:${p.email}`}
-                                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors"
+                                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors whitespace-nowrap"
                               >
                                 <Mail className="w-3.5 h-3.5" /> Email
                               </a>
@@ -1564,23 +1551,22 @@ export default function ServicesPage() {
             {/* LOGGED IN: PHARMACIST JOB SEEKER */}
             {currentUser && currentUser.role === "job_seeker_pharmacist" && (
               <div className="space-y-6">
-                <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-sky-900 to-slate-900 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 shadow-lg">
-                  <div>
+                <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-sky-900 to-slate-900 text-white flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 shadow-lg">
+                  <div className="w-full min-w-0 lg:w-auto lg:flex-1">
                     <span className="px-3 py-1 bg-white/10 text-sky-200 text-xs font-bold rounded-full">
                       {t.pharmacist}
                     </span>
                     <h2 className="text-xl sm:text-2xl font-extrabold font-outfit mt-2">
                       {currentUser.name}
                     </h2>
-                    <div className="flex items-center gap-2 text-xs text-sky-100 mt-1">
-                      <MapPin className="w-3.5 h-3.5 text-sky-300" />
-                      <span>
-                        {currentUser.location?.address},{" "}
-                        {currentUser.location?.city}
+                    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-sky-100">
+                      <span className="flex min-w-0 max-w-full items-center gap-1.5 sm:max-w-xl">
+                        <MapPin className="w-3.5 h-3.5 text-sky-300 shrink-0" />
+                        <span className="truncate">{formatUserAddress(currentUser.location)}</span>
                       </span>
                       <button
                         onClick={() => setChangeLocationModalOpen(true)}
-                        className="underline text-sky-200 hover:text-white font-bold"
+                        className="shrink-0 whitespace-nowrap underline text-sky-200 hover:text-white font-bold"
                       >
                         ({t.changeLocation})
                       </button>
@@ -1590,7 +1576,7 @@ export default function ServicesPage() {
                   <button
                     onClick={handleToggleAvailability}
                     disabled={togglingAvailability}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 ${
+                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shrink-0 whitespace-nowrap ${
                       currentUser.isOpenToWork
                         ? "bg-emerald-500 text-white"
                         : "bg-slate-700 text-slate-300"
@@ -1607,10 +1593,10 @@ export default function ServicesPage() {
                   </button>
                 </div>
 
-                <div className="flex border-b border-slate-200 gap-6">
+                <div className="flex border-b border-slate-200 gap-6 overflow-x-auto no-scrollbar">
                   <button
                     onClick={() => setActiveTab("main")}
-                    className={`pb-3 text-xs sm:text-sm font-bold border-b-2 ${
+                    className={`pb-3 text-xs sm:text-sm font-bold border-b-2 whitespace-nowrap ${
                       activeTab === "main"
                         ? "border-sky-600 text-sky-700"
                         : "border-transparent text-slate-500"
@@ -1620,7 +1606,7 @@ export default function ServicesPage() {
                   </button>
                   <button
                     onClick={() => setActiveTab("secondary")}
-                    className={`pb-3 text-xs sm:text-sm font-bold border-b-2 ${
+                    className={`pb-3 text-xs sm:text-sm font-bold border-b-2 whitespace-nowrap ${
                       activeTab === "secondary"
                         ? "border-sky-600 text-sky-700"
                         : "border-transparent text-slate-500"
@@ -1693,6 +1679,7 @@ export default function ServicesPage() {
                               <h4 className="font-bold text-slate-900 text-base truncate">
                                 {job.title}
                               </h4>
+                              <VerifiedBadge compact />
                               <span className="text-[10px] font-bold px-2.5 py-0.5 bg-sky-50 text-sky-800 rounded-lg border border-sky-200/60">
                                 {job.jobType}
                               </span>
@@ -1738,7 +1725,7 @@ export default function ServicesPage() {
                                 setDetailsModalItem(job);
                                 setDetailsModalType("job");
                               }}
-                              className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-sky-700 hover:border-sky-300 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5"
+                              className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-sky-700 hover:border-sky-300 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap"
                             >
                               <Eye className="w-3.5 h-3.5" />
                               <span>{t.seeDetails || "See Details"}</span>
@@ -1751,7 +1738,7 @@ export default function ServicesPage() {
                             ) : (
                               <button
                                 onClick={() => setApplyModalJob(job)}
-                                className="px-4 py-2 bg-sky-700 hover:bg-sky-800 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5"
+                                className="px-4 py-2 bg-sky-700 hover:bg-sky-800 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 whitespace-nowrap"
                               >
                                 {t.applyNow || "Apply Now"}
                               </button>
@@ -1826,6 +1813,7 @@ export default function ServicesPage() {
                         <h4 className="font-bold text-slate-900 text-base">
                           {job.title}
                         </h4>
+                        <VerifiedBadge compact />
                         <p className="text-xs text-slate-500 mt-0.5">
                           {job.pharmacyName} - {job.location?.city}
                         </p>
@@ -1838,7 +1826,7 @@ export default function ServicesPage() {
                           setDetailsModalItem(job);
                           setDetailsModalType("job");
                         }}
-                        className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-teal-700 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5 self-start sm:self-auto"
+                        className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-teal-700 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5 self-start sm:self-auto whitespace-nowrap"
                       >
                         <Eye className="w-3.5 h-3.5" />
                         <span>{t.seeDetails || "See Details"}</span>
@@ -1877,7 +1865,7 @@ export default function ServicesPage() {
                         setAuthInitialRole("doctor");
                         setAuthModalOpen(true);
                       }}
-                      className="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center gap-2"
+                      className="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center gap-2 whitespace-nowrap"
                     >
                       <span>Join as Doctor</span>
                       <ArrowRight className="w-4 h-4" />
@@ -2031,6 +2019,7 @@ export default function ServicesPage() {
                             <h5 className="font-bold text-slate-900 text-base break-words break-all truncate">
                               {collab.specializationNeeded}
                             </h5>
+                            <VerifiedBadge compact />
                             <span className="text-[10px] font-bold px-2.5 py-0.5 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-200/60">
                               {collab.preferredTimings}
                             </span>
@@ -2072,7 +2061,7 @@ export default function ServicesPage() {
                                 setDetailsModalType("collab");
                               }, "doctor");
                             }}
-                            className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-emerald-700 hover:border-emerald-300 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5"
+                            className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-emerald-700 hover:border-emerald-300 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             <span>{t.seeDetails || "See Details"}</span>
@@ -2084,7 +2073,7 @@ export default function ServicesPage() {
                                 setInquireModalCollab(collab);
                               }, "doctor");
                             }}
-                            className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5"
+                            className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 whitespace-nowrap"
                           >
                             {collab.hasInquired ? (
                               <span>{t.proposalSent || "Proposal Sent"}</span>
@@ -2095,6 +2084,12 @@ export default function ServicesPage() {
                         </div>
                       </div>
                     )}
+                  />
+
+                  <DoctorRequestsFeed
+                    currentUser={currentUser}
+                    requireAuth={(fn) => requireAuthAction(fn)}
+                    params={{ lng: currentUser?.location?.coordinates?.[0], lat: currentUser?.location?.coordinates?.[1], radiusKm: selectedRadius === "All" ? "" : selectedRadius }}
                   />
 
                   {/* Doctors Available for Consultation with Infinite Scroll Container */}
@@ -2166,7 +2161,7 @@ export default function ServicesPage() {
                                   setDetailsModalType("doctor");
                                 }, "pharmacy_owner");
                               }}
-                              className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-emerald-700 hover:border-emerald-300 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5"
+                              className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-emerald-700 hover:border-emerald-300 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap"
                             >
                               <Eye className="w-3.5 h-3.5" />
                               <span>{t.seeDetails || "See Details"}</span>
@@ -2179,7 +2174,7 @@ export default function ServicesPage() {
                                   setDetailsModalType("doctor");
                                 }, "pharmacy_owner");
                               }}
-                              className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors border border-emerald-200"
+                              className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors border border-emerald-200 whitespace-nowrap"
                             >
                               <Phone className="w-3.5 h-3.5" />
                               <span>{t.inviteDoctor || "Invite Doctor"}</span>
@@ -2194,10 +2189,10 @@ export default function ServicesPage() {
             )}
 
             {/* LOGGED IN: PHARMACY OWNER (DOCTORS TAB) */}
-            {currentUser && currentUser.role === "pharmacy_owner" && (
+            {isPoster && (
               <div className="space-y-6">
-                <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-emerald-900 to-slate-900 text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-5 shadow-lg">
-                  <div>
+                <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-emerald-900 to-slate-900 text-white flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 shadow-lg">
+                  <div className="w-full min-w-0 lg:w-auto lg:flex-1">
                     <span className="px-3 py-1 bg-white/10 text-emerald-200 text-xs font-bold rounded-full">
                       {t.pharmacyOwner} - Doctor Chambers
                     </span>
@@ -2205,15 +2200,14 @@ export default function ServicesPage() {
                       {currentUser.pharmacyDetails?.pharmacyName ||
                         currentUser.name}
                     </h2>
-                    <div className="flex items-center gap-2 text-xs text-emerald-100 mt-1">
-                      <MapPin className="w-3.5 h-3.5 text-emerald-300" />
-                      <span>
-                        {currentUser.location?.address},{" "}
-                        {currentUser.location?.city}
+                    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-emerald-100">
+                      <span className="flex min-w-0 max-w-full items-center gap-1.5 sm:max-w-xl">
+                        <MapPin className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                        <span className="truncate">{formatUserAddress(currentUser.location)}</span>
                       </span>
                       <button
                         onClick={() => setChangeLocationModalOpen(true)}
-                        className="underline text-emerald-200 hover:text-white font-bold"
+                        className="shrink-0 whitespace-nowrap underline text-emerald-200 hover:text-white font-bold"
                       >
                         ({t.changeLocation})
                       </button>
@@ -2225,7 +2219,7 @@ export default function ServicesPage() {
                       setEditingCollab(null);
                       setCreateCollabModalOpen(true);
                     }}
-                    className="px-5 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center gap-2"
+                    className="px-5 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center gap-2 w-full lg:w-auto shrink-0 justify-center whitespace-nowrap"
                   >
                     <Plus className="w-4 h-4" />
                     <span>{t.newChamberListing}</span>
@@ -2261,7 +2255,35 @@ export default function ServicesPage() {
                       {openDoctors.length})
                     </span>
                   </button>
+                  <button
+                    onClick={() => setActiveTab("browse")}
+                    className={`pb-3.5 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-1.5 flex-shrink-0 ${
+                      activeTab === "browse"
+                        ? "border-teal-600 text-teal-700"
+                        : "border-transparent text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>
+                      Verified chambers ({collabFeed.length})
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("seeking")}
+                    className={`pb-3.5 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-1.5 flex-shrink-0 ${
+                      activeTab === "seeking"
+                        ? "border-sky-600 text-sky-700"
+                        : "border-transparent text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <Search className="w-4 h-4" />
+                    <span>Doctors seeking chambers</span>
+                  </button>
                 </div>
+
+                {activeTab === "seeking" && (
+                  <DoctorRequestsFeed currentUser={currentUser} requireAuth={(fn) => requireAuthAction(fn)} params={{ lng: currentUser?.location?.coordinates?.[0], lat: currentUser?.location?.coordinates?.[1], radiusKm: selectedRadius === "All" ? "" : selectedRadius }} />
+                )}
 
                 {/* Tab Content: My Chambers */}
                 {activeTab === "main" && (
@@ -2290,6 +2312,7 @@ export default function ServicesPage() {
                             <h4 className="font-bold text-slate-900 text-base break-words break-all truncate">
                               {collab.specializationNeeded}
                             </h4>
+                            <ModerationBadge status={collab.moderationStatus} />
                             <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60">
                               {collab.status}
                             </span>
@@ -2304,6 +2327,7 @@ export default function ServicesPage() {
                           <p className="text-xs sm:text-sm text-slate-500 line-clamp-2 leading-relaxed break-words break-all">
                             {collab.description}
                           </p>
+                          <ModerationNotice listing={collab} />
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 flex-shrink-0 pt-3 md:pt-0 border-t md:border-t-0 border-slate-100">
@@ -2312,7 +2336,7 @@ export default function ServicesPage() {
                               setDetailsModalItem(collab);
                               setDetailsModalType("collab");
                             }}
-                            className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-emerald-700 hover:border-emerald-300 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5"
+                            className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-emerald-700 hover:border-emerald-300 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             <span>{t.seeDetails || "See Details"}</span>
@@ -2346,6 +2370,42 @@ export default function ServicesPage() {
                           </div>
                         </div>
                       </div>
+                    )}
+                  />
+                )}
+
+
+                {activeTab === "browse" && (
+                  <ScrollableFeedContainer
+                    items={collabFeed}
+                    pageSize={6}
+                    title="Verified chambers near you"
+                    badgeText={`${collabFeed.length} live`}
+                    lang={lang}
+                    t={t}
+                    emptyState={{
+                      icon: <ShieldCheck className="w-10 h-10 text-slate-300 mx-auto" />,
+                      message: "No verified listings in this area yet",
+                      actionText: "Show All Distance",
+                      onAction: () => setSelectedRadius("All"),
+                    }}
+                    renderItem={(collab) => (
+                      <button
+                        type="button"
+                        key={collab._id}
+                        onClick={() => {
+                          setDetailsModalItem(collab);
+                          setDetailsModalType("collab");
+                        }}
+                        className="w-full text-left p-5 rounded-2xl border border-slate-200/90 bg-white hover:border-teal-400 hover:shadow-md transition-all space-y-2"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h5 className="font-bold text-slate-900 text-base truncate">{collab.clinicOrChamberName || collab.pharmacyName}</h5>
+                          <VerifiedBadge compact />
+                        </div>
+                        <p className="text-xs sm:text-sm text-slate-500 font-medium truncate">{`${collab.specializationNeeded} · ${collab.location?.city || "Local area"} · ${collab.preferredTimings}`}</p>
+                        <p className="text-xs text-slate-600 line-clamp-2">{collab.description}</p>
+                      </button>
                     )}
                   />
                 )}
@@ -2424,7 +2484,7 @@ export default function ServicesPage() {
                                 setDetailsModalItem(doc);
                                 setDetailsModalType("doctor");
                               }}
-                              className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-emerald-700 hover:border-emerald-300 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5"
+                              className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-emerald-700 hover:border-emerald-300 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap"
                             >
                               <Eye className="w-3.5 h-3.5" />
                               <span>{t.seeDetails || "See Details"}</span>
@@ -2433,7 +2493,7 @@ export default function ServicesPage() {
                             {doc.mobile && (
                               <a
                                 href={`tel:${doc.mobile}`}
-                                className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors border border-emerald-200"
+                                className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors border border-emerald-200 whitespace-nowrap"
                               >
                                 <Phone className="w-3.5 h-3.5" /> Call
                               </a>
@@ -2441,7 +2501,7 @@ export default function ServicesPage() {
                             {doc.email && (
                               <a
                                 href={`mailto:${doc.email}`}
-                                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors"
+                                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors whitespace-nowrap"
                               >
                                 <Mail className="w-3.5 h-3.5" /> Email
                               </a>
@@ -2458,23 +2518,22 @@ export default function ServicesPage() {
             {/* LOGGED IN: DOCTOR DASHBOARD */}
             {currentUser && currentUser.role === "doctor" && (
               <div className="space-y-6">
-                <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-emerald-900 to-slate-900 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 shadow-lg">
-                  <div>
+                <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-emerald-900 to-slate-900 text-white flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 shadow-lg">
+                  <div className="w-full min-w-0 lg:w-auto lg:flex-1">
                     <span className="px-3 py-1 bg-white/10 text-emerald-200 text-xs font-bold rounded-full">
                       {t.doctor}
                     </span>
                     <h2 className="text-xl sm:text-2xl font-extrabold font-outfit mt-2">
                       Dr. {currentUser.name}
                     </h2>
-                    <div className="flex items-center gap-2 text-xs text-emerald-100 mt-1">
-                      <MapPin className="w-3.5 h-3.5 text-emerald-300" />
-                      <span>
-                        {currentUser.location?.address},{" "}
-                        {currentUser.location?.city}
+                    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-emerald-100">
+                      <span className="flex min-w-0 max-w-full items-center gap-1.5 sm:max-w-xl">
+                        <MapPin className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                        <span className="truncate">{formatUserAddress(currentUser.location)}</span>
                       </span>
                       <button
                         onClick={() => setChangeLocationModalOpen(true)}
-                        className="underline text-emerald-200 hover:text-white font-bold"
+                        className="shrink-0 whitespace-nowrap underline text-emerald-200 hover:text-white font-bold"
                       >
                         ({t.changeLocation})
                       </button>
@@ -2484,7 +2543,7 @@ export default function ServicesPage() {
                   <button
                     onClick={handleToggleAvailability}
                     disabled={togglingAvailability}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 ${
+                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shrink-0 whitespace-nowrap ${
                       currentUser.isOpenToCollaborate
                         ? "bg-emerald-500 text-white"
                         : "bg-slate-700 text-slate-300"
@@ -2501,10 +2560,10 @@ export default function ServicesPage() {
                   </button>
                 </div>
 
-                <div className="flex border-b border-slate-200 gap-6">
+                <div className="flex border-b border-slate-200 gap-6 overflow-x-auto no-scrollbar">
                   <button
                     onClick={() => setActiveTab("main")}
-                    className={`pb-3 text-xs sm:text-sm font-bold border-b-2 ${
+                    className={`pb-3 text-xs sm:text-sm font-bold border-b-2 whitespace-nowrap ${
                       activeTab === "main"
                         ? "border-emerald-600 text-emerald-700"
                         : "border-transparent text-slate-500"
@@ -2514,7 +2573,7 @@ export default function ServicesPage() {
                   </button>
                   <button
                     onClick={() => setActiveTab("secondary")}
-                    className={`pb-3 text-xs sm:text-sm font-bold border-b-2 ${
+                    className={`pb-3 text-xs sm:text-sm font-bold border-b-2 whitespace-nowrap ${
                       activeTab === "secondary"
                         ? "border-emerald-600 text-emerald-700"
                         : "border-transparent text-slate-500"
@@ -2522,7 +2581,28 @@ export default function ServicesPage() {
                   >
                     {t.myProposals} ({myInquiries.length})
                   </button>
+                  <button
+                    onClick={() => setActiveTab("requests")}
+                    className={`pb-3 text-xs sm:text-sm font-bold border-b-2 whitespace-nowrap ${
+                      activeTab === "requests"
+                        ? "border-sky-600 text-sky-700"
+                        : "border-transparent text-slate-500"
+                    }`}
+                  >
+                    My chamber requirements
+                  </button>
                 </div>
+
+                {!currentUser.isVerified && (
+                  <div className="flex items-start gap-3 rounded-2xl border border-saffron-200 bg-saffron-50 px-4 py-3 text-sm text-saffron-600">
+                    <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
+                    <p>
+                      <strong>Profile verification pending.</strong> You can post chamber requirements now; sending proposals to pharmacy chambers unlocks once the Krishna Medicose team verifies your medical registration.
+                    </p>
+                  </div>
+                )}
+
+                {activeTab === "requests" && <MyDoctorRequests />}
 
                 {activeTab === "main" && (
                   <ScrollableFeedContainer
@@ -2579,7 +2659,7 @@ export default function ServicesPage() {
                               setDetailsModalItem(post);
                               setDetailsModalType("collab");
                             }}
-                            className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-emerald-700 hover:border-emerald-300 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5"
+                            className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-emerald-700 hover:border-emerald-300 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5 whitespace-nowrap"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             <span>{t.seeDetails || "See Details"}</span>
@@ -2591,8 +2671,8 @@ export default function ServicesPage() {
                             </span>
                           ) : (
                             <button
-                              onClick={() => setInquireModalCollab(post)}
-                              className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5"
+                              onClick={() => openInquire(post)}
+                              className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 whitespace-nowrap"
                             >
                               {t.sendProposal || "Send Proposal"}
                             </button>
@@ -2667,6 +2747,7 @@ export default function ServicesPage() {
                         <h4 className="font-bold text-slate-900 text-base break-words break-all">
                           {collab.specializationNeeded}
                         </h4>
+                        <VerifiedBadge compact />
                         <p className="text-xs text-slate-500 mt-0.5 break-words break-all">
                           {collab.pharmacyName} - {collab.location?.city}
                         </p>
@@ -2680,7 +2761,7 @@ export default function ServicesPage() {
                           setDetailsModalItem(collab);
                           setDetailsModalType("collab");
                         }}
-                        className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-emerald-700 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5 self-start sm:self-auto"
+                        className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:text-emerald-700 hover:bg-slate-50 font-bold text-xs transition-all flex items-center gap-1.5 self-start sm:self-auto whitespace-nowrap"
                       >
                         <Eye className="w-3.5 h-3.5" />
                         <span>{t.seeDetails || "See Details"}</span>
@@ -2696,54 +2777,34 @@ export default function ServicesPage() {
     )}
 
     {/* ================= SERVICE 2: PRODUCT CATALOGS & DISTRIBUTORS ================= */}
-    {selectedService === "catalogs" && (
+    {selectedService !== "staffing" && !currentUser && (
+      <MemberGate service={selectedService} onSignIn={(mode) => openAuth({ mode, context: selectedService })} />
+    )}
+
+    {selectedService === "catalogs" && currentUser && (
       <CatalogPage
         embedded={true}
         parentUser={currentUser}
         onOpenAuth={(mode) => {
-          setAuthInitialMode(mode || "login");
-          setAuthModalOpen(true);
+          openAuth({ mode: mode || "login", context: "catalogs" });
         }}
       />
     )}
 
     {/* ================= SERVICE 3: MEDICINE DATA HUB ================= */}
-    {selectedService === "medicine-data" && (
+    {selectedService === "medicine-data" && currentUser && (
       <MedicineDataPage embedded={true} />
     )}
 
     {/* ================= SERVICE 4: USEFUL PHARMACY LINKS ================= */}
-    {selectedService === "links" && (
+    {selectedService === "links" && currentUser && (
       <UsefulLinksPage embedded={true} />
     )}
   </main>
 
   {/* Modals */}
-  <ServicesAuthModal
-    isOpen={authModalOpen}
-    onClose={() => {
-      setAuthModalOpen(false);
-      setAuthInitialRole(null);
-      setAuthInitialSubRole(null);
-    }}
-    initialMode={authInitialMode}
-    initialRole={authInitialRole}
-    initialSubRole={authInitialSubRole}
-    context={selectedService === "staffing" ? "staffing" : selectedService}
-    t={t}
-    lang={lang}
-        onAuthSuccess={(user) => {
-          setCurrentUser(user);
-          if (user.role === "doctor") {
-            setMainTab("doctors");
-          } else {
-            setMainTab("pharmacists");
-          }
-          loadViewData();
-        }}
-      />
-
       <CreateJobModal
+        key={`job-${createJobModalOpen}-${editingJob?._id || "new"}`}
         isOpen={createJobModalOpen}
         onClose={() => {
           setCreateJobModalOpen(false);
@@ -2757,6 +2818,7 @@ export default function ServicesPage() {
       />
 
       <CreateCollabModal
+        key={`collab-${createCollabModalOpen}-${editingCollab?._id || "new"}`}
         isOpen={createCollabModalOpen}
         onClose={() => {
           setCreateCollabModalOpen(false);
@@ -2825,7 +2887,7 @@ export default function ServicesPage() {
           if (detailsModalType === "job") {
             setApplyModalJob(item);
           } else if (detailsModalType === "collab") {
-            setInquireModalCollab(item);
+            openInquire(item);
           }
         }}
       />

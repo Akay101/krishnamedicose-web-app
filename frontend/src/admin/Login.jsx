@@ -1,13 +1,21 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Sparkles, Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BarChart3, Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck, UsersRound } from "lucide-react";
 import api from "../utils/api";
 import ForgotPasswordModal from "./ForgotPasswordModal";
+import { FullLogo } from "../components/BrandLogos";
+
+const FEATURES = [
+  { icon: BarChart3, text: "Live traffic, leads and revenue at a glance" },
+  { icon: UsersRound, text: "Manage members, jobs, catalogs and purchases" },
+  { icon: ShieldCheck, text: "Role-based permissions for every team member" },
+];
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showForgotModal, setShowForgotModal] = useState(false);
@@ -24,127 +32,142 @@ export default function Login() {
       localStorage.setItem("user", JSON.stringify(response.data.user));
       navigate("/admin");
     } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          "Login failed. Please check your credentials."
-      );
-      console.log(err);
+      setError(err.response?.data?.message || "Sign in failed. Please check your credentials.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-center p-4 lg:p-8 relative overflow-hidden">
-      {/* Abstract Background Design */}
-      <div className="absolute top-1/4 left-1/4 w-64 lg:w-96 h-64 lg:h-96 bg-teal-300/20 blur-[80px] lg:blur-[120px] rounded-full -z-10" />
-      <div className="absolute bottom-1/4 right-1/4 w-64 lg:w-96 h-64 lg:h-96 bg-sky-300/20 blur-[80px] lg:blur-[120px] rounded-full -z-10" />
+    <div className="grid min-h-[100dvh] bg-white lg:grid-cols-[1.05fr_1fr]">
+      {/* Brand panel */}
+      <div className="relative hidden overflow-hidden bg-ink-950 p-12 text-white lg:flex lg:flex-col lg:justify-between">
+        <div className="pointer-events-none absolute inset-0 bg-grid-light opacity-50" />
+        <div className="pointer-events-none absolute -left-20 bottom-0 h-96 w-96 rounded-full bg-brand-500/30 blur-[120px]" />
+        <div className="pointer-events-none absolute -right-10 top-10 h-72 w-72 rounded-full bg-saffron-400/15 blur-[100px]" />
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md z-10"
-      >
-        <div className="text-center mb-8 lg:mb-12">
-          <div className="inline-flex items-center gap-3 mb-4 lg:mb-6">
-            <div className="w-10 lg:w-12 h-10 lg:h-12 bg-teal-50 border border-teal-200 rounded-xl lg:rounded-2xl flex items-center justify-center">
-              <Sparkles className="w-6 lg:w-7 h-6 lg:h-7 text-teal-600" />
-            </div>
-            <span className="font-extrabold text-2xl lg:text-3xl font-outfit tracking-tight text-slate-900">
-              KM <span className="text-teal-600">Admin</span>
-            </span>
-          </div>
-          <h1 className="text-xl lg:text-2xl font-black text-slate-900 mb-2">
-            Welcome Back, Visionary
+        <FullLogo size="md" theme="dark" className="relative" />
+
+        <div className="relative max-w-md">
+          <p className="eyebrow-dark">Admin console</p>
+          <h1 className="mt-5 font-display text-4xl font-extrabold leading-tight tracking-tight">
+            Run the whole of Krishna Medicose from one place.
           </h1>
-          <p className="text-xs lg:text-sm text-slate-500 uppercase tracking-widest font-black">
-            Pharmaceutical Control Panel
-          </p>
+          <ul className="mt-8 space-y-4">
+            {FEATURES.map((f) => (
+              <li key={f.text} className="flex items-center gap-3 text-sm text-ink-300">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 ring-1 ring-inset ring-white/10">
+                  <f.icon className="h-4 w-4 text-brand-300" />
+                </span>
+                {f.text}
+              </li>
+            ))}
+          </ul>
         </div>
 
-        <div className="glass-morphism p-6 lg:p-10 rounded-[2.5rem] lg:rounded-[3rem] shadow-2xl">
-          <form onSubmit={handleLogin} className="space-y-5 lg:space-y-6">
+        <p className="relative text-xs text-ink-500">Authorised Krishna Medicose personnel only.</p>
+      </div>
+
+      {/* Form */}
+      <div className="flex flex-col px-5 py-8 sm:px-10">
+        <div className="flex items-center justify-between">
+          <div className="lg:hidden">
+            <FullLogo size="sm" />
+          </div>
+          <Link to="/" className="ml-auto inline-flex items-center gap-1.5 text-sm font-medium text-ink-500 hover:text-ink-900">
+            <ArrowLeft className="h-4 w-4" /> Back to site
+          </Link>
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45 }}
+          className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-12"
+        >
+          <h2 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 sm:text-3xl">Sign in to admin</h2>
+          <p className="mt-2 text-sm text-ink-500">Use the credentials provided by your administrator.</p>
+
+          <form onSubmit={handleLogin} className="mt-8 space-y-5">
             <div>
-              <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-600 mb-2 ml-2">
-                Admin Email
+              <label htmlFor="admin-email" className="field-label">
+                Email address
               </label>
-              <div className="relative group">
-                <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-4 lg:w-5 h-4 lg:h-5 text-slate-400 group-focus-within:text-teal-600 transition-colors" />
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
                 <input
+                  id="admin-email"
                   type="email"
+                  autoComplete="username"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 lg:py-4 pl-12 lg:pl-14 pr-6 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-200/20 focus:bg-white transition-all font-bold text-slate-800 text-sm lg:text-base"
-                  placeholder="admin@krishnamedicose.in"
+                  className="input pl-10"
+                  placeholder="you@krishnamedicose.in"
                   required
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-600 mb-2 ml-2">
-                Password
-              </label>
-              <div className="relative group">
-                <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-4 lg:w-5 h-4 lg:h-5 text-slate-400 group-focus-within:text-teal-600 transition-colors" />
+              <div className="flex items-center justify-between">
+                <label htmlFor="admin-password" className="field-label">
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowForgotModal(true)}
+                  className="mb-1.5 text-xs font-semibold text-brand-700 hover:text-brand-800"
+                >
+                  Forgot password?
+                </button>
+              </div>
+              <div className="relative">
+                <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
                 <input
-                  type="password"
+                  id="admin-password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 lg:py-4 pl-12 lg:pl-14 pr-6 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-200/20 focus:bg-white transition-all font-bold text-slate-800 text-sm lg:text-base"
+                  className="input pl-10 pr-11"
                   placeholder="••••••••"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-ink-400 hover:text-ink-700"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
             </div>
 
             {error && (
-              <motion.div
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="text-red-700 text-[11px] font-extrabold bg-red-50 p-3 lg:p-4 rounded-xl border border-red-200 text-center"
+              <motion.p
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                role="alert"
+                className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700"
               >
                 {error}
-              </motion.div>
+              </motion.p>
             )}
 
-            <div className="flex items-center justify-end">
-              <button
-                type="button"
-                onClick={() => setShowForgotModal(true)}
-                className="text-[11px] font-extrabold text-slate-500 hover:text-teal-600 transition-colors italic"
-              >
-                Forgot Password?
-              </button>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full btn-primary py-4 lg:py-4 mt-2 flex items-center justify-center gap-2 group relative overflow-hidden rounded-xl lg:rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-md transition-transform active:scale-95"
-            >
-              {loading ? (
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                >
-                  <Sparkles className="w-5 h-5" />
-                </motion.div>
-              ) : (
-                <>
-                  <span className="relative z-10">Access System</span>
-                  <ArrowRight className="w-4 h-4 lg:w-5 lg:h-5 group-hover:translate-x-1 transition-transform relative z-10" />
-                </>
-              )}
+            <button type="submit" disabled={loading} className="btn-primary w-full py-3.5">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Sign in <ArrowRight className="h-4 w-4" /></>}
             </button>
           </form>
-        </div>
-      </motion.div>
 
-      <ForgotPasswordModal
-        isOpen={showForgotModal}
-        onClose={() => setShowForgotModal(false)}
-      />
+          <p className="mt-8 flex items-center gap-2 rounded-xl bg-ink-50 px-4 py-3 text-xs text-ink-500">
+            <ShieldCheck className="h-4 w-4 shrink-0 text-brand-600" />
+            Sessions expire automatically and are revoked when your password changes.
+          </p>
+        </motion.div>
+      </div>
+
+      <ForgotPasswordModal isOpen={showForgotModal} onClose={() => setShowForgotModal(false)} />
     </div>
   );
 }

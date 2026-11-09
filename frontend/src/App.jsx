@@ -2,12 +2,13 @@ import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import { ModalProvider } from './context/ModalContext';
+import { AccountProvider } from './context/AccountContext';
+import { SiteContentProvider } from './context/SiteContentContext';
 import { useAnalytics } from './hooks/useAnalytics';
-import MedicineDataPage from './pages/MedicineDataPage';
-import PaymentVerificationPage from './pages/PaymentVerificationPage';
 import { Loader2 } from 'lucide-react';
 
 // Lazy load admin pages to decouple admin source code from public bundle
+const PaymentVerificationPage = lazy(() => import('./pages/PaymentVerificationPage'));
 const AdminLayout = lazy(() => import('./admin/AdminLayout'));
 const Login = lazy(() => import('./admin/Login'));
 const Dashboard = lazy(() => import('./admin/Dashboard'));
@@ -26,37 +27,39 @@ const CatalogsManager = lazy(() => import('./admin/CatalogsManager'));
 
 function LoadingFallback() {
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 text-teal-600">
-      <Loader2 className="w-10 h-10 animate-spin" />
+    <div className="min-h-screen bg-canvas flex items-center justify-center p-6 text-brand-600">
+      <Loader2 className="w-8 h-8 animate-spin" />
     </div>
   );
 }
 
+const readAdminSession = () => {
+  const token = localStorage.getItem('token');
+  let user = {};
+  try {
+    user = JSON.parse(localStorage.getItem('user') || '{}');
+  } catch {
+    user = {};
+  }
+  return { token, user };
+};
+
+// UI-level gate only; every admin API call is authorised again on the server
+const PrivateRoute = ({ children, permission }) => {
+  const { token, user } = readAdminSession();
+  if (!token) return <Navigate to="/admin/login" replace />;
+  if (user.role === 'admin') return children;
+  if (permission === 'root') return <Navigate to="/admin" replace />;
+  if (permission && !user.permissions?.[permission]) return <Navigate to="/admin" replace />;
+  return children;
+};
+
 function App() {
   useAnalytics();
-  const getAuth = () => {
-    const token = localStorage.getItem('token');
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    return { token, user };
-  };
-
-  const PrivateRoute = ({ children, permission }) => {
-    const { token, user } = getAuth();
-    if (!token) return <Navigate to="/admin/login" />;
-    
-    // Super / Root Admin role check
-    if (user.role === 'admin') return children;
-    
-    // Permission check
-    if (permission && !user.permissions?.[permission]) {
-      return <Navigate to="/admin" />;
-    }
-    
-    return children;
-  };
-
   return (
     <ModalProvider>
+      <SiteContentProvider>
+      <AccountProvider>
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
@@ -79,7 +82,7 @@ function App() {
             <Route 
               path="services" 
               element={
-                <PrivateRoute>
+                <PrivateRoute permission="services">
                   <ServicesManager />
                 </PrivateRoute>
               } 
@@ -103,7 +106,7 @@ function App() {
             <Route 
               path="users" 
               element={
-                <PrivateRoute>
+                <PrivateRoute permission="root">
                   <UsersManager />
                 </PrivateRoute>
               } 
@@ -111,7 +114,7 @@ function App() {
             <Route 
               path="assets" 
               element={
-                <PrivateRoute>
+                <PrivateRoute permission="website">
                   <AssetLibraryPage />
                 </PrivateRoute>
               } 
@@ -119,7 +122,7 @@ function App() {
             <Route 
               path="offers" 
               element={
-                <PrivateRoute>
+                <PrivateRoute permission="website">
                   <OffersManager />
                 </PrivateRoute>
               } 
@@ -135,7 +138,7 @@ function App() {
             <Route 
               path="medicine-data" 
               element={
-                <PrivateRoute>
+                <PrivateRoute permission="bundles">
                   <MedicineDataManager />
                 </PrivateRoute>
               } 
@@ -143,7 +146,7 @@ function App() {
             <Route 
               path="catalogs" 
               element={
-                <PrivateRoute permission="website">
+                <PrivateRoute permission="services">
                   <CatalogsManager />
                 </PrivateRoute>
               } 
@@ -152,6 +155,8 @@ function App() {
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Suspense>
+      </AccountProvider>
+      </SiteContentProvider>
     </ModalProvider>
   );
 }

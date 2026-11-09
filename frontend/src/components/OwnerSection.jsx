@@ -1,166 +1,104 @@
-import { motion } from 'framer-motion';
-import { Youtube, Instagram, MessageSquare, ArrowUpRight, Send, Briefcase } from 'lucide-react';
-import { useState } from 'react';
-import CollaborationModal from './CollaborationModal';
+import { useState } from "react";
+import { ArrowUpRight, Briefcase, Quote } from "lucide-react";
+import CollaborationModal from "./CollaborationModal";
+import { Reveal } from "./home/Reveal";
+import { safeHref } from "../content/defaults";
+
+const SocialIcon = ({ name }) => {
+  if (name === "YouTube")
+    return (
+      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="#FF0000" aria-hidden="true">
+        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+      </svg>
+    );
+  if (name === "Instagram")
+    return (
+      <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
+        <defs>
+          <linearGradient id="ig-grad" x1="0%" y1="100%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#f09433" />
+            <stop offset="50%" stopColor="#dc2743" />
+            <stop offset="100%" stopColor="#bc1888" />
+          </linearGradient>
+        </defs>
+        <path fill="url(#ig-grad)" d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z" />
+      </svg>
+    );
+  return <ArrowUpRight className="h-5 w-5 text-brand-600" />;
+};
 
 export default function OwnerSection({ content }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const ownerData = content || {
-    name: "Krishna Pandit",
-    title: "Pharmacist | Content Creator",
-    bio: "With a passion for health education, Krishna Pandit has built a digital family of 75,000+ members. At Krishna Medicose, he ensures that every person receives not just medicines, but the right knowledge for their wellbeing.",
-    socials: [
-      { name: "YouTube", handle: "@krishnamedicos12", url: "https://www.youtube.com/@krishnamedicos12" },
-      { name: "Instagram", handle: "@krishna1211pandit", url: "https://www.instagram.com/krishna1211pandit/?hl=en" }
-    ],
-    social_family: "75K+"
-  };
-
-  const iconMap = {
-    YouTube: () => (
-      <svg viewBox="0 0 24 24" fill="#FF0000" className="w-6 h-6" xmlns="http://www.w3.org/2000/svg">
-        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-      </svg>
-    ),
-    Instagram: () => (
-      <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="instagram-gradient" x1="0%" y1="100%" x2="100%" y2="0%">
-            <stop offset="0%" style={{ stopColor: '#f09433', stopOpacity: 1 }} />
-            <stop offset="25%" style={{ stopColor: '#e6683c', stopOpacity: 1 }} />
-            <stop offset="50%" style={{ stopColor: '#dc2743', stopOpacity: 1 }} />
-            <stop offset="75%" style={{ stopColor: '#cc2366', stopOpacity: 1 }} />
-            <stop offset="100%" style={{ stopColor: '#bc1888', stopOpacity: 1 }} />
-          </linearGradient>
-        </defs>
-        <path fill="url(#instagram-gradient)" d="M12 2.163c3.204 0 3.584.012 4.85.07 1.366.062 2.633.332 3.608 1.308.976.975 1.246 2.242 1.308 3.607.058 1.266.07 1.646.07 4.85s-.012 3.584-.07 4.85c-.062 1.366-.332 2.633-1.308 3.608-.975.976-2.242 1.246-3.607 1.308-1.266.058-1.646.07-4.85.07s-3.584-.012-4.85-.07c-1.366-.062-2.633-.332-3.608-1.308-.976-.975-1.246-2.242-1.308-3.607-.058-1.266-.07-1.646-.07-4.85s.012-3.584.07-4.85c.062-1.366.332-2.633 1.308-3.608.975-.976 2.242-1.246 3.607-1.308 1.266-.058 1.646-.07 4.85-.07zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948s.014 3.667.072 4.947c.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072s3.667-.014 4.947-.072c4.358-.2 6.78-2.618 6.98-6.98.058-1.28.072-1.689.072-4.947s-.014-3.667-.072-4.947c-.2-4.358-2.618-6.78-6.98-6.98-1.28-.058-1.689-.072-4.948-.072zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.162 6.162 6.162 6.162-2.759 6.162-6.162-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
-      </svg>
-    )
-  };
-
   return (
-    <section id="owner" className="section-padding bg-slate-100/50 relative overflow-hidden border-t border-slate-200/80">
-      <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-slate-200/80 to-transparent" />
-      
-      <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-16">
-          <motion.h2 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-4xl md:text-6xl font-black font-outfit mb-4 text-slate-900"
-          >
-            Meet the <span className="text-teal-600 italic">Visionary</span>
-          </motion.h2>
-          <motion.p 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-slate-600 font-bold max-w-2xl mx-auto"
-          >
-            Bridging the gap between pharmaceutical expertise and digital content creation.
-          </motion.p>
-        </div>
-
-        <div className="grid lg:grid-cols-2 gap-12 items-stretch">
-          <motion.div
-            initial={{ opacity: 0, x: -30 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-            className="flex flex-col justify-center"
-          >
-            <div className="glass-morphism p-8 md:p-12 rounded-[3.5rem] relative">
-              <div className="absolute top-8 right-8 text-teal-600/10">
-                <MessageSquare className="w-16 h-16" />
-              </div>
-              
-              <h3 className="text-3xl md:text-4xl font-extrabold font-outfit mb-2 text-slate-900">{ownerData.name}</h3>
-              <p className="text-teal-600 font-extrabold text-lg mb-6 uppercase tracking-wider">{ownerData.title}</p>
-              
-              <p className="text-slate-700 text-lg leading-relaxed mb-8 font-medium">
-                {ownerData.bio}
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-                {ownerData.socials.map((social) => {
-                  const Icon = iconMap[social.name] || MessageSquare;
-                  return (
-                    <motion.a
-                      key={social.name}
-                      href={social.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className={`flex items-center gap-4 p-4 bg-white border border-slate-200 shadow-sm rounded-2xl transition-all duration-300 group ${
-                        social.name === 'YouTube' ? 'hover:bg-red-50 hover:text-white' : 'hover:bg-gradient-to-tr hover:from-orange-500 hover:to-pink-600 hover:text-white'
-                      }`}
-                    >
-                      <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-700 group-hover:bg-white/20 group-hover:border-transparent group-hover:text-white transition-all">
-                        <Icon className="w-6 h-6" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[10px] font-extrabold text-slate-400 uppercase leading-none mb-1 group-hover:text-white/80">{social.name}</div>
-                        <div className="font-outfit font-extrabold truncate text-sm group-hover:text-white">{social.handle}</div>
-                      </div>
-                      <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 border border-slate-100 text-slate-400 group-hover:bg-white/20 group-hover:text-white transition-all">
-                        <ArrowUpRight className="w-4 h-4" />
-                      </div>
-                    </motion.a>
-                  );
-                })}
-              </div>
-
-              {/* Business Button */}
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setIsModalOpen(true)}
-                className="w-full relative group overflow-hidden rounded-[2rem] p-px"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-teal-600 via-sky-500 to-teal-600 bg-[length:200%_auto] animate-gradient-x" />
-                <div className="relative bg-white rounded-[1.95rem] py-5 px-8 flex items-center justify-center gap-3 transition-colors group-hover:bg-transparent">
-                  <Briefcase className="w-5 h-5 text-teal-600 group-hover:text-white transition-colors" />
-                  <span className="font-extrabold text-lg text-slate-900 group-hover:text-white transition-colors">Collaborate / Business</span>
-                  <div className="w-8 h-8 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center group-hover:bg-white/20 group-hover:text-white transition-all">
-                    <Send className="w-4 h-4" />
-                  </div>
-                </div>
-              </motion.button>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, x: 30 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-            className="relative"
-          >
-            <div className="relative rounded-[3rem] overflow-hidden group border-8 border-white shadow-xl">
-              <img 
-                src={ownerData.image || "/assets/owner-krishna.png"} 
-                alt="Krishna Pandit" 
-                className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-700"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent" />
-              
-              <div className="absolute bottom-10 left-1/2 -translate-x-1/2 md:left-10 md:translate-x-0 w-[90%] md:w-auto">
-                <div className="glass-morphism px-6 py-4 rounded-3xl border-slate-200">
-                  <div className="flex items-center gap-4">
-                    <div className="relative flex-shrink-0">
-                      <div className="w-3 h-3 bg-green-500 rounded-full animate-ping absolute inset-0" />
-                      <div className="w-3 h-3 bg-green-500 rounded-full relative" />
-                    </div>
-                    <div>
-                      <p className="font-extrabold text-lg leading-tight text-slate-900">{ownerData.social_family} Social Family</p>
-                      <p className="text-[10px] text-slate-500 uppercase tracking-wider font-extrabold">Always Growing</p>
-                    </div>
-                  </div>
-                </div>
+    <section id="founder" className="section overflow-hidden bg-canvas">
+      <div className="pointer-events-none absolute right-0 top-20 h-96 w-96 rounded-full bg-brand-200/40 blur-[120px]" />
+      <div className="container-page relative grid items-center gap-14 lg:grid-cols-[1fr_1.05fr] lg:gap-20">
+        <Reveal className="relative mx-auto w-full max-w-md lg:max-w-none">
+          <div className="absolute inset-0 translate-x-4 translate-y-4 rounded-[2rem] bg-gradient-to-br from-brand-500 to-saffron-400 opacity-90" />
+          <div className="relative overflow-hidden rounded-[2rem] bg-ink-100 shadow-lift">
+            <img
+              src={content.image || "/assets/owner-krishna.png"}
+              alt={content.name}
+              loading="lazy"
+              className="aspect-[4/4.6] w-full object-cover"
+            />
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink-950/80 to-transparent p-6 pt-20">
+              <div className="flex items-center gap-3 text-white">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                </span>
+                <p className="text-sm font-semibold">{content.social_family} social family · always growing</p>
               </div>
             </div>
-          </motion.div>
+          </div>
+        </Reveal>
+
+        <div>
+          <Reveal>
+            <span className="eyebrow">Meet the founder</span>
+          </Reveal>
+          <Reveal delay={0.05}>
+            <h2 className="display-lg mt-4">{content.name}</h2>
+            <p className="mt-2 font-display text-base font-semibold text-brand-700">{content.title}</p>
+          </Reveal>
+          <Reveal delay={0.1}>
+            <div className="relative mt-7 rounded-3xl border border-ink-200/70 bg-white p-6 shadow-soft sm:p-8">
+              <Quote className="absolute -top-4 left-6 h-8 w-8 rounded-xl bg-brand-600 p-1.5 text-white" />
+              <p className="text-base leading-relaxed text-ink-700 sm:text-lg">{content.bio}</p>
+            </div>
+          </Reveal>
+
+          <Reveal delay={0.15}>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              {(content.socials || []).map((social) => (
+                <a
+                  key={social.name}
+                  href={safeHref(social.url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="card card-hover group flex items-center gap-3 p-4"
+                >
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-ink-50 ring-1 ring-inset ring-ink-100">
+                    <SocialIcon name={social.name} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-ink-500">{social.name}</p>
+                    <p className="truncate text-sm font-semibold text-ink-900">{social.handle}</p>
+                  </div>
+                  <ArrowUpRight className="h-4 w-4 text-ink-300 transition group-hover:text-brand-600" />
+                </a>
+              ))}
+            </div>
+          </Reveal>
+
+          <Reveal delay={0.2}>
+            <button type="button" onClick={() => setIsModalOpen(true)} className="btn-primary mt-6 w-full py-4 sm:w-auto sm:px-7">
+              <Briefcase className="h-4 w-4" />
+              Collaborate / business enquiry
+            </button>
+          </Reveal>
         </div>
       </div>
 

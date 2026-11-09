@@ -1,4 +1,20 @@
+const { escapeRegex } = require("../utils/security");
 const Link = require('../models/Link');
+const { isSafeUrl, sanitizeUrl, cleanText } = require('../utils/security');
+
+// Normalise admin input: http(s) destinations only, bounded text
+const pickLinkFields = (body = {}) => {
+  const out = {};
+  if (body.title !== undefined) out.title = cleanText(body.title, 150);
+  if (body.description !== undefined) out.description = cleanText(body.description, 1000);
+  if (body.url !== undefined) out.url = String(body.url).trim();
+  if (body.image !== undefined) out.image = sanitizeUrl(body.image);
+  if (body.category !== undefined) out.category = cleanText(body.category, 60) || 'General';
+  if (body.isActive !== undefined) out.isActive = Boolean(body.isActive);
+  return out;
+};
+
+const isValidDestination = (url) => isSafeUrl(url, { allowRelative: false }) && /^https?:\/\//i.test(url);
 
 // Get active links for public page
 exports.getPublicLinks = async (req, res) => {
@@ -6,15 +22,15 @@ exports.getPublicLinks = async (req, res) => {
     const { category, search } = req.query;
     const filter = { isActive: true };
 
-    if (category && category !== 'All') {
-      filter.category = category;
+    if (typeof category === 'string' && category && category !== 'All') {
+      filter.category = category.slice(0, 60);
     }
 
-    if (search) {
+    if (typeof search === 'string' && search) {
       filter.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-        { category: { $regex: search, $options: 'i' } },
+        { title: { $regex: escapeRegex(search), $options: 'i' } },
+        { description: { $regex: escapeRegex(search), $options: 'i' } },
+        { category: { $regex: escapeRegex(search), $options: 'i' } },
       ];
     }
 
@@ -38,10 +54,14 @@ exports.getAllLinks = async (req, res) => {
 // Create a new link
 exports.createLink = async (req, res) => {
   try {
-    const { title, description, url, image, category, isActive } = req.body;
+    const { title, description, url, image, category, isActive } = pickLinkFields(req.body);
 
     if (!title || !description || !url) {
       return res.status(400).json({ message: 'Title, description, and URL are required' });
+    }
+
+    if (!isValidDestination(url)) {
+      return res.status(400).json({ message: 'Link URL must start with http:// or https://' });
     }
 
     const link = new Link({
@@ -63,7 +83,12 @@ exports.createLink = async (req, res) => {
 // Update an existing link
 exports.updateLink = async (req, res) => {
   try {
-    const link = await Link.findByIdAndUpdate(req.params.id, req.body, {
+    const updates = pickLinkFields(req.body);
+    if (updates.url !== undefined && !isValidDestination(updates.url)) {
+      return res.status(400).json({ message: 'Link URL must start with http:// or https://' });
+    }
+
+    const link = await Link.findByIdAndUpdate(req.params.id, updates, {
       new: true,
       runValidators: true,
     });

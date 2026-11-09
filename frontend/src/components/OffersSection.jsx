@@ -279,7 +279,7 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
     <section
       ref={containerRef}
       id="offers"
-      className="relative min-h-screen bg-white overflow-hidden py-32 border-t border-slate-200/80"
+      className="section overflow-hidden bg-white border-t border-ink-200/60"
     >
       {/* Immersive Environment Background */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -295,54 +295,39 @@ These Terms shall be governed by the laws of the Company’s registered jurisdic
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
         {/* Header Section */}
-        <div className="mb-24 text-center max-w-5xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
+        <div className="mx-auto mb-14 max-w-3xl text-center sm:mb-20">
+          <motion.span
+            initial={{ opacity: 0, y: 16 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="inline-flex items-center gap-3 px-6 py-2 rounded-full bg-teal-50 border border-teal-200/80 text-teal-800 text-[10px] font-black uppercase tracking-[0.4em] mb-12 shadow-sm"
+            className="eyebrow"
           >
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-500 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-600"></span>
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-500 opacity-75"></span>
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-brand-600"></span>
             </span>
             Built by Krishna Medicose
-          </motion.div>
+          </motion.span>
 
-          <motion.h2 
-            initial={{ opacity: 0, y: 30 }}
+          <motion.h2
+            initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ delay: 0.2 }}
-            className="text-4xl sm:text-7xl md:text-9xl font-black font-outfit text-slate-900 leading-[1.1] mb-10 tracking-tighter"
+            transition={{ delay: 0.1 }}
+            className="display-lg mt-5"
           >
-            Our Pharmacy <br/>
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-600 via-sky-600 to-teal-600 bg-300% animate-gradient italic">Software</span>
+            Pharmacy software <span className="text-gradient">built for the counter</span>
           </motion.h2>
-
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.3 }}
-            className="relative inline-block"
-          >
-            <p className="text-2xl md:text-4xl font-black text-slate-700 font-outfit tracking-tight mb-8">
-              "Redefining Pharmacy Management through Intelligence"
-            </p>
-            <div className="absolute -bottom-2 left-0 w-full h-px bg-gradient-to-r from-transparent via-teal-500/20 to-transparent" />
-          </motion.div>
 
           <motion.p
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
-            transition={{ delay: 0.4 }}
-            className="text-lg text-slate-600 max-w-2xl mx-auto mt-8 font-bold leading-relaxed"
+            transition={{ delay: 0.2 }}
+            className="lead mx-auto mt-5 max-w-2xl"
           >
-            We've combined decades of pharmaceutical expertise with
-            state-of-the-art AI to build the only ecosystem your pharmacy will
-            ever need.
+            Decades of pharmaceutical expertise combined with modern technology — one ecosystem to
+            run billing, inventory, customers and growth for your pharmacy.
           </motion.p>
         </div>
 

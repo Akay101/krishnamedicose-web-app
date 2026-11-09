@@ -33,8 +33,7 @@ import {
   Square,
   ArrowLeft
 } from 'lucide-react';
-import Navbar from '../components/Navbar';
-import InteractiveBackground from '../components/InteractiveBackground';
+import SiteHeader from '../components/layout/SiteHeader';
 import ServicesAuthModal from '../components/services/ServicesAuthModal';
 import SingleAddressAutocomplete from '../components/services/SingleAddressAutocomplete';
 import catalogApi from '../utils/catalogApi';
@@ -510,8 +509,8 @@ export default function CatalogPage({ embedded = false, parentUser, onOpenAuth }
 
   return (
     <div className={`min-h-screen ${embedded ? 'py-2' : 'pt-24 pb-16 bg-slate-50 text-slate-900'} relative`}>
-      {!embedded && <Navbar />}
-      {!embedded && <InteractiveBackground />}
+      {!embedded && <SiteHeader />}
+      
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-8 relative z-10">
         {/* Header Banner */}

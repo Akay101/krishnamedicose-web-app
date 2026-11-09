@@ -1,4 +1,5 @@
 const Content = require('../models/Content');
+const { sanitizeContentTree } = require('../utils/security');
 
 exports.getContent = async (req, res) => {
   try {
@@ -13,12 +14,21 @@ exports.getContent = async (req, res) => {
 exports.updateContent = async (req, res) => {
   try {
     const { data } = req.body;
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      return res.status(400).json({ message: 'Invalid content payload' });
+    }
+    if (JSON.stringify(data).length > 500000) {
+      return res.status(413).json({ message: 'Content payload is too large' });
+    }
+
+    const cleanData = sanitizeContentTree(data);
     let content = await Content.findOne({ key: 'landing_page' });
     if (content) {
-      content.data = data;
+      content.data = cleanData;
+      content.markModified('data');
       content.updatedAt = Date.now();
     } else {
-      content = new Content({ key: 'landing_page', data });
+      content = new Content({ key: 'landing_page', data: cleanData });
     }
     await content.save();
     res.json({ message: 'Content updated successfully', data: content.data });

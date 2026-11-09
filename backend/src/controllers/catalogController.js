@@ -1,8 +1,30 @@
+const { escapeRegex } = require("../utils/security");
 const ProductCatalog = require('../models/ProductCatalog');
 const ProductDistributor = require('../models/ProductDistributor');
 const ServiceUser = require('../models/ServiceUser');
 const User = require('../models/User');
 const catalogUploadService = require('../services/catalogUploadService');
+const {
+  sendListingSubmittedEmail,
+  sendListingReviewedEmail,
+  notifyAdminOfListingSubmission
+} = require('../services/serviceNotificationService');
+
+// Who to e-mail about a distributor entry: the member who submitted it, else the firm itself
+const distributorContact = async (distributor) => {
+  if (distributor.submittedByModel === 'ServiceUser' && distributor.submittedBy) {
+    const member = await ServiceUser.findById(distributor.submittedBy).select('name email');
+    if (member) return { to: member.email, name: member.name, userId: member._id };
+  }
+  return { to: distributor.email, name: distributor.contactPerson || distributor.firmName, userId: null };
+};
+
+const distributorRows = (d) => [
+  ['Firm', d.firmName],
+  ['Contact person', d.contactPerson],
+  ['Location', [d.city, d.state].filter(Boolean).join(', ')],
+  ['Catalog attached', d.catalogDocument?.url ? 'Yes' : 'No']
+];
 
 // Helper to sanitize text input
 const sanitizeText = (str) => {
@@ -71,7 +93,7 @@ exports.getProducts = async (req, res) => {
     // Search by name, brand, salt composition, or manufacturer
     if (search && search.trim()) {
       const sanitized = sanitizeText(search);
-      const searchRegex = new RegExp(sanitized, 'i');
+      const searchRegex = new RegExp(escapeRegex(sanitized), 'i');
       query.$or = [
         { name: searchRegex },
         { brandName: searchRegex },
@@ -104,13 +126,13 @@ exports.getProducts = async (req, res) => {
         const conditions = [{ 'supplyCoverage.panIndia': true }];
 
         if (state && state !== 'All') {
-          const stateRegex = new RegExp(`^${sanitizeText(state)}$`, 'i');
+          const stateRegex = new RegExp(`^${escapeRegex(sanitizeText(state))}$`, 'i');
           conditions.push({ state: stateRegex });
           conditions.push({ 'supplyCoverage.statesCovered': stateRegex });
         }
 
         if (city && city.trim()) {
-          const cityRegex = new RegExp(sanitizeText(city), 'i');
+          const cityRegex = new RegExp(escapeRegex(sanitizeText(city)), 'i');
           conditions.push({ city: cityRegex });
           conditions.push({ 'supplyCoverage.citiesCovered': cityRegex });
         }
@@ -460,7 +482,7 @@ exports.getDistributors = async (req, res) => {
     // Keyword search across firm name, contact person, drug license, categories, address, city, and state
     if (search && search.trim()) {
       const sanitized = sanitizeText(search);
-      const searchRegex = new RegExp(sanitized, 'i');
+      const searchRegex = new RegExp(escapeRegex(sanitized), 'i');
       andConditions.push({
         $or: [
           { firmName: searchRegex },
@@ -481,7 +503,7 @@ exports.getDistributors = async (req, res) => {
       andConditions.push({
         $or: [
           { categories: sanitizedCat },
-          { otherCategory: new RegExp(sanitizedCat, 'i') }
+          { otherCategory: new RegExp(escapeRegex(sanitizedCat), 'i') }
         ]
       });
     }
@@ -492,14 +514,14 @@ exports.getDistributors = async (req, res) => {
       const locConditions = [{ 'supplyCoverage.panIndia': true }];
 
       if (state && state !== 'All') {
-        const stateRegex = new RegExp(`^${sanitizeText(state)}$`, 'i');
+        const stateRegex = new RegExp(`^${escapeRegex(sanitizeText(state))}$`, 'i');
         locConditions.push({ state: stateRegex });
         locConditions.push({ 'supplyCoverage.statesCovered': stateRegex });
         locConditions.push({ officeAddress: stateRegex });
       }
 
       if (city && city.trim()) {
-        const cityRegex = new RegExp(sanitizeText(city), 'i');
+        const cityRegex = new RegExp(escapeRegex(sanitizeText(city)), 'i');
         locConditions.push({ city: cityRegex });
         locConditions.push({ 'supplyCoverage.citiesCovered': cityRegex });
         locConditions.push({ officeAddress: cityRegex });
@@ -796,6 +818,25 @@ exports.createDistributor = async (req, res) => {
 
     await newDistributor.save();
 
+    if (!isAdmin) {
+      (async () => {
+        const contact = await distributorContact(newDistributor);
+        await sendListingSubmittedEmail({
+          kind: 'distributor',
+          ...contact,
+          heading: newDistributor.firmName,
+          rows: distributorRows(newDistributor)
+        });
+        await notifyAdminOfListingSubmission({
+          kind: 'distributor',
+          heading: newDistributor.firmName,
+          submitterName: newDistributor.submitterName || contact.name,
+          submitterEmail: contact.to,
+          rows: distributorRows(newDistributor).slice(1)
+        });
+      })().catch((err) => console.error('Distributor submission email error:', err));
+    }
+
     res.status(201).json({
       success: true,
       message: isAdmin
@@ -912,7 +953,7 @@ exports.getAdminProducts = async (req, res) => {
 
     if (search && search.trim()) {
       const sanitized = sanitizeText(search);
-      const searchRegex = new RegExp(sanitized, 'i');
+      const searchRegex = new RegExp(escapeRegex(sanitized), 'i');
       query.$or = [
         { name: searchRegex },
         { brandName: searchRegex },
@@ -1127,16 +1168,16 @@ exports.getAdminDistributors = async (req, res) => {
       const sanitizedCat = sanitizeText(category);
       query.$or = [
         { categories: sanitizedCat },
-        { otherCategory: new RegExp(sanitizedCat, 'i') }
+        { otherCategory: new RegExp(escapeRegex(sanitizedCat), 'i') }
       ];
     }
 
     if (state && state !== 'All') {
       const stateConds = [
         { 'supplyCoverage.panIndia': true },
-        { state: new RegExp(`^${sanitizeText(state)}$`, 'i') },
-        { 'supplyCoverage.statesCovered': new RegExp(`^${sanitizeText(state)}$`, 'i') },
-        { officeAddress: new RegExp(sanitizeText(state), 'i') }
+        { state: new RegExp(`^${escapeRegex(sanitizeText(state))}$`, 'i') },
+        { 'supplyCoverage.statesCovered': new RegExp(`^${escapeRegex(sanitizeText(state))}$`, 'i') },
+        { officeAddress: new RegExp(escapeRegex(sanitizeText(state)), 'i') }
       ];
       if (query.$or) {
         query.$and = [{ $or: query.$or }, { $or: stateConds }];
@@ -1148,7 +1189,7 @@ exports.getAdminDistributors = async (req, res) => {
 
     if (search && search.trim()) {
       const sanitized = sanitizeText(search);
-      const searchRegex = new RegExp(sanitized, 'i');
+      const searchRegex = new RegExp(escapeRegex(sanitized), 'i');
       const searchConds = [
         { firmName: searchRegex },
         { contactPerson: searchRegex },
@@ -1214,9 +1255,14 @@ exports.updateDistributorStatus = async (req, res) => {
       return res.status(404).json({ message: 'Distributor not found.' });
     }
 
+    const previousStatus = distributor.status;
     distributor.status = status;
     if (adminNotes !== undefined) {
       distributor.adminNotes = sanitizeText(adminNotes);
+    }
+
+    if (status === 'rejected' && !distributor.adminNotes) {
+      return res.status(400).json({ message: 'Please add a note explaining why the entry is rejected.' });
     }
 
     if (status === 'approved') {
@@ -1225,6 +1271,21 @@ exports.updateDistributorStatus = async (req, res) => {
     }
 
     await distributor.save();
+
+    // Tell the submitter about the verification result (only when it changes)
+    if ((status === 'approved' || status === 'rejected') && previousStatus !== status && !distributor.isDirectAdminEntry) {
+      distributorContact(distributor)
+        .then((contact) =>
+          sendListingReviewedEmail({
+            kind: 'distributor',
+            ...contact,
+            heading: distributor.firmName,
+            approved: status === 'approved',
+            note: distributor.adminNotes
+          })
+        )
+        .catch((err) => console.error('Distributor review email error:', err));
+    }
 
     res.json({
       success: true,

@@ -2,10 +2,19 @@ const Offer = require("../models/Offer");
 const OfferLead = require("../models/OfferLead");
 const emailService = require("../services/emailService");
 const crypto = require("crypto");
+const { cleanText, sanitizeUrl } = require("../utils/security");
+
+// Admin-managed offers: only whitelisted, typed fields can be written
+const OFFER_FIELDS = ["title", "description", "image", "isActive", "formEnabled", "formFields", "emailConfirmation"];
+const pickOfferFields = (body = {}) =>
+  OFFER_FIELDS.reduce((acc, key) => {
+    if (body[key] !== undefined) acc[key] = key === "image" ? sanitizeUrl(body[key]) : body[key];
+    return acc;
+  }, {});
 
 exports.createOffer = async (req, res) => {
   try {
-    const offer = new Offer(req.body);
+    const offer = new Offer(pickOfferFields(req.body));
     await offer.save();
     res.status(201).json(offer);
   } catch (error) {
@@ -25,8 +34,9 @@ exports.getOffers = async (req, res) => {
 
 exports.updateOffer = async (req, res) => {
   try {
-    const offer = await Offer.findByIdAndUpdate(req.params.id, req.body, {
+    const offer = await Offer.findByIdAndUpdate(req.params.id, pickOfferFields(req.body), {
       new: true,
+      runValidators: true,
     });
     res.json(offer);
   } catch (error) {
@@ -47,13 +57,25 @@ const { uploadToR2 } = require("../services/r2Service");
 
 exports.submitLead = async (req, res) => {
   try {
-    const { offerId, ...formData } = req.body;
+    const { offerId, ...rawFormData } = req.body;
+    if (typeof offerId !== "string") return res.status(400).json({ message: "Offer not found" });
     const offer = await Offer.findById(offerId);
-    if (!offer) return res.status(404).json({ message: "Offer not found" });
+    if (!offer || offer.isActive === false) return res.status(404).json({ message: "Offer not found" });
 
-    // Handle File Uploads
+    // Keep only the fields this offer actually declares (plus common contact fields)
+    const declared = new Map((offer.formFields || []).map((f) => [f.name, f]));
+    const formData = {};
+    for (const [key, value] of Object.entries(rawFormData)) {
+      if (declared.has(key) || ["name", "email", "mobile", "phone"].includes(key)) {
+        formData[key] = cleanText(Array.isArray(value) ? value.join(", ") : value, 2000);
+      }
+    }
+
+    // Handle File Uploads (only for declared file fields)
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
+        const field = declared.get(file.fieldname);
+        if (!field || !["file", "image", "document"].includes(field.type)) continue;
         const r2Result = await uploadToR2(file);
         formData[file.fieldname] = r2Result.url;
       }
@@ -66,7 +88,7 @@ exports.submitLead = async (req, res) => {
     for (const field of offer.formFields) {
       if (field.isUnique) {
         const value = formData[field.name];
-        if (value) {
+        if (value && typeof value === "string") {
           const existingLead = await OfferLead.findOne({
             offerId: offerId,
             [`formData.${field.name}`]: value,
@@ -115,15 +137,15 @@ exports.submitLead = async (req, res) => {
 
 exports.getLeads = async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 10));
     const skip = (page - 1) * limit;
     const status = req.query.status;
     const offerId = req.params.offerId;
 
     const query = {};
     if (offerId) query.offerId = offerId;
-    if (status) query.followUpStatus = status;
+    if (status === 'pending' || status === 'completed') query.followUpStatus = status;
 
     const [leads, total, pendingCount, completedCount] = await Promise.all([
       OfferLead.find(query)
@@ -153,10 +175,13 @@ exports.updateLeadFollowUp = async (req, res) => {
   try {
     const { id } = req.params;
     const { followUpStatus, followUpNotes } = req.body;
-    
+
     const lead = await OfferLead.findByIdAndUpdate(
       id,
-      { followUpStatus, followUpNotes },
+      {
+        followUpStatus: followUpStatus === 'completed' ? 'completed' : 'pending',
+        followUpNotes: cleanText(followUpNotes, 2000)
+      },
       { new: true }
     ).populate("offerId", "title");
     

@@ -78,6 +78,29 @@ const doctorCollaborationPostSchema = new mongoose.Schema(
       min: 1,
       max: 200
     },
+    // Photos of the chamber / clinic (uploaded through our own upload endpoint)
+    images: [
+      {
+        type: String,
+        trim: true
+      }
+    ],
+    // Admin verification: new and edited listings are hidden until approved.
+    // Legacy documents without this field are treated as approved.
+    moderationStatus: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      // No schema default on purpose: a default would also be applied when reading
+      // legacy documents, wrongly marking them pending. Create handlers set 'pending'.
+      index: true
+    },
+    moderationNote: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    reviewedAt: { type: Date },
+    reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     status: {
       type: String,
       enum: ['active', 'paused', 'closed'],

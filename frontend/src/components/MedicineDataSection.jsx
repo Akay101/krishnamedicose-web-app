@@ -1,133 +1,101 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
-import {
-  FileSpreadsheet,
-  CheckCircle2,
-  ArrowRight,
-  Sparkles,
-} from "lucide-react";
+import { ArrowRight, Check, FileSpreadsheet, GraduationCap, Lock, Store } from "lucide-react";
+import { Reveal, SectionHeading } from "./home/Reveal";
 
-export default function MedicineDataSection() {
+export default function MedicineDataSection({ content }) {
   const [price, setPrice] = useState(999);
   const [studentPrice, setStudentPrice] = useState(199);
 
   useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/medicine-bundle/config`,
-        );
-        if (response.ok) {
-          const data = await response.json();
-          if (data.amount) setPrice(data.amount);
-          if (data.studentAmount) setStudentPrice(data.studentAmount);
-        }
-      } catch (error) {
-        console.error("Failed to fetch medicine bundle config:", error);
-      }
-    };
-    fetchConfig();
+    fetch(`${import.meta.env.VITE_API_URL}/medicine-bundle/config`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.amount) setPrice(data.amount);
+        if (data?.studentAmount) setStudentPrice(data.studentAmount);
+      })
+      .catch(() => {});
   }, []);
 
-  const features = [
-    "1000+ top-selling items in pharmacies",
-    "Detailed categories includes 300+ Medicines, rest are OTC cosmetics and other products",
-    "Frequent updates to the dataset to ensure you have the latest information",
-    "You get 1 time consultation with krishna on G-Meet to understand the data and how to use it for your business and other queries",
-    "Secure OTP based access to your dataset",
+  const plans = [
+    {
+      key: "student",
+      icon: GraduationCap,
+      name: "Students & learners",
+      price: studentPrice,
+      note: "For pharmacy students and beginners",
+      highlight: false,
+    },
+    {
+      key: "regular",
+      icon: Store,
+      name: "Pharmacy Pro",
+      price,
+      note: "For new & growing pharmacies",
+      highlight: true,
+    },
   ];
 
   return (
-    <section
-      id="medicine-data"
-      className="section-padding bg-slate-100/50 border-t border-slate-200/85 relative overflow-hidden"
-    >
-      {/* Background radial glows */}
-      <div className="absolute top-1/2 left-1/4 w-96 h-96 bg-teal-500/5 blur-[120px] rounded-full -z-10" />
-      <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-sky-500/5 blur-[100px] rounded-full -z-10" />
+    <section id="medicine-data" className="section border-t border-ink-200/60 bg-white">
+      <div className="container-page">
+        <SectionHeading eyebrow="Medicine intelligence" title={content.title} description={content.subtitle} />
 
-      <div className="max-w-5xl mx-auto">
-        <div className="text-center max-w-2xl mx-auto mb-16">
-          <h2 className="text-3xl md:text-4xl font-black font-outfit mb-4 text-slate-900">
-            Top Selling Items{" "}
-            <span className="text-teal-650 italic">For Pharmacies</span>
-          </h2>
-          <p className="text-sm md:text-base text-slate-500 font-bold leading-relaxed">
-            Instant analytical access to the best-selling medicine datasets in
-            pharmacies.
-          </p>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-[2.5rem] lg:rounded-[3.5rem] p-8 lg:p-12 shadow-xl grid grid-cols-1 md:grid-cols-12 gap-10">
-          {/* Details */}
-          <div className="md:col-span-7">
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-600">
-                <FileSpreadsheet className="w-6 h-6" />
-              </div>
-
-              <div className="space-y-6">
-                <div className="space-y-3">
-                  <div>
-                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                      Perfect Fit For
+        <div className="mt-14 grid gap-6 lg:grid-cols-[1.1fr_1fr]">
+          <Reveal>
+            <div className="card h-full p-7 sm:p-9">
+              <span className="icon-tile">
+                <FileSpreadsheet className="h-5 w-5" />
+              </span>
+              <h3 className="mt-6 text-xl font-bold">What's inside the bundle</h3>
+              <ul className="mt-6 space-y-4">
+                {(content.features || []).map((feature) => (
+                  <li key={feature} className="flex gap-3 text-sm leading-relaxed text-ink-700 sm:text-[15px]">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700">
+                      <Check className="h-3 w-3" strokeWidth={3} />
                     </span>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      <span className="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-extrabold bg-teal-50 border border-teal-100 text-teal-700 select-none shadow-sm transition-all hover:scale-[1.03]">
-                        New Pharmacy Owners
-                      </span>
-                      <span className="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-extrabold bg-indigo-50 border border-indigo-100 text-indigo-700 select-none shadow-sm transition-all hover:scale-[1.03]">
-                        Low-Performing Pharmacies
-                      </span>
-                      <span className="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-extrabold bg-emerald-50 border border-emerald-100 text-emerald-700 select-none shadow-sm transition-all hover:scale-[1.03]">
-                        Students & Learners (₹{studentPrice})
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  {features.map((feat, idx) => (
-                    <div key={idx} className="flex items-start gap-3">
-                      <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-teal-600" />
-                      <span className="text-sm font-medium leading-relaxed text-slate-700">
-                        {feat}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Pricing & CTA */}
-          <div className="md:col-span-5 md:border-l border-slate-200 md:pl-12 pt-8 md:pt-0 flex flex-col justify-center">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-                Starting Access Fee
-              </p>
-
-              <div className="mt-2 flex items-end gap-2">
-                <span className="text-5xl font-black text-slate-900 font-outfit">
-                  ₹{studentPrice}
-                </span>
-                <span className="mb-1 text-xs font-bold uppercase text-slate-500">
-                  INR / Student Offer
-                </span>
-              </div>
-              <p className="text-xs font-bold text-slate-400 mt-1">
-                Standard Pro: ₹{price} INR
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-8 flex items-center gap-2 rounded-2xl bg-ink-50 px-4 py-3 text-xs text-ink-600">
+                <Lock className="h-4 w-4 text-brand-600" /> Access is linked to your Krishna Medicose account and protected on one device at a time.
               </p>
             </div>
+          </Reveal>
 
-            <Link
-              to="/medicine-data"
-              className="mt-8 w-full btn-primary py-4 rounded-2xl flex items-center justify-center gap-2 group font-bold uppercase tracking-wider shadow-md transition-transform hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <span>Get Access Now</span>
-              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-            </Link>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-1">
+            {plans.map((plan, i) => (
+              <Reveal key={plan.key} delay={0.08 * (i + 1)}>
+                <div
+                  className={`relative flex h-full flex-col overflow-hidden rounded-3xl p-7 ${
+                    plan.highlight ? "bg-ink-950 text-white shadow-lift" : "card"
+                  }`}
+                >
+                  {plan.highlight && (
+                    <>
+                      <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-brand-500/40 blur-3xl" />
+                      <span className="absolute right-5 top-5 rounded-full bg-saffron-400 px-2.5 py-1 text-[11px] font-bold text-ink-950">
+                        Most popular
+                      </span>
+                    </>
+                  )}
+                  <plan.icon className={`h-6 w-6 ${plan.highlight ? "text-brand-300" : "text-brand-600"}`} />
+                  <p className={`mt-4 font-semibold ${plan.highlight ? "text-white" : "text-ink-900"}`}>{plan.name}</p>
+                  <p className={`text-sm ${plan.highlight ? "text-ink-400" : "text-ink-500"}`}>{plan.note}</p>
+                  <p className="mt-5 flex items-end gap-1.5">
+                    <span className={`font-display text-4xl font-extrabold ${plan.highlight ? "text-white" : "text-ink-900"}`}>₹{plan.price}</span>
+                    <span className={`mb-1 text-sm ${plan.highlight ? "text-ink-400" : "text-ink-500"}`}>one-time</span>
+                  </p>
+                  <Link
+                    to="/services?service=medicine-data"
+                    className={`mt-6 w-full ${plan.highlight ? "btn-light" : "btn-primary"}`}
+                  >
+                    Get access <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </div>
+              </Reveal>
+            ))}
           </div>
         </div>
       </div>

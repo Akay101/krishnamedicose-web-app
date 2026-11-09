@@ -22,12 +22,24 @@ import {
   XCircle,
   Check,
 } from "lucide-react";
-import Navbar from "../components/Navbar";
-import InteractiveBackground from "../components/InteractiveBackground";
+import SiteHeader from '../components/layout/SiteHeader';
 import api from "../utils/api";
 import { useModal } from "../context/ModalContext";
+import { useAccount } from "../context/AccountContext";
+import { useSiteContent } from "../context/SiteContentContext";
+import { whatsappHref } from "../content/defaults";
+
+// Member endpoints of the bundle are authorised by the centralized account session
+const memberHeaders = () => {
+  const token = localStorage.getItem("service_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 export default function MedicineDataPage({ embedded = false }) {
+  const { user: account, openAuth } = useAccount();
+  const { content: siteContent } = useSiteContent();
+  const [bundleStatus, setBundleStatus] = useState({ loading: true, hasAccess: false, purchase: null });
+  const [sessionLoading, setSessionLoading] = useState(false);
   // Tabs: 'purchase' or 'login'
   const [activeTab, setActiveTab] = useState("purchase");
   const { showModal } = useModal();
@@ -323,10 +335,11 @@ export default function MedicineDataPage({ embedded = false }) {
     setActivationError("");
 
     try {
-      const resp = await api.post("/medicine-bundle/activate", {
-        email: activationEmail,
-        code: activationCodeInput,
-      });
+      const resp = await api.post(
+        "/medicine-bundle/activate",
+        { code: activationCodeInput },
+        { headers: memberHeaders() }
+      );
 
       const { token: bundleToken, user } = resp.data;
 
@@ -341,7 +354,7 @@ export default function MedicineDataPage({ embedded = false }) {
           setShowActivationForm(false);
           setActivationEmail("");
           setActivationCodeInput("");
-          fetchData();
+          setPage(1);
         },
       });
     } catch (err) {
@@ -365,18 +378,22 @@ export default function MedicineDataPage({ embedded = false }) {
       // Build the returnUrl pointing to our PaymentVerificationPage route
       const returnUrl = `${window.location.origin}/medicine-data/verify-payment?order_id={order_id}`;
 
-      const resp = await api.post("/medicine-bundle/create-order", {
-        ...checkoutForm,
-        bundleType: selectedBundle,
-        returnUrl,
-      });
+      if (!account) {
+        openAuth({ mode: "login", context: "medicine-data" });
+        return;
+      }
+
+      const resp = await api.post(
+        "/medicine-bundle/create-order",
+        { bundleType: selectedBundle, returnUrl },
+        { headers: memberHeaders() }
+      );
       const { status, email, paymentSessionId } = resp.data;
 
       if (status === "success" && paymentSessionId) {
         // Try opening Cashfree widget
         if (window.Cashfree) {
           try {
-            console.log(`Initializing Cashfree in ${cashfreeMode} mode...`);
             const cashfree = window.Cashfree({
               mode: cashfreeMode,
             });
@@ -400,66 +417,70 @@ export default function MedicineDataPage({ embedded = false }) {
       }
 
       // Default fallback (either status is "pending", session creation failed, or SDK failed to load)
-      setActivationEmail(email || checkoutForm.email);
+      setActivationEmail(email || account?.email || "");
       setShowActivationForm(true);
     } catch (err) {
-      console.error(
-        "Payment registration endpoint failed, using manual fallback:",
-        err
-      );
-      // Fallback to manual flow in case backend failed completely or validation error
-      setActivationEmail(checkoutForm.email);
+      const message = err.response?.data?.message;
+      if (err.response?.status === 400 && message) {
+        // e.g. the account already owns the bundle
+        setCheckoutError(message);
+        return;
+      }
+      // Fallback to manual flow in case the gateway is unavailable
+      setActivationEmail(account?.email || "");
       setShowActivationForm(true);
     } finally {
       setCheckoutLoading(false);
     }
   };
 
-  // Secure Login - Request Email OTP
-  const handleRequestOtp = async (e) => {
-    e.preventDefault();
-    setLoginLoading(true);
-    setLoginError("");
-    try {
-      const resp = await api.post("/medicine-bundle/login", {
-        email: loginEmail,
-      });
-      setOtpSent(true);
-    } catch (err) {
-      console.error(err);
-      setLoginError(err.response?.data?.message || "Access request failed.");
-    } finally {
-      setLoginLoading(false);
-    }
-  };
-
-  // OTP Verification & Establish Secure Session
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-    setVerificationLoading(true);
+  // Open (or re-open) the secure dataset session for the signed-in account.
+  // Opening a session on this device ends any session on another device.
+  const openDatasetSession = async () => {
+    setSessionLoading(true);
     setVerificationError("");
     try {
-      const resp = await api.post("/medicine-bundle/verify-otp", {
-        email: loginEmail,
-        otp,
-      });
+      const resp = await api.post("/medicine-bundle/session", {}, { headers: memberHeaders() });
       const { token: sessionToken, user } = resp.data;
-
       localStorage.setItem("bundle_token", sessionToken);
       localStorage.setItem("bundle_user", JSON.stringify(user));
-
       setToken(sessionToken);
       setCurrentUser(user);
       setPage(1);
     } catch (err) {
-      console.error(err);
-      setVerificationError(
-        err.response?.data?.message || "Verification failed."
-      );
+      setVerificationError(err.response?.data?.message || "Unable to open your dataset right now.");
     } finally {
-      setVerificationLoading(false);
+      setSessionLoading(false);
     }
   };
+
+  // Look up whether the signed-in account already owns the bundle
+  useEffect(() => {
+    if (!account) return;
+    let cancelled = false;
+    api
+      .get("/medicine-bundle/me", { headers: memberHeaders() })
+      .then((resp) => {
+        if (cancelled) return;
+        setBundleStatus({ loading: false, ...resp.data });
+        if (resp.data.hasAccess) setActiveTab("login");
+        if (resp.data.purchase?.paymentStatus === "pending_verification") setShowActivationForm(true);
+      })
+      .catch(() => !cancelled && setBundleStatus({ loading: false, hasAccess: false, purchase: null }));
+    return () => {
+      cancelled = true;
+    };
+  }, [account?._id]);
+
+  // A bundle session always belongs to the current account
+  useEffect(() => {
+    if (!account && token) {
+      localStorage.removeItem("bundle_token");
+      localStorage.removeItem("bundle_user");
+      setToken("");
+      setCurrentUser(null);
+    }
+  }, [account, token]);
 
   // Logout Session
   const handleLogout = async () => {
@@ -483,9 +504,6 @@ export default function MedicineDataPage({ embedded = false }) {
     localStorage.removeItem("bundle_user");
     setToken("");
     setCurrentUser(null);
-    setOtpSent(false);
-    setOtp("");
-    setLoginEmail("");
     setData([]);
   };
 
@@ -518,10 +536,10 @@ export default function MedicineDataPage({ embedded = false }) {
         }
       `}</style>
 
-      {!embedded && <InteractiveBackground />}
-      {!embedded && <Navbar />}
+      
+      {!embedded && <SiteHeader />}
 
-      <div className={embedded ? "max-w-7xl mx-auto px-0 sm:px-2" : "max-w-7xl mx-auto pt-40 px-6 lg:px-8"}>
+      <div className={embedded ? "max-w-7xl mx-auto px-0 sm:px-2" : "max-w-7xl mx-auto pt-10 px-6 lg:px-8"}>
         {/* SECURE VIEWER - AUTHENTICATED STATE */}
         {token && currentUser ? (
           <motion.div
@@ -1040,7 +1058,7 @@ export default function MedicineDataPage({ embedded = false }) {
                         : "text-slate-550 hover:text-slate-900"
                     }`}
                   >
-                    Already Purchased ?
+                    My Access
                   </button>
                 </div>
 
@@ -1112,13 +1130,13 @@ export default function MedicineDataPage({ embedded = false }) {
                           </p>
                         </div>
                         <a
-                          href={`https://wa.me/918882948667?text=${encodeURIComponent(
+                          href={whatsappHref(siteContent.contact?.whatsapp || "918882948667", (
                             `Hello! I am interested in purchasing the ${
                               selectedBundle === "student"
                                 ? `Students & Beginners Bundle (₹${studentPrice})`
                                 : `Standard Pro Bundle (₹${price})`
                             }. My email is ${activationEmail}. Please coordinate with me for the payment so I can get my activation code.`
-                          )}`}
+                          ))}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="w-full flex items-center justify-center gap-2.5 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl lg:rounded-2xl font-black uppercase text-[10px] tracking-[0.15em] shadow-lg shadow-emerald-600/10 active:scale-95 transition-all text-center select-none cursor-pointer"
@@ -1332,69 +1350,13 @@ export default function MedicineDataPage({ embedded = false }) {
                         onSubmit={handleCheckout}
                         className="space-y-5 pt-4 border-t border-slate-100"
                       >
-                        <div>
-                          <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-600 mb-2 ml-2">
-                            Your Name
-                          </label>
-                          <div className="relative group">
-                            <User className="absolute left-5 top-1/2 -translate-y-1/2 w-4 lg:w-5 h-4 lg:h-5 text-slate-400 group-focus-within:text-teal-650 transition-colors" />
-                            <input
-                              type="text"
-                              required
-                              placeholder="John Doe"
-                              value={checkoutForm.name}
-                              onChange={(e) =>
-                                setCheckoutForm({
-                                  ...checkoutForm,
-                                  name: e.target.value,
-                                })
-                              }
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 pl-12 pr-6 focus:outline-none focus:border-teal-500 focus:bg-white transition-all font-bold text-slate-800 text-sm"
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-600 mb-2 ml-2">
-                            Email Address
-                          </label>
-                          <div className="relative group">
-                            <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-4 lg:w-5 h-4 lg:h-5 text-slate-400 group-focus-within:text-teal-650 transition-colors" />
-                            <input
-                              type="email"
-                              required
-                              placeholder="john@example.com"
-                              value={checkoutForm.email}
-                              onChange={(e) =>
-                                setCheckoutForm({
-                                  ...checkoutForm,
-                                  email: e.target.value,
-                                })
-                              }
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 pl-12 pr-6 focus:outline-none focus:border-teal-500 focus:bg-white transition-all font-bold text-slate-800 text-sm"
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-600 mb-2 ml-2">
-                            Mobile Number
-                          </label>
-                          <div className="relative group">
-                            <Phone className="absolute left-5 top-1/2 -translate-y-1/2 w-4 lg:w-5 h-4 lg:h-5 text-slate-400 group-focus-within:text-teal-650 transition-colors" />
-                            <input
-                              type="tel"
-                              required
-                              placeholder="9999999999"
-                              value={checkoutForm.mobile}
-                              onChange={(e) =>
-                                setCheckoutForm({
-                                  ...checkoutForm,
-                                  mobile: e.target.value,
-                                })
-                              }
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 pl-12 pr-6 focus:outline-none focus:border-teal-500 focus:bg-white transition-all font-bold text-slate-800 text-sm"
-                            />
+                        <div className="rounded-2xl border border-brand-100 bg-brand-50/60 p-4 flex items-start gap-3">
+                          <ShieldCheck className="w-5 h-5 text-brand-700 shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-ink-900">Purchasing as</p>
+                            <p className="text-sm font-semibold text-ink-800 truncate">{account?.name}</p>
+                            <p className="text-xs text-ink-500 truncate">{account?.email} · {account?.mobile}</p>
+                            <p className="text-[11px] text-ink-500 mt-1">Access is linked to this Krishna Medicose account — no separate login needed.</p>
                           </div>
                         </div>
 
@@ -1428,120 +1390,44 @@ export default function MedicineDataPage({ embedded = false }) {
                     </div>
                   ))}
 
-                {/* TAB 2: SECURE OTP LOGIN */}
+                {/* TAB 2: ACCOUNT-LINKED ACCESS */}
                 {activeTab === "login" && (
                   <div className="space-y-6">
                     <div className="pb-4 border-b border-slate-100 text-center">
-                      <Lock className="w-8 h-8 text-teal-600 mx-auto mb-2 animate-bounce" />
-                      <h3 className="font-black font-outfit text-slate-900 text-lg">
-                        Secure Access Login
+                      <Lock className="w-8 h-8 text-brand-600 mx-auto mb-2" />
+                      <h3 className="font-bold font-outfit text-ink-900 text-lg">
+                        Access with your account
                       </h3>
-                      <p className="text-[11px] text-slate-500 font-bold mt-1 max-w-[240px] mx-auto">
-                        Verification OTP will be sent to the email registered
-                        during purchase.
+                      <p className="text-xs text-ink-500 mt-1 max-w-[280px] mx-auto">
+                        Your purchase is linked to <span className="font-semibold text-ink-700">{account?.email}</span>. Opening the dataset here signs out any other device.
                       </p>
                     </div>
 
-                    {!otpSent ? (
-                      /* Step 1: Send OTP Form */
-                      <form onSubmit={handleRequestOtp} className="space-y-5">
-                        <div>
-                          <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-600 mb-2 ml-2">
-                            Registered Email
-                          </label>
-                          <div className="relative group">
-                            <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-teal-650 transition-colors" />
-                            <input
-                              type="email"
-                              required
-                              placeholder="john@example.com"
-                              value={loginEmail}
-                              onChange={(e) => setLoginEmail(e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 pl-12 pr-6 focus:outline-none focus:border-teal-500 focus:bg-white transition-all font-bold text-slate-800 text-sm"
-                            />
-                          </div>
-                        </div>
-
-                        {loginError && (
-                          <div className="p-4 bg-red-50 border border-red-200 text-red-700 text-xs font-bold rounded-xl text-center">
-                            {loginError}
-                          </div>
-                        )}
-
-                        <button
-                          type="submit"
-                          disabled={loginLoading}
-                          className="w-full btn-primary py-4 flex items-center justify-center gap-2 group relative overflow-hidden rounded-xl lg:rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-md transition-transform active:scale-95 disabled:opacity-50"
-                        >
-                          {loginLoading ? (
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                          ) : (
-                            <>
-                              <span>Send Verification OTP</span>
-                              <Key className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-                            </>
-                          )}
-                        </button>
-                      </form>
+                    {bundleStatus.loading ? (
+                      <div className="flex justify-center py-6">
+                        <Loader2 className="w-6 h-6 animate-spin text-brand-600" />
+                      </div>
+                    ) : bundleStatus.hasAccess ? (
+                      <button
+                        type="button"
+                        onClick={openDatasetSession}
+                        disabled={sessionLoading}
+                        className="btn btn-primary w-full py-4"
+                      >
+                        {sessionLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><span>Open my dataset</span><ArrowRight className="w-4 h-4" /></>}
+                      </button>
                     ) : (
-                      /* Step 2: Verify OTP Form */
-                      <form onSubmit={handleVerifyOtp} className="space-y-5">
-                        <div className="p-3 bg-teal-50/50 border border-teal-100 rounded-xl text-center">
-                          <p className="text-xs font-bold text-teal-850 leading-relaxed">
-                            Verification OTP sent to{" "}
-                            <span className="font-extrabold text-teal-900">
-                              {loginEmail}
-                            </span>
-                            .
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => setOtpSent(false)}
-                            className="text-[10px] text-teal-650 font-extrabold uppercase tracking-wider underline mt-1.5 hover:text-teal-700"
-                          >
-                            Change Email
-                          </button>
-                        </div>
+                      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                        {bundleStatus.purchase?.paymentStatus === "pending_verification"
+                          ? "Your UPI payment is being verified. You'll receive an email as soon as access is activated."
+                          : "No active purchase is linked to this account yet. Choose a plan in the Purchase tab to unlock the dataset."}
+                      </div>
+                    )}
 
-                        <div>
-                          <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-600 mb-2 ml-2">
-                            Enter 6-Digit OTP
-                          </label>
-                          <div className="relative group">
-                            <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-teal-650 transition-colors" />
-                            <input
-                              type="text"
-                              required
-                              maxLength={6}
-                              placeholder="123456"
-                              value={otp}
-                              onChange={(e) => setOtp(e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 pl-12 pr-6 focus:outline-none focus:border-teal-500 focus:bg-white transition-all font-bold tracking-[0.5em] text-center text-slate-800 text-sm animate-pulse"
-                            />
-                          </div>
-                        </div>
-
-                        {verificationError && (
-                          <div className="p-4 bg-red-50 border border-red-200 text-red-700 text-xs font-bold rounded-xl text-center">
-                            {verificationError}
-                          </div>
-                        )}
-
-                        <button
-                          type="submit"
-                          disabled={verificationLoading}
-                          className="w-full btn-primary py-4 flex items-center justify-center gap-2 group relative overflow-hidden rounded-xl lg:rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-md transition-transform active:scale-95 disabled:opacity-50"
-                        >
-                          {verificationLoading ? (
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                          ) : (
-                            <>
-                              <span>Verify & Access Dataset</span>
-                              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                            </>
-                          )}
-                        </button>
-                      </form>
+                    {verificationError && (
+                      <div className="p-4 bg-red-50 border border-red-200 text-red-700 text-xs font-bold rounded-xl text-center">
+                        {verificationError}
+                      </div>
                     )}
                   </div>
                 )}

@@ -59,6 +59,8 @@ export default function ServicesAuthModal({
   const [otp, setOtp] = useState('');
   const [otpSentEmail, setOtpSentEmail] = useState('');
   const [pendingIdentifier, setPendingIdentifier] = useState('');
+  // Proof from the password step; the server only accepts the login OTP alongside it
+  const [loginChallenge, setLoginChallenge] = useState('');
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const [resendingOtp, setResendingOtp] = useState(false);
 
@@ -346,6 +348,7 @@ export default function ServicesAuthModal({
       if (res.data?.requireOtp) {
         setOtpSentEmail(res.data.email || loginIdentifier.trim());
         setPendingIdentifier(res.data.identifier || loginIdentifier.trim());
+        setLoginChallenge(res.data.challengeToken || '');
         setCooldownSeconds(60);
         setOtp('');
         setStep('verify_login_otp');
@@ -379,7 +382,8 @@ export default function ServicesAuthModal({
     try {
       const res = await servicesApi.post('/auth/verify-login-otp', {
         identifier: pendingIdentifier,
-        otp: cleanOtp
+        otp: cleanOtp,
+        challengeToken: loginChallenge
       });
 
       if (res.data?.token) {
@@ -413,7 +417,8 @@ export default function ServicesAuthModal({
       await servicesApi.post('/auth/resend-otp', {
         email: targetEmail,
         identifier: targetEmail,
-        purpose
+        purpose,
+        ...(purpose === 'login' && { challengeToken: loginChallenge })
       });
       setCooldownSeconds(60);
     } catch (err) {

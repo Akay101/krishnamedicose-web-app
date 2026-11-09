@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ExternalLink, Search, Sparkles, ShoppingBag, Globe, RefreshCw, ArrowUpRight, Tag } from 'lucide-react';
-import Navbar from '../components/Navbar';
+import SiteHeader from '../components/layout/SiteHeader';
 import Logo from '../components/Logo';
-import InteractiveBackground from '../components/InteractiveBackground';
 
 export default function UsefulLinksPage({ embedded = false }) {
   const [links, setLinks] = useState([]);
@@ -20,7 +19,11 @@ export default function UsefulLinksPage({ embedded = false }) {
     setLoading(true);
     try {
       const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiBase}/links`);
+      // Links are a member service: authorised by the centralized account session
+      const token = localStorage.getItem('service_token');
+      const response = await fetch(`${apiBase}/links`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       if (response.ok) {
         const data = await response.json();
         setLinks(data);
@@ -39,10 +42,16 @@ export default function UsefulLinksPage({ embedded = false }) {
   const handleLinkClick = (link) => {
     try {
       const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      fetch(`${apiBase}/links/${link._id}/click`, { method: 'POST' }).catch(() => {});
+      const token = localStorage.getItem('service_token');
+      fetch(`${apiBase}/links/${link._id}/click`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      }).catch(() => {});
     } catch (e) {
       // Ignore click count errors
     }
+    // Only ever open web destinations (defence in depth against unsafe stored URLs)
+    if (!/^https?:\/\//i.test(link.url || '')) return;
     window.open(link.url, '_blank', 'noopener,noreferrer');
   };
 
@@ -71,10 +80,10 @@ export default function UsefulLinksPage({ embedded = false }) {
 
   return (
     <main className={embedded ? "w-full space-y-8" : "min-h-screen bg-slate-50 text-slate-900 relative selection:bg-teal-200 selection:text-teal-900 flex flex-col"}>
-      {!embedded && <InteractiveBackground />}
-      {!embedded && <Navbar />}
+      
+      {!embedded && <SiteHeader />}
 
-      <div className={embedded ? "w-full space-y-10" : "pt-32 pb-16 px-4 sm:px-8 lg:px-16 max-w-7xl mx-auto flex-1 w-full space-y-12"}>
+      <div className={embedded ? "w-full space-y-10" : "pt-10 pb-16 px-4 sm:px-8 lg:px-16 max-w-7xl mx-auto flex-1 w-full space-y-12"}>
         {/* Header Banner */}
         <div className="text-center max-w-3xl mx-auto">
           <motion.h1

@@ -463,6 +463,198 @@ const sendCollabPostConfirmationEmail = async (collab, owner) => {
   return sendEmailSafely({ to: owner.email, subject, title, bodyContent });
 };
 
+/**
+ * ===================== LISTING MODERATION =====================
+ * Every member submission (job vacancy, doctor chamber, distributor entry)
+ * is reviewed by the Krishna Medicose team before it goes public.
+ */
+const LISTING_LABELS = {
+  job: 'pharmacist job vacancy',
+  collab: 'doctor chamber / clinic collaboration',
+  distributor: 'distributor directory entry',
+  doctor_request: 'chamber requirement (doctor looking for a chamber)'
+};
+
+const detailsTable = (rows = []) =>
+  `<div style="background:#f8fafc;padding:16px;border-radius:12px;border:1px solid #e2e8f0;margin:18px 0;font-size:13px;color:#334155;">${rows
+    .filter(([, v]) => v !== undefined && v !== null && v !== '')
+    .map(([k, v]) => `<p style="margin:4px 0;"><strong>${escapeHtml(k)}:</strong> ${escapeHtml(v)}</p>`)
+    .join('')}</div>`;
+
+const createInAppNotification = async (userId, title, message) => {
+  if (!userId) return;
+  try {
+    await Notification.create({ userId, title, message, type: 'listing_review', link: '/services' });
+  } catch (err) {
+    console.error('In-app listing notification failed:', err.message);
+  }
+};
+
+/** Submitter confirmation: received, pending verification */
+const sendListingSubmittedEmail = async ({ kind, to, name, userId, heading, rows, isUpdate = false }) => {
+  const label = LISTING_LABELS[kind] || 'listing';
+  const subject = isUpdate
+    ? `Changes received - ${heading} (verification pending)`
+    : `Submission received - ${heading} (verification pending)`;
+  const bodyContent = `
+    <p>Hello <strong>${escapeHtml(name || 'there')}</strong>,</p>
+    <p>Thank you! Your ${escapeHtml(label)} <strong>${escapeHtml(heading)}</strong> has been ${isUpdate ? 'updated' : 'submitted'} successfully.</p>
+    ${detailsTable(rows)}
+    <div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:12px 16px;margin:18px 0;border-radius:4px;">
+      <p style="margin:0;font-size:13px;color:#92400e;font-weight:600;">
+        Status: Verification pending. The Krishna Medicose team will review it shortly. It becomes visible to members only after approval, and we will email you as soon as it is verified.
+      </p>
+    </div>`;
+  await createInAppNotification(
+    userId,
+    isUpdate ? 'Changes sent for verification' : 'Submission received',
+    `Your ${label} "${heading}" is pending verification by Krishna Medicose.`
+  );
+  return sendEmailSafely({ to, subject, title: isUpdate ? 'Changes received - verification pending' : 'Submission received - verification pending', bodyContent });
+};
+
+/** Submitter result: approved (verified) or rejected with reason */
+const sendListingReviewedEmail = async ({ kind, to, name, userId, heading, approved, note }) => {
+  const label = LISTING_LABELS[kind] || 'listing';
+  const subject = approved ? `Verified & live: ${heading}` : `Update on your submission: ${heading}`;
+  const bodyContent = approved
+    ? `
+    <p>Hello <strong>${escapeHtml(name || 'there')}</strong>,</p>
+    <p>Great news! Your ${escapeHtml(label)} <strong>${escapeHtml(heading)}</strong> has been reviewed and <strong>verified by Krishna Medicose</strong>.</p>
+    <div style="background:#ecfdf5;border-left:4px solid #10b981;padding:12px 16px;margin:18px 0;border-radius:4px;">
+      <p style="margin:0;font-size:13px;color:#065f46;font-weight:600;">It is now live with a "Verified by Krishna Medicose" badge and visible to members.</p>
+    </div>
+    ${note ? `<p style="font-size:13px;"><strong>Note from our team:</strong> ${escapeHtml(note)}</p>` : ''}`
+    : `
+    <p>Hello <strong>${escapeHtml(name || 'there')}</strong>,</p>
+    <p>Your ${escapeHtml(label)} <strong>${escapeHtml(heading)}</strong> could not be approved in its current form.</p>
+    <div style="background:#fef2f2;border-left:4px solid #ef4444;padding:12px 16px;margin:18px 0;border-radius:4px;">
+      <p style="margin:0;font-size:13px;color:#991b1b;font-weight:600;">Reason: ${escapeHtml(note || 'The submission did not meet our listing guidelines.')}</p>
+    </div>
+    <p style="font-size:13px;">You can edit the listing from your dashboard and it will be sent for review again.</p>`;
+  await createInAppNotification(
+    userId,
+    approved ? 'Listing verified' : 'Listing not approved',
+    approved
+      ? `Your ${label} "${heading}" is verified and now live.`
+      : `Your ${label} "${heading}" was not approved${note ? `: ${note}` : '.'}`
+  );
+  return sendEmailSafely({ to, subject, title: approved ? 'Your listing is verified and live' : 'Your listing needs changes', bodyContent });
+};
+
+/** Alert the Krishna Medicose admin inbox about a new submission awaiting review */
+const notifyAdminOfListingSubmission = async ({ kind, heading, submitterName, submitterEmail, rows, isUpdate = false }) => {
+  const to = process.env.ADMIN_NOTIFY_EMAIL || process.env.ADMIN_EMAIL;
+  if (!to) return;
+  const label = LISTING_LABELS[kind] || 'listing';
+  const bodyContent = `
+    <p>A member ${isUpdate ? 'edited' : 'submitted'} a ${escapeHtml(label)} that needs verification.</p>
+    ${detailsTable([['Listing', heading], ['Submitted by', submitterName], ['Email', submitterEmail], ...(rows || [])])}
+    <p style="font-size:13px;"><strong>Action required:</strong> open the Admin Panel to approve or reject it.</p>`;
+  return sendEmailSafely({ to, subject: `[Review needed] New ${label}: ${heading}`, title: 'New submission awaiting verification', bodyContent });
+};
+
+/** Doctor: a pharmacy / clinic offered a chamber for their requirement */
+const notifyDoctorOfChamberOffer = async ({ doctor, request, response, chamber }) => {
+  const bodyContent = `
+    <p>Hello <strong>Dr. ${escapeHtml(doctor.name)}</strong>,</p>
+    <p><strong>${escapeHtml(response.pharmacyName)}</strong> has offered a chamber for your requirement <strong>${escapeHtml(request.title)}</strong>.</p>
+    ${detailsTable([
+      ['Message', response.message],
+      ['Chamber', chamber ? chamber.clinicOrChamberName || chamber.pharmacyName : ''],
+      ['Timings offered', chamber?.preferredTimings],
+      ['Terms', chamber?.collaborationTerms],
+      ['Contact', `${response.responderName} - ${response.responderMobile}`],
+      ['Email', response.responderEmail]
+    ])}
+    <p style="font-size:13px;">Sign in to your Krishna Medicose account to accept or decline the offer.</p>`;
+  return sendEmailSafely({ to: doctor.email, subject: `New chamber offer from ${response.pharmacyName}`, title: 'A pharmacy offered you a chamber', bodyContent });
+};
+
+/** Pharmacies near a newly verified doctor requirement */
+const notifyPharmaciesOfDoctorRequest = async (request, doctor) => {
+  try {
+    const [rLng, rLat] = request.location?.coordinates || [];
+    const radius = Math.max(10, Math.min(50, request.searchRadiusKm || 15) * 1.5);
+    const owners = await ServiceUser.find({ role: { $in: ['pharmacy_owner', 'general_user'] }, isBlocked: false }).select('name email location');
+    const nearby = owners.filter((o) => {
+      const [oLng, oLat] = o.location?.coordinates || [];
+      return rLat !== undefined && oLat !== undefined && calculateDistanceKm(rLat, rLng, oLat, oLng) <= radius;
+    }).slice(0, 200);
+    for (const owner of nearby) {
+      await Notification.create({
+        userId: owner._id,
+        title: 'Doctor looking for a chamber nearby',
+        message: `Dr. ${doctor.name} (${request.specialization}) is looking for a chamber near ${request.location?.city || 'you'}.`,
+        type: 'collab_posted',
+        link: '/services'
+      }).catch(() => {});
+      await sendEmailSafely({
+        to: owner.email,
+        subject: `Doctor looking for a chamber near you: ${request.specialization}`,
+        title: 'A verified doctor is looking for a chamber',
+        bodyContent: `<p>Hello <strong>${escapeHtml(owner.name)}</strong>,</p>
+          <p>Dr. ${escapeHtml(doctor.name)} (${escapeHtml(request.specialization)}) is looking for a chamber near <strong>${escapeHtml(request.location?.city || 'your area')}</strong>.</p>
+          ${detailsTable([['Preferred timings', request.preferredTimings], ['Expected terms', request.expectedTerms]])}
+          <p style="font-size:13px;">Sign in to Krishna Medicose Services to offer your chamber.</p>`
+      });
+    }
+  } catch (err) {
+    console.error('Notify pharmacies of doctor request error:', err.message);
+  }
+};
+
+/** Member profile verification result (used for doctors, pharmacists and pharmacies) */
+const sendProfileVerificationEmail = async (user, verified) => {
+  if (!user?.email) return;
+  const isDoctor = user.role === 'doctor';
+  await createInAppNotification(
+    user._id,
+    verified ? 'Profile verified' : 'Profile verification removed',
+    verified
+      ? `Your profile is verified by Krishna Medicose.${isDoctor ? ' You can now send proposals to pharmacy chambers.' : ''}`
+      : 'Your profile verification was removed. Please contact Krishna Medicose support.'
+  );
+  return sendEmailSafely({
+    to: user.email,
+    subject: verified ? 'Your Krishna Medicose profile is verified' : 'Update on your profile verification',
+    title: verified ? 'Profile verified' : 'Profile verification update',
+    bodyContent: verified
+      ? `<p>Hello <strong>${escapeHtml(isDoctor ? `Dr. ${user.name}` : user.name)}</strong>,</p>
+         <p>Your profile has been reviewed and <strong>verified by Krishna Medicose</strong>.</p>
+         ${isDoctor ? '<p style="font-size:13px;">You can now apply to verified pharmacy / clinic chambers and your profile shows a verified badge.</p>' : ''}`
+      : `<p>Hello <strong>${escapeHtml(user.name)}</strong>,</p><p>Your profile verification has been removed. Please contact us if you think this is a mistake.</p>`
+  });
+};
+
+/** New doctor registered: doctor is told verification is pending, admin is asked to verify */
+const announceDoctorRegistration = async (doctor) => {
+  await createInAppNotification(doctor._id, 'Profile verification pending', 'The Krishna Medicose team will verify your medical registration shortly.');
+  await sendEmailSafely({
+    to: doctor.email,
+    subject: 'Welcome to Krishna Medicose - profile verification pending',
+    title: 'Your doctor profile is under verification',
+    bodyContent: `<p>Hello <strong>Dr. ${escapeHtml(doctor.name)}</strong>,</p>
+      <p>Thank you for joining. Our team will verify your medical registration details. You can post your chamber requirement right away; applying to pharmacy chambers unlocks once your profile is verified. We will email you as soon as it's done.</p>`
+  });
+  const to = process.env.ADMIN_NOTIFY_EMAIL || process.env.ADMIN_EMAIL;
+  if (to) {
+    await sendEmailSafely({
+      to,
+      subject: `[Review needed] New doctor profile: Dr. ${doctor.name}`,
+      title: 'New doctor profile awaiting verification',
+      bodyContent: `${detailsTable([
+        ['Name', `Dr. ${doctor.name}`],
+        ['Email', doctor.email],
+        ['Mobile', doctor.mobile],
+        ['Specialization', doctor.doctorDetails?.specialization],
+        ['Qualification', doctor.doctorDetails?.qualification],
+        ['Medical registration no.', doctor.doctorDetails?.medicalRegistrationNumber]
+      ])}<p style="font-size:13px;">Open Admin → Members & Listings → Users to verify the profile.</p>`
+    });
+  }
+};
+
 module.exports = {
   notifyPharmacistsOfNewJob,
   notifyOwnerOfJobApplication,
@@ -473,5 +665,12 @@ module.exports = {
   sendOtpEmail,
   sendJobPostConfirmationEmail,
   sendCollabPostConfirmationEmail,
+  sendListingSubmittedEmail,
+  sendListingReviewedEmail,
+  notifyAdminOfListingSubmission,
+  notifyDoctorOfChamberOffer,
+  notifyPharmaciesOfDoctorRequest,
+  sendProfileVerificationEmail,
+  announceDoctorRegistration,
   escapeHtml
 };

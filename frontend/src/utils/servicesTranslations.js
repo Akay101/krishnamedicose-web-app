@@ -101,7 +101,7 @@ export const translations = {
     // Location
     locationSection: 'Your Location',
     searchLocation: 'Type your area or city name...',
-    useGps: 'Use My GPS Location',
+    useGps: 'Detect my location',
     streetAddress: 'Shop / House No. & Street',
     city: 'City',
     state: 'State',

@@ -5,7 +5,8 @@ const ServiceOtp = require('../models/ServiceOtp');
 const Notification = require('../models/Notification');
 const { sanitizeCoordinates } = require('../utils/geoUtils');
 const { uploadDocument } = require('../services/serviceUploadService');
-const { sendOtpEmail } = require('../services/serviceNotificationService');
+const { sendOtpEmail, announceDoctorRegistration } = require('../services/serviceNotificationService');
+const { hashSecret, safeEqual, cleanText } = require('../utils/security');
 
 // Helper to sign JWT token (strictly expires in 24 hours)
 const signToken = (user) => {
@@ -29,12 +30,43 @@ const formatUserResponse = (user) => {
   return obj;
 };
 
-// Secure OTP hashing helper using SHA-256 + secret salt
-const hashOtp = (otp) => {
-  return crypto
-    .createHash('sha256')
-    .update(String(otp).trim() + (process.env.JWT_SECRET || 'service_otp_salt'))
-    .digest('hex');
+// Keyed OTP digest + constant-time comparison (never store or compare codes in plain text)
+const hashOtp = (otp) => hashSecret(otp);
+const otpMatches = (otp, digest) => safeEqual(hashOtp(otp), digest);
+
+// Short-lived proof that the password step succeeded. The login OTP can only be
+// verified (or resent) together with this token, so an OTP alone never grants access.
+const LOGIN_CHALLENGE_TTL = '10m';
+const signLoginChallenge = (user) =>
+  jwt.sign({ id: user._id, type: 'login_challenge' }, process.env.JWT_SECRET, {
+    expiresIn: LOGIN_CHALLENGE_TTL
+  });
+const readLoginChallenge = (token) => {
+  if (!token || typeof token !== 'string') return null;
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    return decoded.type === 'login_challenge' ? decoded : null;
+  } catch {
+    return null;
+  }
+};
+
+const safeParse = (value) => {
+  if (!value) return {};
+  if (typeof value === 'object') return value;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const ROLE_SUBROLES = {
+  pharmacy_owner: ['hire_pharmacist', 'collab_doctor'],
+  job_seeker_pharmacist: ['work_in_pharmacy'],
+  doctor: ['doctor_collab'],
+  general_user: ['general_access']
 };
 
 // Mask email for privacy (e.g. a***y@gmail.com)
@@ -110,8 +142,6 @@ exports.sendRegisterOtp = async (req, res) => {
       userName: name.trim()
     });
 
-    console.log(`[SERVICE OTP - REGISTER] Generated for ${cleanEmail}: ${otp}`);
-
     res.json({
       success: true,
       message: 'Verification code sent to your email.'
@@ -142,8 +172,8 @@ exports.register = async (req, res) => {
       location
     } = req.body;
 
-    const userRole = role || 'general_user';
-    const userSubRole = subRole || (userRole === 'general_user' ? 'general_access' : subRole);
+    const userRole = ROLE_SUBROLES[role] ? role : 'general_user';
+    const userSubRole = ROLE_SUBROLES[userRole].includes(subRole) ? subRole : ROLE_SUBROLES[userRole][0];
 
     // Basic Validations
     if (!name || !email || !mobile || !password || !userRole || !userSubRole) {
@@ -187,7 +217,7 @@ exports.register = async (req, res) => {
       });
     }
 
-    if (hashOtp(cleanOtp) !== otpDoc.otpHash) {
+    if (!otpMatches(cleanOtp, otpDoc.otpHash)) {
       otpDoc.attempts += 1;
       await otpDoc.save();
       const remaining = otpDoc.maxAttempts - otpDoc.attempts;
@@ -210,8 +240,8 @@ exports.register = async (req, res) => {
       return res.status(409).json({ message: 'An account with this mobile number already exists.' });
     }
 
-    if (password.length < 6) {
-      return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
+    if (typeof password !== 'string' || password.length < 6 || password.length > 100) {
+      return res.status(400).json({ message: 'Password must be between 6 and 100 characters long.' });
     }
 
     // Parse location & coordinates
@@ -225,11 +255,11 @@ exports.register = async (req, res) => {
     };
 
     if (location) {
-      const loc = typeof location === 'string' ? JSON.parse(location) : location;
-      parsedLocation.address = (loc.address || '').trim();
-      parsedLocation.city = (loc.city || '').trim();
-      parsedLocation.state = (loc.state || '').trim();
-      parsedLocation.pincode = (loc.pincode || '').trim();
+      const loc = safeParse(location);
+      parsedLocation.address = cleanText(loc.address, 200);
+      parsedLocation.city = cleanText(loc.city, 60);
+      parsedLocation.state = cleanText(loc.state, 60);
+      parsedLocation.pincode = cleanText(loc.pincode, 10);
       if (loc.coordinates) {
         parsedLocation.coordinates = sanitizeCoordinates(loc.coordinates);
       }
@@ -239,30 +269,56 @@ exports.register = async (req, res) => {
     let parsedPharmacist = {};
     let parsedDoctor = {};
 
-    if (role === 'pharmacy_owner' && pharmacyDetails) {
-      parsedPharmacy = typeof pharmacyDetails === 'string' ? JSON.parse(pharmacyDetails) : pharmacyDetails;
+    // Whitelist profile fields - document URLs can only come from our own upload below
+    if (userRole === 'pharmacy_owner' && pharmacyDetails) {
+      const p = safeParse(pharmacyDetails);
+      parsedPharmacy = {
+        pharmacyName: cleanText(p.pharmacyName, 120),
+        licenseNumber: cleanText(p.licenseNumber, 60),
+        contactPerson: cleanText(p.contactPerson, 80),
+        openingHours: cleanText(p.openingHours, 80),
+        establishedYear: Number(p.establishedYear) || undefined
+      };
     }
 
-    if ((role === 'job_seeker_pharmacist' || role === 'pharmacy_owner') && pharmacistDetails) {
-      parsedPharmacist = typeof pharmacistDetails === 'string' ? JSON.parse(pharmacistDetails) : pharmacistDetails;
+    if ((userRole === 'job_seeker_pharmacist' || userRole === 'pharmacy_owner') && pharmacistDetails) {
+      const p = safeParse(pharmacistDetails);
+      const quals = ['D.Pharm', 'B.Pharm', 'M.Pharm', 'Pharm.D', 'Other'];
+      parsedPharmacist = {
+        qualification: quals.includes(p.qualification) ? p.qualification : 'B.Pharm',
+        licenseNumber: cleanText(p.licenseNumber, 60),
+        experienceYears: Math.max(0, Math.min(50, Number(p.experienceYears) || 0)),
+        expectedSalary: cleanText(p.expectedSalary, 60),
+        skills: Array.isArray(p.skills) ? p.skills.slice(0, 20).map((x) => cleanText(x, 40)).filter(Boolean) : [],
+        bio: cleanText(p.bio, 1000)
+      };
     }
 
-    if (role === 'doctor' && doctorDetails) {
-      parsedDoctor = typeof doctorDetails === 'string' ? JSON.parse(doctorDetails) : doctorDetails;
+    if (userRole === 'doctor' && doctorDetails) {
+      const d = safeParse(doctorDetails);
+      parsedDoctor = {
+        specialization: cleanText(d.specialization, 80),
+        medicalRegistrationNumber: cleanText(d.medicalRegistrationNumber, 60),
+        qualification: cleanText(d.qualification, 60),
+        experienceYears: Math.max(0, Math.min(60, Number(d.experienceYears) || 0)),
+        currentAffiliation: cleanText(d.currentAffiliation, 120),
+        consultationFee: Number(d.consultationFee) || undefined,
+        about: cleanText(d.about, 1000)
+      };
     }
 
     // Check if a document was uploaded
     if (req.file) {
       const uploadedDoc = await uploadDocument(req.file);
-      if (role === 'pharmacy_owner') {
+      if (userRole === 'pharmacy_owner') {
         parsedPharmacy.licenseImage = uploadedDoc.url;
-      } else if (role === 'job_seeker_pharmacist') {
+      } else if (userRole === 'job_seeker_pharmacist') {
         parsedPharmacist.licenseImage = uploadedDoc.url;
       }
     }
 
     const newUser = new ServiceUser({
-      name: name.trim(),
+      name: cleanText(name, 100),
       email: cleanEmail,
       mobile: cleanMobile,
       password,
@@ -272,11 +328,15 @@ exports.register = async (req, res) => {
       pharmacistDetails: parsedPharmacist,
       doctorDetails: parsedDoctor,
       location: parsedLocation,
-      isOpenToWork: role === 'job_seeker_pharmacist',
-      isOpenToCollaborate: role === 'doctor'
+      isOpenToWork: userRole === 'job_seeker_pharmacist',
+      isOpenToCollaborate: userRole === 'doctor'
     });
 
     await newUser.save();
+
+    if (newUser.role === 'doctor') {
+      announceDoctorRegistration(newUser).catch((err) => console.error('Doctor registration email error:', err));
+    }
 
     const token = signToken(newUser);
 
@@ -290,7 +350,7 @@ exports.register = async (req, res) => {
     if (error.code === 11000) {
       return res.status(409).json({ message: 'Email or mobile number already registered.' });
     }
-    res.status(500).json({ message: error.message || 'Server error during registration.' });
+    res.status(500).json({ message: 'Server error during registration.' });
   }
 };
 
@@ -302,17 +362,17 @@ exports.login = async (req, res) => {
   try {
     const { identifier, password } = req.body;
 
-    if (!identifier || !password) {
+    if (typeof identifier !== 'string' || typeof password !== 'string' || !identifier.trim() || !password) {
       return res.status(400).json({ message: 'Please provide email/mobile and password.' });
     }
 
-    const cleanId = String(identifier).trim().toLowerCase();
+    const cleanId = identifier.trim().toLowerCase();
     const user = await ServiceUser.findOne({
-      $or: [{ email: cleanId }, { mobile: identifier.trim() }]
+      $or: [{ email: cleanId }, { mobile: identifier.replace(/\D/g, '') || '__none__' }]
     });
 
     if (!user) {
-      return res.status(401).json({ message: 'Invalid credentials. Account not found.' });
+      return res.status(401).json({ message: 'Invalid credentials. Please check your details.' });
     }
 
     if (user.isBlocked) {
@@ -324,8 +384,10 @@ exports.login = async (req, res) => {
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials. Incorrect password.' });
+      return res.status(401).json({ message: 'Invalid credentials. Please check your details.' });
     }
+
+    const challengeToken = signLoginChallenge(user);
 
     // Cooldown check for OTP spamming
     const recentOtp = await ServiceOtp.findOne({ email: user.email, purpose: 'login' });
@@ -336,6 +398,7 @@ exports.login = async (req, res) => {
         requireOtp: true,
         email: maskEmail(user.email),
         identifier: cleanId,
+        challengeToken,
         message: `Verification code already sent. Please wait ${waitSec}s if you need to resend.`
       });
     }
@@ -359,13 +422,12 @@ exports.login = async (req, res) => {
       userName: user.name
     });
 
-    console.log(`[SERVICE OTP - LOGIN] Generated for ${user.email}: ${otp}`);
-
     res.json({
       success: true,
       requireOtp: true,
       email: maskEmail(user.email),
       identifier: cleanId,
+      challengeToken,
       message: 'Verification code sent to your registered email.'
     });
   } catch (error) {
@@ -380,22 +442,25 @@ exports.login = async (req, res) => {
  */
 exports.verifyLoginOtp = async (req, res) => {
   try {
-    const { identifier, otp } = req.body;
+    const { otp, challengeToken } = req.body;
 
-    if (!identifier || !otp) {
-      return res.status(400).json({ message: 'Please provide identifier and verification code.' });
+    if (!otp) {
+      return res.status(400).json({ message: 'Please provide the verification code.' });
     }
 
-    const cleanId = String(identifier).trim().toLowerCase();
+    // The OTP is only valid together with proof that the password step succeeded
+    const challenge = readLoginChallenge(challengeToken);
+    if (!challenge) {
+      return res.status(401).json({ message: 'Sign-in session expired. Please enter your password again.' });
+    }
+
     const cleanOtp = String(otp).replace(/\D/g, '').trim();
 
     if (cleanOtp.length !== 6) {
       return res.status(400).json({ message: 'Verification code must be exactly 6 digits.' });
     }
 
-    const user = await ServiceUser.findOne({
-      $or: [{ email: cleanId }, { mobile: identifier.trim() }]
-    });
+    const user = await ServiceUser.findById(challenge.id);
 
     if (!user) {
       return res.status(401).json({ message: 'Account not found.' });
@@ -422,7 +487,7 @@ exports.verifyLoginOtp = async (req, res) => {
       });
     }
 
-    if (hashOtp(cleanOtp) !== otpDoc.otpHash) {
+    if (!otpMatches(cleanOtp, otpDoc.otpHash)) {
       otpDoc.attempts += 1;
       await otpDoc.save();
       const remaining = otpDoc.maxAttempts - otpDoc.attempts;
@@ -453,15 +518,27 @@ exports.verifyLoginOtp = async (req, res) => {
  */
 exports.resendOtp = async (req, res) => {
   try {
-    const { identifier, email, purpose, name } = req.body;
+    const { identifier, email, purpose, name, challengeToken } = req.body;
     const targetPurpose = ['register', 'login', 'forgot_password'].includes(purpose)
       ? purpose
       : 'login';
 
     let targetEmail = '';
-    let targetName = name || '';
+    let targetName = typeof name === 'string' ? name.slice(0, 80) : '';
 
-    if (targetPurpose === 'login' || targetPurpose === 'forgot_password') {
+    if (targetPurpose === 'login') {
+      // Login codes can only be resent by someone who already passed the password step
+      const challenge = readLoginChallenge(challengeToken);
+      const user = challenge ? await ServiceUser.findById(challenge.id) : null;
+      if (!user) {
+        return res.status(401).json({ message: 'Sign-in session expired. Please enter your password again.' });
+      }
+      if (user.isBlocked) {
+        return res.status(403).json({ message: 'Account access has been restricted by administration.' });
+      }
+      targetEmail = user.email;
+      targetName = user.name;
+    } else if (targetPurpose === 'forgot_password') {
       const cleanId = String(identifier || email).trim().toLowerCase();
       const cleanMobile = String(identifier || email).replace(/\D/g, '');
       const user = await ServiceUser.findOne({
@@ -472,13 +549,10 @@ exports.resendOtp = async (req, res) => {
       });
 
       if (!user) {
-        if (targetPurpose === 'forgot_password') {
-          return res.json({
-            success: true,
-            message: 'If an account exists, a new verification code has been sent.'
-          });
-        }
-        return res.status(404).json({ message: 'Account not found.' });
+        return res.json({
+          success: true,
+          message: 'If an account exists, a new verification code has been sent.'
+        });
       }
 
       if (user.isBlocked) {
@@ -491,9 +565,12 @@ exports.resendOtp = async (req, res) => {
       targetEmail = user.email;
       targetName = user.name;
     } else {
-      targetEmail = String(email || identifier).toLowerCase().trim();
+      targetEmail = String(email || identifier || '').toLowerCase().trim();
       if (!/^\S+@\S+\.\S+$/.test(targetEmail)) {
         return res.status(400).json({ message: 'Please provide a valid email address.' });
+      }
+      if (await ServiceUser.exists({ email: targetEmail })) {
+        return res.status(409).json({ message: 'An account with this email address already exists.' });
       }
     }
 
@@ -523,8 +600,6 @@ exports.resendOtp = async (req, res) => {
       purpose: targetPurpose,
       userName: targetName
     });
-
-    console.log(`[SERVICE OTP - RESEND] Sent to ${targetEmail} for ${targetPurpose}: ${otp}`);
 
     res.json({
       success: true,
@@ -609,8 +684,6 @@ exports.forgotPassword = async (req, res) => {
       userName: user.name
     });
 
-    console.log(`[SERVICE OTP - FORGOT_PASSWORD] Generated for ${user.email}: ${otp}`);
-
     res.json({
       success: true,
       email: maskEmail(user.email),
@@ -692,7 +765,7 @@ exports.resetPassword = async (req, res) => {
       });
     }
 
-    if (hashOtp(cleanOtp) !== otpDoc.otpHash) {
+    if (!otpMatches(cleanOtp, otpDoc.otpHash)) {
       otpDoc.attempts += 1;
       await otpDoc.save();
       const remaining = otpDoc.maxAttempts - otpDoc.attempts;
@@ -755,7 +828,18 @@ exports.updateProfile = async (req, res) => {
     } = req.body;
 
     if (name) user.name = String(name).trim().slice(0, 80);
-    if (mobile) user.mobile = String(mobile).replace(/\D/g, '').slice(0, 10);
+    if (mobile) {
+      const nextMobile = String(mobile).replace(/\D/g, '').slice(0, 10);
+      if (nextMobile !== user.mobile) {
+        if (!/^[6-9]\d{9}$/.test(nextMobile)) {
+          return res.status(400).json({ message: 'Mobile number must be a valid 10-digit number.' });
+        }
+        if (await ServiceUser.exists({ mobile: nextMobile, _id: { $ne: user._id } })) {
+          return res.status(409).json({ message: 'This mobile number is already linked to another account.' });
+        }
+        user.mobile = nextMobile;
+      }
+    }
 
     if (location) {
       if (location.address !== undefined) user.location.address = String(location.address).trim().slice(0, 200);
@@ -851,7 +935,9 @@ exports.uploadFile = async (req, res) => {
     const result = await uploadDocument(req.file);
     res.status(201).json(result);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    // Validation failures (wrong/disguised file type) are the client's to fix
+    const isValidation = /does not match|Invalid document format|No file provided/i.test(error.message || '');
+    res.status(isValidation ? 400 : 500).json({ message: isValidation ? error.message : 'Upload failed. Please try again.' });
   }
 };
 

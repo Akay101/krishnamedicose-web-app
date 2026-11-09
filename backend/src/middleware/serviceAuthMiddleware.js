@@ -2,55 +2,83 @@ const jwt = require('jsonwebtoken');
 const ServiceUser = require('../models/ServiceUser');
 const User = require('../models/User');
 
+const readBearer = (req) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+  return authHeader.split(' ')[1] || null;
+};
+
+/**
+ * Resolve a bearer token into either a platform admin or a service user.
+ * Only two token types are accepted: 'admin_access' (admin panel) and
+ * 'service_user' (the single centralized customer account). Login-challenge,
+ * bundle and refresh tokens are rejected even though they share a secret.
+ */
+const resolveIdentity = async (token) => {
+  let decoded;
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    return { error: 'invalid' };
+  }
+  if (!decoded || !decoded.id) return { error: 'invalid' };
+
+  if (decoded.type === 'admin_access') {
+    const adminUser = await User.findById(decoded.id).select('-password -otp');
+    if (
+      adminUser &&
+      adminUser.isActive &&
+      adminUser.role === 'admin' &&
+      (adminUser.tokenVersion || 0) === (decoded.tv || 0)
+    ) {
+      return { adminUser };
+    }
+    return { error: 'forbidden' };
+  }
+
+  if (decoded.type === 'service_user') {
+    const serviceUser = await ServiceUser.findById(decoded.id).select('-password');
+    if (!serviceUser) return { error: 'missing' };
+    return { serviceUser };
+  }
+
+  return { error: 'invalid' };
+};
+
 /**
  * Middleware to authenticate Service Users (and allow platform root admins).
  */
 const serviceAuthMiddleware = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const token = readBearer(req);
+    if (!token) {
       return res.status(401).json({ message: 'Authentication required. Please sign in.' });
     }
 
-    const token = authHeader.split(' ')[1];
-    if (!token) {
-      return res.status(401).json({ message: 'Authentication token missing.' });
-    }
+    const identity = await resolveIdentity(token);
 
-    let decoded;
-    try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET);
-    } catch (err) {
-      return res.status(401).json({ message: 'Session expired or invalid token. Please log in again.' });
-    }
-
-    if (!decoded || !decoded.id) {
-      return res.status(401).json({ message: 'Invalid token payload.' });
-    }
-
-    // Check if this is a platform admin token
-    const adminUser = await User.findById(decoded.id).select('-password');
-    if (adminUser && adminUser.isActive && adminUser.role === 'admin') {
+    if (identity.adminUser) {
       req.isAdmin = true;
-      req.user = adminUser;
-      req.adminUser = adminUser;
+      req.user = identity.adminUser;
+      req.adminUser = identity.adminUser;
       return next();
     }
 
-    // Otherwise, check in ServiceUser collection
-    const serviceUser = await ServiceUser.findById(decoded.id).select('-password');
-    if (!serviceUser) {
+    if (identity.error === 'missing') {
       return res.status(401).json({ message: 'Account not found. Please register or sign in.' });
     }
+    if (!identity.serviceUser) {
+      return res.status(401).json({ message: 'Session expired or invalid token. Please log in again.' });
+    }
 
-    if (serviceUser.isBlocked) {
+    if (identity.serviceUser.isBlocked) {
       return res.status(403).json({
         message: 'Your account has been suspended by the administration.',
-        reason: serviceUser.blockReason || 'Violation of terms of service.'
+        reason: identity.serviceUser.blockReason || 'Violation of terms of service.'
       });
     }
 
-    req.serviceUser = serviceUser;
+    req.serviceUser = identity.serviceUser;
     req.isAdmin = false;
     next();
   } catch (error) {
@@ -64,29 +92,16 @@ const serviceAuthMiddleware = async (req, res, next) => {
  */
 const optionalServiceAuth = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-      if (token) {
-        try {
-          const decoded = jwt.verify(token, process.env.JWT_SECRET);
-          if (decoded && decoded.id) {
-            const adminUser = await User.findById(decoded.id).select('-password');
-            if (adminUser && adminUser.isActive && adminUser.role === 'admin') {
-              req.isAdmin = true;
-              req.user = adminUser;
-              req.adminUser = adminUser;
-            } else {
-              const serviceUser = await ServiceUser.findById(decoded.id).select('-password');
-              if (serviceUser && !serviceUser.isBlocked) {
-                req.serviceUser = serviceUser;
-                req.isAdmin = false;
-              }
-            }
-          }
-        } catch (e) {
-          // Token expired or invalid, proceed as unauthenticated
-        }
+    const token = readBearer(req);
+    if (token) {
+      const identity = await resolveIdentity(token);
+      if (identity.adminUser) {
+        req.isAdmin = true;
+        req.user = identity.adminUser;
+        req.adminUser = identity.adminUser;
+      } else if (identity.serviceUser && !identity.serviceUser.isBlocked) {
+        req.serviceUser = identity.serviceUser;
+        req.isAdmin = false;
       }
     }
     next();
@@ -118,18 +133,13 @@ const requireRole = (roles = []) => {
 };
 
 /**
- * Middleware to require platform root admin
+ * Middleware to require platform root admin (or a panel user with the given permission)
  */
 const requireAdmin = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ message: 'Admin authentication required.' });
-    }
-
-    const token = authHeader.split(' ')[1];
+    const token = readBearer(req);
     if (!token) {
-      return res.status(401).json({ message: 'Authentication token missing.' });
+      return res.status(401).json({ message: 'Admin authentication required.' });
     }
 
     let decoded;
@@ -139,13 +149,19 @@ const requireAdmin = async (req, res, next) => {
       return res.status(401).json({ message: 'Invalid or expired administrator token.' });
     }
 
-    if (!decoded || !decoded.id) {
+    if (!decoded || !decoded.id || decoded.type !== 'admin_access') {
       return res.status(401).json({ message: 'Invalid administrator token payload.' });
     }
 
-    const adminUser = await User.findById(decoded.id).select('-password');
+    const adminUser = await User.findById(decoded.id).select('-password -otp');
 
-    if (!adminUser || !adminUser.isActive || adminUser.role !== 'admin') {
+    const hasAccess =
+      adminUser &&
+      adminUser.isActive &&
+      (adminUser.tokenVersion || 0) === (decoded.tv || 0) &&
+      (adminUser.role === 'admin' || adminUser.permissions?.services);
+
+    if (!hasAccess) {
       return res.status(403).json({ message: 'Administrator privileges required.' });
     }
 

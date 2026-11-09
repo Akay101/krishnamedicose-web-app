@@ -9,11 +9,18 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ['admin', 'user'], default: 'user' },
   permissions: {
     website: { type: Boolean, default: false },
-    leads: { type: Boolean, default: false }
+    leads: { type: Boolean, default: false },
+    services: { type: Boolean, default: false },
+    bundles: { type: Boolean, default: false }
   },
   isActive: { type: Boolean, default: true },
+  // Password-reset OTP is stored as an HMAC digest, never in plain text
   otp: { type: String },
   otpExpires: { type: Date },
+  otpAttempts: { type: Number, default: 0 },
+  // Bumped on password reset / deactivation to revoke all refresh tokens
+  tokenVersion: { type: Number, default: 0 },
+  lastLoginAt: { type: Date },
   createdAt: { type: Date, default: Date.now }
 });
 

@@ -4,6 +4,9 @@ const UAParser = require('ua-parser-js');
 exports.logVisit = async (req, res) => {
   try {
     const { visitorId, path, referrer } = req.body;
+    if (typeof visitorId !== 'string' || typeof path !== 'string' || !/^[a-zA-Z0-9-]{8,64}$/.test(visitorId)) {
+      return res.status(400).json({ success: false });
+    }
     const ua = new UAParser(req.headers['user-agent']);
     const browser = ua.getBrowser();
     const os = ua.getOS();
@@ -11,15 +14,15 @@ exports.logVisit = async (req, res) => {
 
     const visit = new Analytics({
       visitorId,
-      path,
-      referrer,
-      userAgent: req.headers['user-agent'],
+      path: path.slice(0, 200),
+      referrer: typeof referrer === 'string' ? referrer.slice(0, 300) : 'direct',
+      userAgent: String(req.headers['user-agent'] || '').slice(0, 400),
       browser: browser.name,
       os: os.name,
       device: device.type || 'desktop',
       // In a real production environment, you'd use a GeoIP service here
       // For now, we'll leave country/city blank or use headers if available (e.g. from Cloudflare)
-      country: req.headers['cf-ipcountry'] || 'Unknown'
+      country: String(req.headers['cf-ipcountry'] || 'Unknown').slice(0, 8)
     });
 
     await visit.save();

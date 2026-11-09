@@ -1,118 +1,42 @@
-import Navbar from "../components/Navbar";
+import { motion, useScroll, useSpring } from "framer-motion";
+import SiteHeader from "../components/layout/SiteHeader";
+import SiteFooter from "../components/layout/SiteFooter";
 import HeroSection from "../components/HeroSection";
+import TrustMarquee from "../components/home/TrustMarquee";
+import ServicesShowcase from "../components/home/ServicesShowcase";
 import AboutSection from "../components/AboutSection";
 import OwnerSection from "../components/OwnerSection";
 import OffersSection from "../components/OffersSection";
 import MedicineDataSection from "../components/MedicineDataSection";
-import InteractiveBackground from "../components/InteractiveBackground";
-import { motion, useScroll, useSpring } from "framer-motion";
-import { useState, useEffect } from "react";
-import Logo from "../components/Logo";
+import ContactSection from "../components/home/ContactSection";
+import { useSiteContent } from "../context/SiteContentContext";
 
 function LandingPage() {
-  const [content, setContent] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { content } = useSiteContent();
   const { scrollYProgress } = useScroll();
-  const scaleX = useSpring(scrollYProgress, {
-    stiffness: 100,
-    damping: 30,
-    restDelta: 0.001,
-  });
-
-  useEffect(() => {
-    const fetchContent = async () => {
-      try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/content`);
-        if (response.ok) {
-          const data = await response.json();
-          setContent(data);
-        }
-      } catch (error) {
-        console.error("Failed to fetch content:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchContent();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <motion.div
-          animate={{ scale: [1, 1.2, 1], rotate: [0, 180, 360] }}
-          transition={{ duration: 2, repeat: Infinity }}
-          className="w-16 h-16 border-4 border-teal-600 border-t-transparent rounded-full"
-        />
-      </div>
-    );
-  }
+  const scaleX = useSpring(scrollYProgress, { stiffness: 120, damping: 30, restDelta: 0.001 });
+  const show = (key) => content.sections?.[key] !== false;
 
   return (
-    <main className="relative selection:bg-teal-200 selection:text-teal-900">
-      {/* Custom Progress Bar */}
-      <motion.div
-        className="fixed top-0 left-0 right-0 h-1.5 bg-primary z-[100] origin-left"
-        style={{ scaleX }}
-      />
+    <div className="relative min-h-screen bg-canvas">
+      {/* Reading progress */}
+      <motion.div className="fixed inset-x-0 top-0 z-[60] h-[3px] origin-left bg-gradient-to-r from-brand-500 to-saffron-400" style={{ scaleX }} />
 
-      <InteractiveBackground />
-      <Navbar />
+      <SiteHeader />
 
-      <div className="flex flex-col gap-0">
-        <HeroSection content={content?.hero} />
+      <main>
+        <HeroSection content={content.hero} stats={content.about?.stats} />
+        <TrustMarquee />
+        {show("services") && <ServicesShowcase content={content.services} />}
+        {show("about") && <AboutSection content={content.about} />}
+        {show("owner") && <OwnerSection content={content.owner} />}
+        {show("offers") && <OffersSection />}
+        {show("medicineData") && <MedicineDataSection content={content.medicineData} />}
+        {show("contact") && <ContactSection contact={content.contact} />}
+      </main>
 
-        <AboutSection content={content?.about} />
-        <OwnerSection content={content?.owner} />
-
-        <OffersSection />
-        <MedicineDataSection />
-
-        {/* Footer */}
-        <footer
-          id="footer"
-          className="section-padding bg-slate-900 border-t border-slate-800 text-center"
-        >
-          <div className="max-w-7xl mx-auto flex flex-col items-center gap-8">
-            <Logo size="xl" className="mx-auto" theme="dark" />
-
-            <p className="text-slate-400 max-w-md font-medium">
-              {content?.footer?.description ||
-                "Your trusted partner in healthcare. Providing premium pharmaceutical services with a modern touch."}
-            </p>
-
-            <div className="flex flex-col items-center gap-4">
-              <div className="text-[10px] uppercase font-extrabold tracking-[0.3em] text-teal-400">
-                Get in Touch
-              </div>
-              <a
-                href="tel:+918882948667"
-                className="text-2xl md:text-3xl font-black font-outfit text-white hover:text-teal-400 transition-colors"
-              >
-                +91 8882948667
-              </a>
-              <p className="text-xs text-slate-450 font-bold">
-                Available for Professional Inquiries
-              </p>
-            </div>
-
-            <div className="w-full h-px bg-gradient-to-r from-transparent via-slate-800 to-transparent my-8" />
-
-            <div className="flex flex-col md:flex-row justify-between items-center w-full gap-6 text-[10px] uppercase font-extrabold tracking-widest text-slate-500">
-              <p>&copy; 2024 Krishna Medicose. Built for Excellence.</p>
-              <div className="flex gap-12">
-                <a href="#" className="hover:text-teal-400 transition-all">
-                  Privacy
-                </a>
-                <a href="#" className="hover:text-teal-400 transition-all">
-                  Terms
-                </a>
-              </div>
-            </div>
-          </div>
-        </footer>
-      </div>
-    </main>
+      <SiteFooter />
+    </div>
   );
 }
 

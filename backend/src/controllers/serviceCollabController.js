@@ -1,3 +1,25 @@
+const { escapeRegex } = require("../utils/security");
+const { PUBLIC_LISTING_FILTER, isPubliclyVisible, sanitizeListingImages, touchesContent } = require("../utils/moderation");
+
+// Public-safe view of an owner's pharmacy profile (license documents/numbers stay private)
+const publicPharmacyDetails = (pd) =>
+  pd ? { pharmacyName: pd.pharmacyName, openingHours: pd.openingHours, establishedYear: pd.establishedYear } : undefined;
+
+// Contact details are only revealed to signed-in members
+const redactListing = (item, isAuth) => ({
+  ...item,
+  contactPhone: isAuth ? item.contactPhone : null,
+  contactEmail: isAuth ? item.contactEmail : null,
+  ownerId: item.ownerId && item.ownerId._id ? {
+    _id: item.ownerId._id,
+    name: item.ownerId.name,
+    mobile: isAuth ? item.ownerId.mobile : null,
+    email: isAuth ? item.ownerId.email : null,
+    pharmacyDetails: publicPharmacyDetails(item.ownerId.pharmacyDetails),
+    isVerified: item.ownerId.isVerified
+  } : item.ownerId,
+  isContactLocked: !isAuth
+});
 const DoctorCollaborationPost = require('../models/DoctorCollaborationPost');
 const DoctorCollaborationInquiry = require('../models/DoctorCollaborationInquiry');
 const ServiceUser = require('../models/ServiceUser');
@@ -6,8 +28,44 @@ const {
   notifyDoctorsOfNewCollab,
   notifyOwnerOfDoctorInquiry,
   notifyDoctorOfInquiryStatusUpdate,
-  sendCollabPostConfirmationEmail
+  sendCollabPostConfirmationEmail,
+  sendListingSubmittedEmail,
+  notifyAdminOfListingSubmission
 } = require('../services/serviceNotificationService');
+
+const collabHeading = (post) =>
+  `${post.clinicOrChamberName || post.pharmacyName} - ${post.specializationNeeded}`;
+
+const collabEmailRows = (post) => [
+  ['Clinic / chamber', post.clinicOrChamberName || post.pharmacyName],
+  ['Specialization needed', post.specializationNeeded],
+  ['Timings', `${post.preferredTimings} (${post.consultationDays})`],
+  ['Terms', post.collaborationTerms],
+  ['Location', [post.location?.city, post.location?.state].filter(Boolean).join(', ')],
+  ['Photos', post.images?.length ? `${post.images.length} attached` : '']
+];
+
+const announceCollabSubmission = async (post, owner, isUpdate = false) => {
+  await sendListingSubmittedEmail({
+    kind: 'collab',
+    to: owner.email,
+    name: owner.name,
+    userId: owner._id,
+    heading: collabHeading(post),
+    rows: collabEmailRows(post),
+    isUpdate
+  });
+  await notifyAdminOfListingSubmission({
+    kind: 'collab',
+    heading: collabHeading(post),
+    submitterName: owner.name,
+    submitterEmail: owner.email,
+    rows: collabEmailRows(post),
+    isUpdate
+  });
+};
+exports.announceCollabSubmission = announceCollabSubmission;
+exports.collabHeading = collabHeading;
 
 /**
  * Create a new Doctor Collaboration Post (Pharmacy Owner)
@@ -27,7 +85,8 @@ exports.createCollabPost = async (req, res) => {
       contactPhone,
       contactEmail,
       location,
-      visibilityRadiusKm
+      visibilityRadiusKm,
+      images
     } = req.body;
 
     if (!specializationNeeded || !preferredTimings || !description) {
@@ -102,23 +161,19 @@ exports.createCollabPost = async (req, res) => {
       contactEmail: contactEmail || owner.email,
       location: finalLocation,
       visibilityRadiusKm: cleanRadius,
-      status: 'active'
+      images: sanitizeListingImages(images),
+      status: 'active',
+      moderationStatus: 'pending'
     });
 
     await post.save();
 
-    // Send confirmation email to the poster
-    sendCollabPostConfirmationEmail(post, owner).catch((err) =>
-      console.error('Collab post owner confirmation email error:', err)
-    );
-
-    // Trigger notification and emails to nearby doctors asynchronously
-    notifyDoctorsOfNewCollab(post, owner).catch((err) =>
-      console.error('Collab notification trigger error:', err)
-    );
+    // Submitter + admin are told it is awaiting verification; nearby doctors
+    // are only alerted once the admin approves it.
+    announceCollabSubmission(post, owner).catch((err) => console.error('Collab submission email error:', err));
 
     res.status(201).json({
-      message: 'Doctor collaboration listing created successfully.',
+      message: 'Chamber listing submitted. It will go live after verification by Krishna Medicose.',
       post
     });
   } catch (error) {
@@ -205,6 +260,7 @@ exports.updateCollabPost = async (req, res) => {
 
     if (updates.contactPhone !== undefined) post.contactPhone = String(updates.contactPhone).trim().slice(0, 20);
     if (updates.contactEmail !== undefined) post.contactEmail = String(updates.contactEmail).trim().slice(0, 120);
+    if (updates.images !== undefined) post.images = sanitizeListingImages(updates.images);
 
     if (updates.location) {
       if (updates.location.address !== undefined) post.location.address = String(updates.location.address).trim().slice(0, 200);
@@ -216,10 +272,24 @@ exports.updateCollabPost = async (req, res) => {
       }
     }
 
+    // Content edits by the owner go back through verification before going public again
+    const needsReview = !req.isAdmin && touchesContent(updates);
+    if (needsReview) {
+      post.moderationStatus = 'pending';
+      post.moderationNote = '';
+    }
+
     await post.save();
 
+    if (needsReview) {
+      const owner = await ServiceUser.findById(post.ownerId);
+      if (owner) announceCollabSubmission(post, owner, true).catch((err) => console.error('Collab update email error:', err));
+    }
+
     res.json({
-      message: 'Collaboration listing updated successfully.',
+      message: needsReview
+        ? 'Changes saved and sent for verification. The listing is hidden until approved.'
+        : 'Collaboration listing updated successfully.',
       post
     });
   } catch (error) {
@@ -271,20 +341,20 @@ exports.getCollabFeed = async (req, res) => {
       userLat = req.serviceUser.location.coordinates[1];
     }
 
-    const query = { status: 'active' };
+    const query = { status: 'active', ...PUBLIC_LISTING_FILTER };
 
     if (search) {
       query.$or = [
-        { pharmacyName: { $regex: search, $options: 'i' } },
-        { clinicOrChamberName: { $regex: search, $options: 'i' } },
-        { specializationNeeded: { $regex: search, $options: 'i' } },
-        { 'location.city': { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
+        { pharmacyName: { $regex: escapeRegex(search), $options: 'i' } },
+        { clinicOrChamberName: { $regex: escapeRegex(search), $options: 'i' } },
+        { specializationNeeded: { $regex: escapeRegex(search), $options: 'i' } },
+        { 'location.city': { $regex: escapeRegex(search), $options: 'i' } },
+        { description: { $regex: escapeRegex(search), $options: 'i' } }
       ];
     }
 
     if (specialization && specialization !== 'All') {
-      query.specializationNeeded = { $regex: specialization, $options: 'i' };
+      query.specializationNeeded = { $regex: escapeRegex(specialization), $options: 'i' };
     }
 
     const posts = await DoctorCollaborationPost.find(query)
@@ -350,7 +420,7 @@ exports.getCollabFeed = async (req, res) => {
         name: post.ownerId.name,
         mobile: isAuth ? post.ownerId.mobile : null,
         email: isAuth ? post.ownerId.email : null,
-        pharmacyDetails: post.ownerId.pharmacyDetails,
+        pharmacyDetails: publicPharmacyDetails(post.ownerId.pharmacyDetails),
         isVerified: post.ownerId.isVerified
       } : null,
       isContactLocked: !isAuth
@@ -375,6 +445,12 @@ exports.getCollabPostById = async (req, res) => {
 
     if (!post) return res.status(404).json({ message: 'Collaboration listing not found.' });
 
+    // Unverified listings are only visible to their owner and the admin
+    const isOwner = req.serviceUser && String(post.ownerId?._id || post.ownerId) === String(req.serviceUser._id);
+    if (!isPubliclyVisible(post) && !isOwner && !req.isAdmin) {
+      return res.status(404).json({ message: 'Collaboration listing not found.' });
+    }
+
     let hasInquired = false;
     if (req.serviceUser) {
       const inq = await DoctorCollaborationInquiry.findOne({
@@ -384,7 +460,7 @@ exports.getCollabPostById = async (req, res) => {
       hasInquired = Boolean(inq);
     }
 
-    res.json({ ...post, hasInquired });
+    res.json({ ...redactListing(post, Boolean(req.serviceUser || req.isAdmin)), hasInquired });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -399,10 +475,17 @@ exports.inquireCollabPost = async (req, res) => {
     const doctor = await ServiceUser.findById(req.serviceUser._id);
     if (!doctor) return res.status(404).json({ message: 'Doctor profile not found.' });
 
+    if (!doctor.isVerified) {
+      return res.status(403).json({
+        code: 'DOCTOR_NOT_VERIFIED',
+        message: 'Your doctor profile is awaiting verification by Krishna Medicose. You can send proposals once it is verified.'
+      });
+    }
+
     const post = await DoctorCollaborationPost.findById(req.params.id);
     if (!post) return res.status(404).json({ message: 'Collaboration post not found.' });
 
-    if (post.status !== 'active') {
+    if (post.status !== 'active' || !isPubliclyVisible(post)) {
       return res.status(400).json({ message: 'This collaboration listing is currently paused or closed.' });
     }
 

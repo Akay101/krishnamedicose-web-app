@@ -1,6 +1,12 @@
 const mongoose = require('mongoose');
 
 const BundlePurchaseSchema = new mongoose.Schema({
+  // Centralized account that owns this purchase (legacy rows are matched by email)
+  serviceUserId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ServiceUser',
+    index: true
+  },
   orderId: {
     type: String,
     required: true,
@@ -12,7 +18,10 @@ const BundlePurchaseSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    required: true
+    required: true,
+    lowercase: true,
+    trim: true,
+    index: true
   },
   mobile: {
     type: String,
@@ -57,8 +66,13 @@ const BundlePurchaseSchema = new mongoose.Schema({
   sessionExpiresAt: {
     type: Date
   },
+  // HMAC digest of the admin-issued activation code (single use)
   activationCode: {
     type: String
+  },
+  activationAttempts: {
+    type: Number,
+    default: 0
   }
 });
 

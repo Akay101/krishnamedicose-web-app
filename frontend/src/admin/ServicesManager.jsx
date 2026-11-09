@@ -32,6 +32,11 @@ import {
 } from 'lucide-react';
 import servicesApi from '../utils/servicesApi';
 import { useModal } from '../context/ModalContext';
+import { ModerationFilter, ReviewActions } from './components/ModerationControls';
+import AdminDoctorRequests from './components/AdminDoctorRequests';
+import CreateJobModal from '../components/services/CreateJobModal';
+import CreateCollabModal from '../components/services/CreateCollabModal';
+import { assetUrl } from '../utils/assetUrl';
 
 export default function ServicesManager() {
   const { showModal } = useModal();
@@ -55,6 +60,12 @@ export default function ServicesManager() {
   const [collabs, setCollabs] = useState([]);
   const [loadingCollabs, setLoadingCollabs] = useState(false);
   const [collabSearch, setCollabSearch] = useState('');
+  const [jobModeration, setJobModeration] = useState('pending');
+  const [collabModeration, setCollabModeration] = useState('pending');
+  const [rejecting, setRejecting] = useState(null); // { kind: 'job' | 'collab', listing }
+  const [rejectReason, setRejectReason] = useState('');
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [editingListing, setEditingListing] = useState(null); // { kind, listing }
 
   // Document preview modal
   const [previewDocUrl, setPreviewDocUrl] = useState('');
@@ -78,7 +89,27 @@ export default function ServicesManager() {
     if (activeTab === 'users') fetchUsers();
     if (activeTab === 'jobs') fetchJobs();
     if (activeTab === 'collabs') fetchCollabs();
-  }, [activeTab, userSearch, userRoleFilter, userBlockedFilter, jobSearch, collabSearch]);
+  }, [activeTab, userSearch, userRoleFilter, userBlockedFilter, jobSearch, collabSearch, jobModeration, collabModeration]);
+
+  // Approve / reject a listing; the member is e-mailed by the server either way
+  const reviewListing = async (kind, listing, action, note = '') => {
+    setReviewBusy(true);
+    try {
+      const base = kind === 'job' ? '/admin/jobs' : '/admin/collab-posts';
+      const res = await servicesApi.patch(`${base}/${listing._id}/moderate`, { action, note });
+      setActionMessage(res.data.message);
+      setTimeout(() => setActionMessage(''), 3500);
+      setRejecting(null);
+      setRejectReason('');
+      kind === 'job' ? fetchJobs() : fetchCollabs();
+      fetchStats();
+    } catch (err) {
+      setErrorMessage(err.response?.data?.message || 'Could not update the review.');
+      setTimeout(() => setErrorMessage(''), 4000);
+    } finally {
+      setReviewBusy(false);
+    }
+  };
 
   const fetchStats = async () => {
     setLoadingStats(true);
@@ -114,7 +145,7 @@ export default function ServicesManager() {
     setLoadingJobs(true);
     try {
       const res = await servicesApi.get('/admin/jobs', {
-        params: { search: jobSearch }
+        params: { search: jobSearch, moderation: jobModeration }
       });
       setJobs(res.data);
     } catch (err) {
@@ -128,7 +159,7 @@ export default function ServicesManager() {
     setLoadingCollabs(true);
     try {
       const res = await servicesApi.get('/admin/collab-posts', {
-        params: { search: collabSearch }
+        params: { search: collabSearch, moderation: collabModeration }
       });
       setCollabs(res.data);
     } catch (err) {
@@ -449,10 +480,10 @@ export default function ServicesManager() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-200 gap-6">
+      <div className="no-scrollbar -mx-4 flex gap-6 overflow-x-auto border-b border-slate-200 px-4 sm:mx-0 sm:px-0">
         <button
           onClick={() => setActiveTab('users')}
-          className={`pb-4 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
+          className={`pb-4 text-sm font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${
             activeTab === 'users'
               ? 'border-teal-600 text-teal-700'
               : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -464,7 +495,7 @@ export default function ServicesManager() {
 
         <button
           onClick={() => setActiveTab('jobs')}
-          className={`pb-4 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
+          className={`pb-4 text-sm font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${
             activeTab === 'jobs'
               ? 'border-teal-600 text-teal-700'
               : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -476,7 +507,7 @@ export default function ServicesManager() {
 
         <button
           onClick={() => setActiveTab('collabs')}
-          className={`pb-4 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
+          className={`pb-4 text-sm font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${
             activeTab === 'collabs'
               ? 'border-teal-600 text-teal-700'
               : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -484,8 +515,26 @@ export default function ServicesManager() {
         >
           <Stethoscope className="w-4 h-4" />
           <span>Doctor Chambers</span>
+          {stats?.pendingCollabs > 0 && <span className="rounded-full bg-saffron-400 px-1.5 text-[10px] font-bold text-ink-950">{stats.pendingCollabs}</span>}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('doctorRequests')}
+          className={`pb-4 text-sm font-bold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'doctorRequests'
+              ? 'border-teal-600 text-teal-700'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Search className="w-4 h-4" />
+          <span>Doctors Seeking Chambers</span>
+          {stats?.pendingDoctorRequests > 0 && <span className="rounded-full bg-saffron-400 px-1.5 text-[10px] font-bold text-ink-950">{stats.pendingDoctorRequests}</span>}
         </button>
       </div>
+
+      {activeTab === 'doctorRequests' && (
+        <AdminDoctorRequests pendingCount={stats?.pendingDoctorRequests || 0} onChanged={fetchStats} />
+      )}
 
       {/* ================= TAB 1: USERS MANAGEMENT ================= */}
       {activeTab === 'users' && (
@@ -780,6 +829,9 @@ export default function ServicesManager() {
                 className="w-full pl-10 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
               />
             </div>
+            <div className="mt-3">
+              <ModerationFilter value={jobModeration} onChange={setJobModeration} pendingCount={stats?.pendingJobs || 0} />
+            </div>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
@@ -791,6 +843,7 @@ export default function ServicesManager() {
                     <th className="px-6 py-4">Type & Degree</th>
                     <th className="px-6 py-4">Salary Range</th>
                     <th className="px-6 py-4">Location & Radius</th>
+                    <th className="px-6 py-4">Verification</th>
                     <th className="px-6 py-4">Status</th>
                     <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
@@ -798,14 +851,14 @@ export default function ServicesManager() {
                 <tbody className="divide-y divide-slate-100">
                   {loadingJobs ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-teal-700">
+                      <td colSpan={7} className="px-6 py-12 text-center text-teal-700">
                         <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
                         <span>Loading job posts...</span>
                       </td>
                     </tr>
                   ) : jobs.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                      <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
                         No job posts found.
                       </td>
                     </tr>
@@ -830,6 +883,14 @@ export default function ServicesManager() {
                         </td>
 
                         <td className="px-6 py-4">
+                          <ReviewActions
+                            listing={job}
+                            onApprove={(l) => reviewListing('job', l, 'approve')}
+                            onReject={(l) => setRejecting({ kind: 'job', listing: l })}
+                          />
+                        </td>
+
+                        <td className="px-6 py-4">
                           <button
                             onClick={() => handleToggleJobStatus(job)}
                             className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full transition-colors ${
@@ -851,6 +912,14 @@ export default function ServicesManager() {
                               title="View Full Job Details"
                             >
                               <Eye className="w-4 h-4" />
+                            </button>
+
+                            <button
+                              onClick={() => setEditingListing({ kind: 'job', listing: job })}
+                              className="p-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
+                              title="Edit Job"
+                            >
+                              <Edit className="w-4 h-4" />
                             </button>
 
                             <button
@@ -886,6 +955,9 @@ export default function ServicesManager() {
                 className="w-full pl-10 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
               />
             </div>
+            <div className="mt-3">
+              <ModerationFilter value={collabModeration} onChange={setCollabModeration} pendingCount={stats?.pendingCollabs || 0} />
+            </div>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
@@ -897,6 +969,7 @@ export default function ServicesManager() {
                     <th className="px-6 py-4">Timings & Days</th>
                     <th className="px-6 py-4">Collaboration Terms</th>
                     <th className="px-6 py-4">Location & Radius</th>
+                    <th className="px-6 py-4">Verification</th>
                     <th className="px-6 py-4">Status</th>
                     <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
@@ -904,14 +977,14 @@ export default function ServicesManager() {
                 <tbody className="divide-y divide-slate-100">
                   {loadingCollabs ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-teal-700">
+                      <td colSpan={7} className="px-6 py-12 text-center text-teal-700">
                         <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
                         <span>Loading doctor collaboration listings...</span>
                       </td>
                     </tr>
                   ) : collabs.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                      <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
                         No collaboration listings found.
                       </td>
                     </tr>
@@ -940,6 +1013,14 @@ export default function ServicesManager() {
                         </td>
 
                         <td className="px-6 py-4">
+                          <ReviewActions
+                            listing={collab}
+                            onApprove={(l) => reviewListing('collab', l, 'approve')}
+                            onReject={(l) => setRejecting({ kind: 'collab', listing: l })}
+                          />
+                        </td>
+
+                        <td className="px-6 py-4">
                           <button
                             onClick={() => handleToggleCollabStatus(collab)}
                             className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full transition-colors ${
@@ -961,6 +1042,14 @@ export default function ServicesManager() {
                               title="View Full Chamber Details"
                             >
                               <Eye className="w-4 h-4" />
+                            </button>
+
+                            <button
+                              onClick={() => setEditingListing({ kind: 'collab', listing: collab })}
+                              className="p-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
+                              title="Edit Chamber Listing"
+                            >
+                              <Edit className="w-4 h-4" />
                             </button>
 
                             <button
@@ -1753,6 +1842,16 @@ export default function ServicesManager() {
               </button>
             </div>
 
+            {selectedCollabForDetails.images?.length > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                {selectedCollabForDetails.images.map((url) => (
+                  <a key={url} href={assetUrl(url)} target="_blank" rel="noopener noreferrer" className="aspect-square overflow-hidden rounded-xl border border-slate-200">
+                    <img src={assetUrl(url)} alt="Chamber" className="h-full w-full object-cover" />
+                  </a>
+                ))}
+              </div>
+            )}
+
             {/* Specifications Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div className="p-3 bg-slate-50 rounded-xl space-y-1 min-w-0">
@@ -1855,6 +1954,64 @@ export default function ServicesManager() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ================= REJECT LISTING MODAL ================= */}
+      {rejecting && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-ink-950/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md space-y-4 rounded-3xl bg-white p-6 shadow-2xl">
+            <div>
+              <h3 className="font-display text-lg font-bold text-ink-900">Reject this listing?</h3>
+              <p className="mt-1 text-xs text-ink-500">
+                The member will be e-mailed this reason and can edit the listing to send it for review again.
+              </p>
+            </div>
+            <textarea
+              rows={4}
+              maxLength={500}
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="e.g. Please add the full pharmacy address and a valid salary range."
+              className="input resize-none"
+            />
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => { setRejecting(null); setRejectReason(''); }} className="btn-ghost px-4 py-2.5">
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={reviewBusy || rejectReason.trim().length < 5}
+                onClick={() => reviewListing(rejecting.kind, rejecting.listing, 'reject', rejectReason.trim())}
+                className="btn bg-rose-600 px-4 py-2.5 text-white hover:bg-rose-700"
+              >
+                {reviewBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
+                Reject & notify
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= ADMIN EDIT LISTING ================= */}
+      {editingListing?.kind === 'job' && (
+        <CreateJobModal
+          key={`admin-job-${editingListing.listing._id}`}
+          isOpen
+          adminMode
+          initialJob={editingListing.listing}
+          onClose={() => setEditingListing(null)}
+          onJobCreated={() => fetchJobs()}
+        />
+      )}
+      {editingListing?.kind === 'collab' && (
+        <CreateCollabModal
+          key={`admin-collab-${editingListing.listing._id}`}
+          isOpen
+          adminMode
+          initialCollab={editingListing.listing}
+          onClose={() => setEditingListing(null)}
+          onCollabCreated={() => fetchCollabs()}
+        />
       )}
 
       {/* License Preview Modal */}

@@ -1,8 +1,105 @@
+const { escapeRegex } = require("../utils/security");
 const ServiceUser = require('../models/ServiceUser');
 const JobPost = require('../models/JobPost');
 const DoctorCollaborationPost = require('../models/DoctorCollaborationPost');
 const JobApplication = require('../models/JobApplication');
 const DoctorCollaborationInquiry = require('../models/DoctorCollaborationInquiry');
+const { cleanText } = require('../utils/security');
+const DoctorChamberRequest = require('../models/DoctorChamberRequest');
+const DoctorRequestResponse = require('../models/DoctorRequestResponse');
+const {
+  sendListingReviewedEmail,
+  notifyPharmacistsOfNewJob,
+  notifyDoctorsOfNewCollab,
+  notifyPharmaciesOfDoctorRequest,
+  sendProfileVerificationEmail
+} = require('../services/serviceNotificationService');
+const { collabHeading } = require('./serviceCollabController');
+const { requestHeading } = require('./serviceDoctorRequestController');
+
+const LISTING_KINDS = {
+  job: { heading: (l) => l.title, ownerField: 'ownerId', notify: notifyPharmacistsOfNewJob },
+  collab: { heading: collabHeading, ownerField: 'ownerId', notify: notifyDoctorsOfNewCollab },
+  doctor_request: { heading: requestHeading, ownerField: 'doctorId', notify: notifyPharmaciesOfDoctorRequest }
+};
+
+// "pending" | "approved" | "rejected"; approved also matches legacy rows without the field
+const moderationQuery = (value) => {
+  if (value === 'pending' || value === 'rejected') return { moderationStatus: value };
+  if (value === 'approved') return { moderationStatus: { $nin: ['pending', 'rejected'] } };
+  return {};
+};
+
+/**
+ * Approve or reject a member listing, e-mail the owner, and (on first approval)
+ * alert nearby members. Shared by jobs and doctor chambers.
+ */
+const moderateListing = (Model, kind) => async (req, res) => {
+  try {
+    const { action } = req.body;
+    const note = cleanText(req.body.note, 500);
+    if (!['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ message: 'Action must be "approve" or "reject".' });
+    }
+    if (action === 'reject' && !note) {
+      return res.status(400).json({ message: 'Please give the member a reason for rejecting.' });
+    }
+
+    const listing = await Model.findById(req.params.id);
+    if (!listing) return res.status(404).json({ message: 'Listing not found.' });
+
+    const wasLive = !listing.moderationStatus || listing.moderationStatus === 'approved';
+    listing.moderationStatus = action === 'approve' ? 'approved' : 'rejected';
+    listing.moderationNote = note;
+    listing.reviewedAt = new Date();
+    listing.reviewedBy = req.adminUser?._id;
+    await listing.save();
+
+    const meta = LISTING_KINDS[kind];
+    const owner = await ServiceUser.findById(listing[meta.ownerField]);
+    const heading = meta.heading(listing);
+    if (owner) {
+      sendListingReviewedEmail({
+        kind,
+        to: owner.email,
+        name: owner.name,
+        userId: owner._id,
+        heading,
+        approved: action === 'approve',
+        note
+      }).catch((err) => console.error('Listing review email error:', err));
+
+      // Nearby members only hear about a listing once it is verified
+      if (action === 'approve' && !wasLive && listing.status === 'active') {
+        meta.notify(listing, owner).catch((err) => console.error('Nearby member alert error:', err));
+      }
+    }
+
+    res.json({
+      message: action === 'approve' ? 'Listing verified and published.' : 'Listing rejected and the member has been notified.',
+      listing
+    });
+  } catch (error) {
+    console.error('Moderate listing error:', error);
+    res.status(500).json({ message: 'Unable to update the listing review.' });
+  }
+};
+
+exports.moderateJob = moderateListing(JobPost, 'job');
+exports.moderateCollab = moderateListing(DoctorCollaborationPost, 'collab');
+exports.moderateDoctorRequest = moderateListing(DoctorChamberRequest, 'doctor_request');
+
+/** DELETE /api/services/admin/doctor-requests/:id */
+exports.deleteAdminDoctorRequest = async (req, res) => {
+  try {
+    const request = await DoctorChamberRequest.findByIdAndDelete(req.params.id);
+    if (!request) return res.status(404).json({ message: 'Chamber requirement not found.' });
+    await DoctorRequestResponse.deleteMany({ requestId: request._id });
+    res.json({ message: 'Chamber requirement deleted by administrator.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Unable to delete the chamber requirement.' });
+  }
+};
 
 /**
  * Get Service Dashboard Stats for Admin
@@ -20,7 +117,11 @@ exports.getAdminStats = async (req, res) => {
       totalCollabPosts,
       totalActiveCollabs,
       totalApplications,
-      totalInquiries
+      totalInquiries,
+      pendingJobs,
+      pendingCollabs,
+      pendingDoctorRequests,
+      unverifiedDoctors
     ] = await Promise.all([
       ServiceUser.countDocuments(),
       ServiceUser.countDocuments({ role: 'pharmacy_owner' }),
@@ -31,7 +132,11 @@ exports.getAdminStats = async (req, res) => {
       DoctorCollaborationPost.countDocuments(),
       DoctorCollaborationPost.countDocuments({ status: 'active' }),
       JobApplication.countDocuments(),
-      DoctorCollaborationInquiry.countDocuments()
+      DoctorCollaborationInquiry.countDocuments(),
+      JobPost.countDocuments({ moderationStatus: 'pending' }),
+      DoctorCollaborationPost.countDocuments({ moderationStatus: 'pending' }),
+      DoctorChamberRequest.countDocuments({ moderationStatus: 'pending' }),
+      ServiceUser.countDocuments({ role: 'doctor', isVerified: false })
     ]);
 
     res.json({
@@ -44,7 +149,11 @@ exports.getAdminStats = async (req, res) => {
       totalCollabPosts,
       totalActiveCollabs,
       totalApplications,
-      totalInquiries
+      totalInquiries,
+      pendingJobs,
+      pendingCollabs,
+      pendingDoctorRequests,
+      unverifiedDoctors
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -63,12 +172,12 @@ exports.getAdminUsers = async (req, res) => {
 
     if (search) {
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
-        { mobile: { $regex: search, $options: 'i' } },
-        { 'pharmacyDetails.pharmacyName': { $regex: search, $options: 'i' } },
-        { 'doctorDetails.specialization': { $regex: search, $options: 'i' } },
-        { 'location.city': { $regex: search, $options: 'i' } }
+        { name: { $regex: escapeRegex(search), $options: 'i' } },
+        { email: { $regex: escapeRegex(search), $options: 'i' } },
+        { mobile: { $regex: escapeRegex(search), $options: 'i' } },
+        { 'pharmacyDetails.pharmacyName': { $regex: escapeRegex(search), $options: 'i' } },
+        { 'doctorDetails.specialization': { $regex: escapeRegex(search), $options: 'i' } },
+        { 'location.city': { $regex: escapeRegex(search), $options: 'i' } }
       ];
     }
 
@@ -143,6 +252,8 @@ exports.toggleVerifyUser = async (req, res) => {
     user.isVerified = !user.isVerified;
     await user.save();
 
+    sendProfileVerificationEmail(user, user.isVerified).catch((err) => console.error('Verification email error:', err));
+
     res.json({
       message: `User verification status changed to ${user.isVerified ? 'Verified' : 'Unverified'}.`,
       isVerified: user.isVerified,
@@ -166,6 +277,7 @@ exports.deleteUser = async (req, res) => {
     await Promise.all([
       JobPost.deleteMany({ ownerId: user._id }),
       DoctorCollaborationPost.deleteMany({ ownerId: user._id }),
+      DoctorChamberRequest.deleteMany({ doctorId: user._id }),
       JobApplication.deleteMany({ applicantId: user._id }),
       DoctorCollaborationInquiry.deleteMany({ doctorId: user._id }),
       ServiceUser.findByIdAndDelete(user._id)
@@ -188,15 +300,17 @@ exports.getAdminJobs = async (req, res) => {
 
     if (search) {
       query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { pharmacyName: { $regex: search, $options: 'i' } },
-        { 'location.city': { $regex: search, $options: 'i' } }
+        { title: { $regex: escapeRegex(search), $options: 'i' } },
+        { pharmacyName: { $regex: escapeRegex(search), $options: 'i' } },
+        { 'location.city': { $regex: escapeRegex(search), $options: 'i' } }
       ];
     }
 
     if (status && status !== 'All') {
       query.status = status;
     }
+
+    Object.assign(query, moderationQuery(req.query.moderation));
 
     const jobs = await JobPost.find(query)
       .populate('ownerId', 'name email mobile isBlocked isVerified')
@@ -237,16 +351,18 @@ exports.getAdminCollabPosts = async (req, res) => {
 
     if (search) {
       query.$or = [
-        { pharmacyName: { $regex: search, $options: 'i' } },
-        { clinicOrChamberName: { $regex: search, $options: 'i' } },
-        { specializationNeeded: { $regex: search, $options: 'i' } },
-        { 'location.city': { $regex: search, $options: 'i' } }
+        { pharmacyName: { $regex: escapeRegex(search), $options: 'i' } },
+        { clinicOrChamberName: { $regex: escapeRegex(search), $options: 'i' } },
+        { specializationNeeded: { $regex: escapeRegex(search), $options: 'i' } },
+        { 'location.city': { $regex: escapeRegex(search), $options: 'i' } }
       ];
     }
 
     if (status && status !== 'All') {
       query.status = status;
     }
+
+    Object.assign(query, moderationQuery(req.query.moderation));
 
     const posts = await DoctorCollaborationPost.find(query)
       .populate('ownerId', 'name email mobile isBlocked isVerified')

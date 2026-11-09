@@ -1,4 +1,15 @@
 const SibApiV3Sdk = require("sib-api-v3-sdk");
+const { escapeHtml } = require("../utils/security");
+
+// Escape every user-supplied string before it is interpolated into HTML email bodies
+const escapeDeep = (value) => {
+  if (typeof value === "string") return escapeHtml(value);
+  if (Array.isArray(value)) return value.map(escapeDeep);
+  if (value && typeof value === "object" && !(value instanceof Date)) {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [escapeHtml(k), escapeDeep(v)]));
+  }
+  return value;
+};
 
 const defaultClient = SibApiV3Sdk.ApiClient.instance;
 
@@ -177,6 +188,7 @@ const sendEmail = async ({ to, subject, html }) => {
  * ENQUIRY CONFIRMATION
  */
 const sendConfirmationEmail = async (userEmail, userName) => {
+  userName = escapeHtml(userName);
   const html = createEmailLayout({
     title: `Hello ${userName},`,
     subtitle:
@@ -231,6 +243,7 @@ const sendConfirmationEmail = async (userEmail, userName) => {
  * ADMIN LEAD MAIL
  */
 const sendAdminNotification = async (enquiryData) => {
+  enquiryData = escapeDeep(enquiryData && enquiryData.toObject ? enquiryData.toObject() : enquiryData);
   const html = createEmailLayout({
     title: "New Business Lead Received",
     subtitle: "A new enquiry has been submitted through your website.",
@@ -276,6 +289,7 @@ const sendAdminNotification = async (enquiryData) => {
  * OFFER CONFIRMATION
  */
 const sendOfferConfirmation = async (to, data) => {
+  data = escapeDeep(data);
   const html = createEmailLayout({
     title: "Registration Successful",
     subtitle:
@@ -341,6 +355,7 @@ const sendOfferConfirmation = async (to, data) => {
  * OFFER ADMIN MAIL
  */
 const sendOfferLeadToAdmin = async (data) => {
+  data = escapeDeep(data);
   const detailsHtml = Object.entries(data.details)
     .map(
       ([key, value]) => `
@@ -403,6 +418,7 @@ const sendOfferLeadToAdmin = async (data) => {
  * BUNDLE PURCHASE CONFIRMATION FOR USER
  */
 const sendBundlePurchaseConfirmation = async (to, data) => {
+  data = escapeDeep(data);
   const html = createEmailLayout({
     title: "Medicine Data Bundle Purchased Successfully!",
     subtitle:
@@ -588,6 +604,7 @@ const sendOTPEmail = async (to, otp) => {
  * BUNDLE PURCHASE NOTIFICATION FOR ADMIN
  */
 const sendBundleAdminNotification = async (data) => {
+  data = escapeDeep(data);
   const html = createEmailLayout({
     title: "New Medicine Bundle Purchase Received",
     subtitle:
@@ -645,6 +662,7 @@ module.exports = {
  * BUNDLE UPDATE NOTIFICATION
  */
 const sendBundleUpdateNotification = async (to, userName) => {
+  userName = escapeHtml(userName);
   const html = createEmailLayout({
     title: "Medicine Dataset Updated!",
     subtitle:
@@ -698,6 +716,7 @@ const sendBundleUpdateNotification = async (to, userName) => {
 };
 
 const sendBundleUpiRequestNotification = async (data) => {
+  data = escapeDeep(data);
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background-color: #ffffff;">
       <h2 style="color: #0d9488; border-bottom: 2px solid #f0fdfa; padding-bottom: 10px;">New UPI Payment Verification</h2>
@@ -746,6 +765,7 @@ const sendBundleUpiRequestNotification = async (data) => {
 };
 
 const sendBundleActivationCodeEmail = async (email, name, code) => {
+  name = escapeHtml(name);
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background-color: #ffffff;">
       <h2 style="color: #0d9488; border-bottom: 2px solid #f0fdfa; padding-bottom: 10px;">Activate Your Medicine Dataset Access</h2>

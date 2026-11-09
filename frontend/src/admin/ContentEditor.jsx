@@ -1,397 +1,504 @@
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Save, RefreshCw, Eye, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Image as ImageIcon, Plus, Trash2, ChevronRight } from 'lucide-react';
-import api from '../utils/api';
-import AssetPicker from './components/AssetPicker';
+import { useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  AlertCircle,
+  CheckCircle2,
+  ExternalLink,
+  Eye,
+  LayoutTemplate,
+  Megaphone,
+  Phone,
+  Plus,
+  RefreshCw,
+  RotateCcw,
+  Save,
+  Sparkles,
+  Trash2,
+  UserRound,
+  FileSpreadsheet,
+  Info,
+  Grid2x2,
+  PanelBottom,
+} from "lucide-react";
+import api from "../utils/api";
+import AssetPicker from "./components/AssetPicker";
+import { DEFAULT_CONTENT, mergeContent } from "../content/defaults";
+
+/* ---------- path helpers ---------- */
+const getIn = (obj, path) => path.split(".").reduce((acc, key) => (acc == null ? acc : acc[key]), obj);
+const setIn = (obj, path, value) => {
+  const keys = path.split(".");
+  const clone = Array.isArray(obj) ? [...obj] : { ...obj };
+  let cursor = clone;
+  keys.forEach((key, i) => {
+    if (i === keys.length - 1) {
+      cursor[key] = value;
+    } else {
+      cursor[key] = Array.isArray(cursor[key]) ? [...cursor[key]] : { ...(cursor[key] || {}) };
+      cursor = cursor[key];
+    }
+  });
+  return clone;
+};
+
+/* ---------- field primitives ---------- */
+const Field = ({ label, hint, children }) => (
+  <label className="block">
+    <span className="field-label">{label}</span>
+    {children}
+    {hint && <span className="mt-1 block text-xs text-ink-400">{hint}</span>}
+  </label>
+);
+
+const TextInput = ({ value, onChange, ...rest }) => (
+  <input className="input" value={value ?? ""} onChange={(e) => onChange(e.target.value)} {...rest} />
+);
+
+const TextArea = ({ value, onChange, rows = 4 }) => (
+  <textarea className="input resize-y" rows={rows} value={value ?? ""} onChange={(e) => onChange(e.target.value)} />
+);
+
+const Toggle = ({ checked, onChange, label, description }) => (
+  <button
+    type="button"
+    onClick={() => onChange(!checked)}
+    className="flex w-full items-center justify-between gap-4 rounded-2xl border border-ink-200/80 bg-white px-4 py-3 text-left transition hover:border-brand-300"
+    role="switch"
+    aria-checked={checked}
+  >
+    <span>
+      <span className="block text-sm font-semibold text-ink-900">{label}</span>
+      {description && <span className="block text-xs text-ink-500">{description}</span>}
+    </span>
+    <span className={`relative h-6 w-11 shrink-0 rounded-full transition ${checked ? "bg-brand-600" : "bg-ink-200"}`}>
+      <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${checked ? "left-[22px]" : "left-0.5"}`} />
+    </span>
+  </button>
+);
+
+const StringList = ({ items = [], onChange, placeholder, addLabel = "Add item" }) => (
+  <div className="space-y-2">
+    {items.map((item, i) => (
+      <div key={i} className="flex gap-2">
+        <input
+          className="input"
+          value={item}
+          placeholder={placeholder}
+          onChange={(e) => onChange(items.map((v, idx) => (idx === i ? e.target.value : v)))}
+        />
+        <button
+          type="button"
+          onClick={() => onChange(items.filter((_, idx) => idx !== i))}
+          className="rounded-xl border border-ink-200 px-3 text-ink-400 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+          aria-label="Remove"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+    ))}
+    <button type="button" onClick={() => onChange([...items, ""])} className="btn-ghost px-3 py-2 text-xs">
+      <Plus className="h-3.5 w-3.5" /> {addLabel}
+    </button>
+  </div>
+);
+
+const ObjectList = ({ items = [], onChange, fields, addLabel = "Add item", blank }) => (
+  <div className="space-y-3">
+    {items.map((item, i) => (
+      <div key={i} className="rounded-2xl border border-ink-200/80 bg-ink-50/50 p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <span className="text-xs font-semibold text-ink-500">#{i + 1}</span>
+          <button
+            type="button"
+            onClick={() => onChange(items.filter((_, idx) => idx !== i))}
+            className="rounded-lg p-1.5 text-ink-400 hover:bg-rose-50 hover:text-rose-600"
+            aria-label="Remove"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+        <div className={`grid gap-3 ${fields.length > 1 ? "sm:grid-cols-2" : ""}`}>
+          {fields.map((f) => (
+            <Field key={f.key} label={f.label}>
+              {f.multiline ? (
+                <TextArea rows={2} value={item[f.key]} onChange={(v) => onChange(items.map((it, idx) => (idx === i ? { ...it, [f.key]: v } : it)))} />
+              ) : (
+                <TextInput value={item[f.key]} placeholder={f.placeholder} onChange={(v) => onChange(items.map((it, idx) => (idx === i ? { ...it, [f.key]: v } : it)))} />
+              )}
+            </Field>
+          ))}
+        </div>
+      </div>
+    ))}
+    <button type="button" onClick={() => onChange([...items, { ...blank }])} className="btn-ghost px-3 py-2 text-xs">
+      <Plus className="h-3.5 w-3.5" /> {addLabel}
+    </button>
+  </div>
+);
+
+const Card = ({ title, description, children }) => (
+  <div className="card p-5 sm:p-6">
+    <div className="mb-5">
+      <h3 className="text-base font-bold text-ink-900">{title}</h3>
+      {description && <p className="mt-0.5 text-xs text-ink-500">{description}</p>}
+    </div>
+    <div className="space-y-4">{children}</div>
+  </div>
+);
+
+/* ---------- sections ---------- */
+const SECTIONS = [
+  { id: "layout", label: "Layout & visibility", icon: LayoutTemplate },
+  { id: "announcement", label: "Announcement bar", icon: Megaphone },
+  { id: "hero", label: "Hero", icon: Sparkles },
+  { id: "services", label: "Services intro", icon: Grid2x2 },
+  { id: "about", label: "About & vision", icon: Info },
+  { id: "owner", label: "Founder profile", icon: UserRound },
+  { id: "medicineData", label: "Medicine data", icon: FileSpreadsheet },
+  { id: "contact", label: "Contact details", icon: Phone },
+  { id: "footer", label: "Footer", icon: PanelBottom },
+];
+
+const SECTION_TOGGLES = [
+  ["announcement", "Announcement bar", "Thin banner above the navigation"],
+  ["services", "Member services", "Cards for jobs, collaborations, catalogs, data & links"],
+  ["about", "About & vision", "Story, pillars and key numbers"],
+  ["owner", "Founder", "Krishna Pandit's profile and socials"],
+  ["offers", "Products & offers", "Pharmacy software and registration offers"],
+  ["medicineData", "Medicine data pricing", "Bundle features and plans"],
+  ["contact", "Contact band", "Call, WhatsApp and enquiry actions"],
+];
 
 export default function ContentEditor() {
   const [content, setContent] = useState(null);
-  const [originalContent, setOriginalContent] = useState(null);
+  const [original, setOriginal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
-  const [activeSection, setActiveSection] = useState('hero');
+  const [toast, setToast] = useState(null);
+  const [active, setActive] = useState("layout");
 
   useEffect(() => {
-    fetchContent();
+    api
+      .get("/content")
+      .then((resp) => resp.data)
+      .catch(() => ({}))
+      .then((data) => {
+        const merged = mergeContent(DEFAULT_CONTENT, data);
+        setContent(merged);
+        setOriginal(merged);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  const fetchContent = async () => {
-    try {
-      const resp = await api.get('/content');
-      setContent(resp.data);
-      setOriginalContent(resp.data);
-    } catch (err) {
-      console.error('Failed to fetch content:', err);
-    } finally {
-      setLoading(false);
-    }
+  const dirty = useMemo(() => JSON.stringify(content) !== JSON.stringify(original), [content, original]);
+
+  // Warn before leaving with unpublished changes
+  useEffect(() => {
+    const onBeforeUnload = (e) => {
+      if (!dirty) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dirty]);
+
+  const update = (path) => (value) => setContent((prev) => setIn(prev, path, value));
+  const val = (path) => getIn(content, path);
+
+  const showToast = (type, text) => {
+    setToast({ type, text });
+    setTimeout(() => setToast(null), 3500);
   };
 
   const handleSave = async () => {
     setSaving(true);
-    setMessage('');
     try {
-      await api.put('/content', { data: content });
-      setMessage('Website updated successfully in real-time!');
-      setOriginalContent(content);
-      setTimeout(() => setMessage(''), 3000);
+      const resp = await api.put("/content", { data: content });
+      const saved = mergeContent(DEFAULT_CONTENT, resp.data?.data);
+      setContent(saved);
+      setOriginal(saved);
+      showToast("success", "Published — the live website is updated.");
     } catch (err) {
-      setMessage('Error updating content. Please try again.');
+      showToast("error", err.response?.data?.message || "Could not publish changes. Please try again.");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleInputChange = (section, field, value) => {
-    setContent(prev => ({
-      ...prev,
-      [section]: {
-        ...prev[section],
-        [field]: value
-      }
-    }));
+  if (loading || !content) {
+    return (
+      <div className="flex h-[60vh] flex-col items-center justify-center gap-3 text-ink-500">
+        <RefreshCw className="h-6 w-6 animate-spin text-brand-600" />
+        <p className="text-sm">Loading website content…</p>
+      </div>
+    );
+  }
+
+  const renderSection = () => {
+    switch (active) {
+      case "layout":
+        return (
+          <Card title="Homepage sections" description="Show or hide whole sections of the public homepage.">
+            <div className="grid gap-3">
+              {SECTION_TOGGLES.map(([key, label, description]) => (
+                <Toggle
+                  key={key}
+                  label={label}
+                  description={description}
+                  checked={val(`sections.${key}`) !== false}
+                  onChange={update(`sections.${key}`)}
+                />
+              ))}
+            </div>
+          </Card>
+        );
+      case "announcement":
+        return (
+          <Card title="Announcement bar" description="A short message shown above the navigation on every public page.">
+            <Toggle label="Show announcement" checked={Boolean(val("announcement.enabled"))} onChange={update("announcement.enabled")} />
+            <Field label="Message">
+              <TextInput value={val("announcement.text")} onChange={update("announcement.text")} maxLength={180} />
+            </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Link label">
+                <TextInput value={val("announcement.linkLabel")} onChange={update("announcement.linkLabel")} />
+              </Field>
+              <Field label="Link URL" hint="e.g. /services or https://…">
+                <TextInput value={val("announcement.linkUrl")} onChange={update("announcement.linkUrl")} />
+              </Field>
+            </div>
+          </Card>
+        );
+      case "hero":
+        return (
+          <>
+            <Card title="Headline" description="The first thing every visitor reads.">
+              <Field label="Title" hint="Words after the first one are highlighted in the brand gradient.">
+                <TextInput value={val("hero.title")} onChange={update("hero.title")} />
+              </Field>
+              <Field label="Eyebrow label">
+                <TextInput value={val("hero.subtitle")} onChange={update("hero.subtitle")} />
+              </Field>
+              <Field label="Description">
+                <TextArea value={val("hero.description")} onChange={update("hero.description")} />
+              </Field>
+              <Field label="Store location">
+                <TextInput value={val("hero.location")} onChange={update("hero.location")} />
+              </Field>
+            </Card>
+            <Card title="Call-to-action buttons">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Primary button label"><TextInput value={val("hero.primaryCta.label")} onChange={update("hero.primaryCta.label")} /></Field>
+                <Field label="Primary button URL"><TextInput value={val("hero.primaryCta.url")} onChange={update("hero.primaryCta.url")} /></Field>
+                <Field label="Secondary button label"><TextInput value={val("hero.secondaryCta.label")} onChange={update("hero.secondaryCta.label")} /></Field>
+                <Field label="Secondary button URL"><TextInput value={val("hero.secondaryCta.url")} onChange={update("hero.secondaryCta.url")} /></Field>
+              </div>
+              <Field label="Trust highlights">
+                <StringList items={val("hero.highlights")} onChange={update("hero.highlights")} placeholder="e.g. Licensed pharmacist-led" addLabel="Add highlight" />
+              </Field>
+            </Card>
+            <Card title="Image carousel" description="Images rotate every few seconds. Use landscape photos (4:3).">
+              <div className="grid gap-4 sm:grid-cols-2">
+                {(val("hero.images") || []).map((img, i) => (
+                  <div key={i} className="relative">
+                    <AssetPicker
+                      currentImage={img}
+                      label={`Slide ${i + 1}`}
+                      onSelect={(url) => update("hero.images")((val("hero.images") || []).map((v, idx) => (idx === i ? url : v)))}
+                    />
+                    {(val("hero.images") || []).length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => update("hero.images")((val("hero.images") || []).filter((_, idx) => idx !== i))}
+                        className="absolute right-2 top-2 rounded-lg bg-white/90 p-1.5 text-rose-600 shadow-soft"
+                        aria-label="Remove slide"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <button type="button" onClick={() => update("hero.images")([...(val("hero.images") || []), ""])} className="btn-ghost px-3 py-2 text-xs">
+                <Plus className="h-3.5 w-3.5" /> Add slide
+              </button>
+            </Card>
+          </>
+        );
+      case "services":
+        return (
+          <Card title="Member services intro" description="Heading above the services cards on the homepage.">
+            <Field label="Title"><TextInput value={val("services.title")} onChange={update("services.title")} /></Field>
+            <Field label="Subtitle"><TextArea rows={3} value={val("services.subtitle")} onChange={update("services.subtitle")} /></Field>
+          </Card>
+        );
+      case "about":
+        return (
+          <>
+            <Card title="Vision">
+              <Field label="Heading" hint='Use " & " to highlight the second part, e.g. "Our Vision & Commitment".'>
+                <TextInput value={val("about.vision_title")} onChange={update("about.vision_title")} />
+              </Field>
+              <Field label="Description"><TextArea value={val("about.vision_description")} onChange={update("about.vision_description")} /></Field>
+              <AssetPicker label="Section image" currentImage={val("about.image")} onSelect={update("about.image")} />
+            </Card>
+            <Card title="Key numbers" description="Shown on the about image (and the first one in the hero).">
+              <ObjectList
+                items={val("about.stats")}
+                onChange={update("about.stats")}
+                blank={{ value: "", label: "" }}
+                addLabel="Add number"
+                fields={[
+                  { key: "value", label: "Value", placeholder: "10K+" },
+                  { key: "label", label: "Label", placeholder: "Happy customers" },
+                ]}
+              />
+            </Card>
+            <Card title="Pillars">
+              <ObjectList
+                items={val("about.pillars")}
+                onChange={update("about.pillars")}
+                blank={{ title: "", description: "" }}
+                addLabel="Add pillar"
+                fields={[
+                  { key: "title", label: "Title" },
+                  { key: "description", label: "Description", multiline: true },
+                ]}
+              />
+            </Card>
+          </>
+        );
+      case "owner":
+        return (
+          <>
+            <Card title="Founder profile">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Full name"><TextInput value={val("owner.name")} onChange={update("owner.name")} /></Field>
+                <Field label="Professional title"><TextInput value={val("owner.title")} onChange={update("owner.title")} /></Field>
+              </div>
+              <Field label="Bio"><TextArea value={val("owner.bio")} onChange={update("owner.bio")} /></Field>
+              <Field label="Social family size" hint="e.g. 75K+"><TextInput value={val("owner.social_family")} onChange={update("owner.social_family")} /></Field>
+              <AssetPicker label="Profile photo" currentImage={val("owner.image")} onSelect={update("owner.image")} />
+            </Card>
+            <Card title="Social profiles" description="Name YouTube or Instagram to get the matching icon.">
+              <ObjectList
+                items={val("owner.socials")}
+                onChange={update("owner.socials")}
+                blank={{ name: "", handle: "", url: "" }}
+                addLabel="Add profile"
+                fields={[
+                  { key: "name", label: "Platform" },
+                  { key: "handle", label: "Handle" },
+                  { key: "url", label: "Profile URL", placeholder: "https://…" },
+                ]}
+              />
+            </Card>
+          </>
+        );
+      case "medicineData":
+        return (
+          <Card title="Medicine data section" description="Prices come from the server configuration; edit the copy here.">
+            <Field label="Title"><TextInput value={val("medicineData.title")} onChange={update("medicineData.title")} /></Field>
+            <Field label="Subtitle"><TextArea rows={3} value={val("medicineData.subtitle")} onChange={update("medicineData.subtitle")} /></Field>
+            <Field label="Features">
+              <StringList items={val("medicineData.features")} onChange={update("medicineData.features")} addLabel="Add feature" />
+            </Field>
+          </Card>
+        );
+      case "contact":
+        return (
+          <Card title="Contact details" description="Used in the header, contact band, footer and WhatsApp buttons.">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Phone"><TextInput value={val("contact.phone")} onChange={update("contact.phone")} placeholder="+91 …" /></Field>
+              <Field label="WhatsApp number" hint="Country code + number, digits only">
+                <TextInput value={val("contact.whatsapp")} onChange={update("contact.whatsapp")} placeholder="91XXXXXXXXXX" />
+              </Field>
+              <Field label="Email"><TextInput type="email" value={val("contact.email")} onChange={update("contact.email")} /></Field>
+              <Field label="Opening hours"><TextInput value={val("contact.hours")} onChange={update("contact.hours")} /></Field>
+            </div>
+            <Field label="Address"><TextArea rows={2} value={val("contact.address")} onChange={update("contact.address")} /></Field>
+          </Card>
+        );
+      case "footer":
+        return (
+          <Card title="Footer">
+            <Field label="Company name"><TextInput value={val("footer.companyName")} onChange={update("footer.companyName")} /></Field>
+            <Field label="Short description"><TextArea rows={3} value={val("footer.description")} onChange={update("footer.description")} /></Field>
+          </Card>
+        );
+      default:
+        return null;
+    }
   };
-
-  const handleCarouselChange = (index, value) => {
-    const newImages = [...content.hero.images];
-    newImages[index] = value;
-    handleInputChange('hero', 'images', newImages);
-  };
-
-  const addCarouselImage = () => {
-    handleInputChange('hero', 'images', [...content.hero.images, '']);
-  };
-
-  const removeCarouselImage = (index) => {
-    if (content.hero.images.length <= 1) return;
-    const newImages = content.hero.images.filter((_, i) => i !== index);
-    handleInputChange('hero', 'images', newImages);
-  };
-
-  if (loading || !content) return (
-    <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
-      <RefreshCw className="w-10 h-10 text-teal-650 animate-spin" />
-      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Fetching Content...</p>
-    </div>
-  );
-
-  const sections = [
-    { id: 'hero', label: 'Hero / Introduction' },
-    { id: 'about', label: 'About / Vision' },
-    { id: 'owner', label: 'Owner Profile' },
-    { id: 'footer', label: 'Footer Information' },
-  ];
 
   return (
-    <div className="space-y-6 lg:space-y-8 pb-20">
-      <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+    <div className="space-y-6 pb-24">
+      <header className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
         <div>
-          <h1 className="text-3xl lg:text-4xl font-bold font-outfit mb-2">Website <span className="text-teal-650 italic">Customizer</span></h1>
-          <p className="text-sm lg:text-base text-slate-500 font-medium">Modify any text, image, or carousel and publish in real-time.</p>
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 sm:text-3xl">Website customizer</h1>
+          <p className="mt-1 text-sm text-ink-500">Edit every section of the public website and publish instantly.</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
-          <button 
-            onClick={() => setContent(originalContent)} 
-            className="flex items-center justify-center gap-2 px-6 py-3.5 lg:py-3 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition-all font-bold text-sm"
-          >
-            Reset Changes
-          </button>
-          <button 
-            onClick={handleSave} 
-            disabled={saving}
-            className="flex items-center justify-center gap-2 px-8 py-3.5 lg:py-3 rounded-2xl bg-teal-500 text-slate-900 hover:scale-105 active:scale-95 transition-all font-black uppercase text-[10px] tracking-widest shadow-lg shadow-teal-500/20 disabled:opacity-50"
-          >
-            {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Publish to Live
-          </button>
-        </div>
+        <a href="/" target="_blank" rel="noopener noreferrer" className="btn-secondary self-start px-4 py-2.5 lg:self-auto">
+          <Eye className="h-4 w-4" /> Preview site <ExternalLink className="h-3.5 w-3.5" />
+        </a>
       </header>
 
+      <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
+        <nav className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:flex-col lg:overflow-visible lg:px-0" aria-label="Content sections">
+          {SECTIONS.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setActive(s.id)}
+              className={`flex shrink-0 items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-left text-sm font-medium transition ${
+                active === s.id ? "bg-white text-ink-900 shadow-soft ring-1 ring-ink-200/80" : "text-ink-500 hover:bg-white/60 hover:text-ink-900"
+              }`}
+            >
+              <s.icon className={`h-4 w-4 ${active === s.id ? "text-brand-600" : "text-ink-400"}`} />
+              {s.label}
+            </button>
+          ))}
+        </nav>
+
+        <motion.div key={active} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className="min-w-0 space-y-6">
+          {renderSection()}
+        </motion.div>
+      </div>
+
+      {/* Sticky publish bar */}
       <AnimatePresence>
-        {message && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className={`p-4 rounded-2xl flex items-center gap-3 font-bold border text-xs lg:text-sm ${
-              message.includes('Error') ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'
-            }`}
+        {(dirty || toast) && (
+          <motion.div
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 80, opacity: 0 }}
+            className="fixed inset-x-4 bottom-4 z-40 mx-auto flex max-w-3xl flex-col items-stretch gap-3 rounded-2xl border border-ink-200/80 bg-white/95 p-3 shadow-lift backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:pl-5 lg:left-[calc(18rem+1rem)]"
           >
-            {message.includes('Error') ? <AlertCircle className="w-4 h-4 lg:w-5 lg:h-5" /> : <CheckCircle2 className="w-4 h-4 lg:w-5 lg:h-5" />}
-            {message}
+            {toast ? (
+              <p className={`flex items-center gap-2 text-sm font-medium ${toast.type === "error" ? "text-rose-600" : "text-emerald-700"}`}>
+                {toast.type === "error" ? <AlertCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                {toast.text}
+              </p>
+            ) : (
+              <p className="flex items-center gap-2 text-sm font-medium text-ink-700">
+                <span className="h-2 w-2 rounded-full bg-saffron-500" /> You have unpublished changes
+              </p>
+            )}
+            {dirty && (
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setContent(original)} className="btn-ghost flex-1 px-4 py-2.5 sm:flex-none">
+                  <RotateCcw className="h-4 w-4" /> Discard
+                </button>
+                <button type="button" onClick={handleSave} disabled={saving} className="btn-primary flex-1 px-5 py-2.5 sm:flex-none">
+                  {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Publish
+                </button>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
-
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-8">
-        <aside className="lg:col-span-1">
-          <div className="flex lg:flex-col overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0 gap-2 lg:gap-2 no-scrollbar">
-            {sections.map(s => (
-              <button
-                key={s.id}
-                onClick={() => setActiveSection(s.id)}
-                className={`whitespace-nowrap lg:whitespace-normal text-left px-5 lg:px-6 py-3 lg:py-4 rounded-xl lg:rounded-2xl transition-all font-bold font-outfit flex justify-between items-center text-xs lg:text-base border ${
-                  activeSection === s.id 
-                    ? 'bg-teal-50 text-teal-700 border-teal-200/60 shadow-sm' 
-                    : 'bg-white hover:bg-slate-50 text-slate-500 border-slate-200/80 hover:text-slate-800'
-                }`}
-              >
-                <span>{s.label}</span>
-                {activeSection === s.id ? <ChevronRight className="hidden lg:block w-4 h-4 text-teal-650" /> : null}
-              </button>
-            ))}
-          </div>
-        </aside>
-
-        <div className="lg:col-span-3">
-          <div className="bg-white border border-slate-200 shadow-md p-6 lg:p-12 rounded-[2.5rem] lg:rounded-[3.5rem] space-y-8 lg:space-y-12">
-            {activeSection === 'hero' && (
-              <div className="space-y-8 lg:space-y-12">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-10">
-                  <div className="space-y-6">
-                    <div>
-                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3 ml-2">Main Heading Title</label>
-                      <input 
-                        type="text" 
-                        value={content.hero.title}
-                        onChange={(e) => handleInputChange('hero', 'title', e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 lg:py-4 px-5 lg:px-6 focus:outline-none focus:bg-white focus:border-teal-500 transition-all font-bold text-slate-800 text-base lg:text-xl"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3 ml-2">Pill Subtitle</label>
-                      <input 
-                        type="text" 
-                        value={content.hero.subtitle}
-                        onChange={(e) => handleInputChange('hero', 'subtitle', e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 lg:py-4 px-5 lg:px-6 focus:outline-none focus:bg-white focus:border-teal-500 transition-all font-bold text-slate-800 text-sm lg:text-base"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3 ml-2">Hero Description</label>
-                    <textarea 
-                      value={content.hero.description}
-                      rows={6}
-                      onChange={(e) => handleInputChange('hero', 'description', e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 lg:py-4 px-5 lg:px-6 focus:outline-none focus:bg-white focus:border-teal-500 transition-all font-bold text-slate-850 resize-none h-full text-sm lg:text-base leading-relaxed"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-8 lg:pt-12 border-t border-slate-100">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-                    <div>
-                      <h3 className="text-xl lg:text-2xl font-bold font-outfit text-slate-900">Hero <span className="text-teal-650 italic">Carousel</span></h3>
-                      <p className="text-xs lg:text-sm text-slate-500 font-bold mt-1">Manage background images that cycle on your home screen.</p>
-                    </div>
-                    <button 
-                      onClick={addCarouselImage}
-                      className="flex items-center gap-2 px-5 py-2.5 bg-teal-50 text-teal-700 border border-teal-200/60 rounded-xl hover:bg-teal-100 transition-all text-[10px] font-black uppercase tracking-widest"
-                    >
-                      <Plus className="w-4 h-4" /> Add Slide
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 lg:gap-8">
-                    {content.hero.images.map((img, idx) => (
-                      <div key={idx} className="relative group">
-                        <AssetPicker 
-                          currentImage={img} 
-                          onSelect={(url) => handleCarouselChange(idx, url)}
-                          label={`Slide #${idx + 1}`}
-                        />
-                        <button 
-                          onClick={() => removeCarouselImage(idx)}
-                          className="absolute top-8 right-2 p-2 bg-red-500 text-white rounded-lg lg:opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 z-10 shadow-lg"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeSection === 'about' && (
-              <div className="space-y-8 lg:space-y-12">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
-                  <div className="space-y-6">
-                    <div>
-                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3 ml-2">Vision Heading</label>
-                      <input 
-                        type="text" 
-                        value={content.about.vision_title}
-                        onChange={(e) => handleInputChange('about', 'vision_title', e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 lg:py-4 px-5 lg:px-6 focus:outline-none focus:bg-white focus:border-teal-500 transition-all font-bold text-slate-800 text-sm lg:text-base"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3 ml-2">Vision Description</label>
-                      <textarea 
-                        value={content.about.vision_description}
-                        rows={8}
-                        onChange={(e) => handleInputChange('about', 'vision_description', e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 lg:py-4 px-5 lg:px-6 focus:outline-none focus:bg-white focus:border-teal-500 transition-all font-bold text-slate-800 resize-none text-sm lg:text-base leading-relaxed"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-8">
-                    <AssetPicker 
-                      label="Section Visual Image"
-                      currentImage={content.about?.image || ''}
-                      onSelect={(url) => handleInputChange('about', 'image', url)}
-                    />
-                    <div className="p-6 lg:p-8 rounded-[2rem] bg-slate-50 border border-slate-200/80">
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-6 ml-2">Stats Configuration</p>
-                      <div className="space-y-4">
-                        {content.about.stats.map((stat, idx) => (
-                          <div key={idx} className="flex gap-3 lg:gap-4 items-center">
-                            <input 
-                              type="text" 
-                              value={stat.value} 
-                              onChange={(e) => {
-                                const newStats = [...content.about.stats];
-                                newStats[idx].value = e.target.value;
-                                handleInputChange('about', 'stats', newStats);
-                              }}
-                              className="w-16 lg:w-20 bg-white border border-slate-200 rounded-lg px-2 py-2 text-center font-bold text-teal-600 text-xs lg:text-sm"
-                            />
-                            <input 
-                              type="text" 
-                              value={stat.label} 
-                              onChange={(e) => {
-                                const newStats = [...content.about.stats];
-                                newStats[idx].label = e.target.value;
-                                handleInputChange('about', 'stats', newStats);
-                              }}
-                              className="flex-1 bg-white border border-slate-200 rounded-lg px-4 py-2 text-xs text-slate-700 font-bold"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeSection === 'owner' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3 ml-2">Owner Full Name</label>
-                    <input 
-                      type="text" 
-                      value={content.owner.name}
-                      onChange={(e) => handleInputChange('owner', 'name', e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 lg:py-4 px-5 lg:px-6 focus:outline-none focus:bg-white focus:border-teal-500 transition-all font-bold text-slate-800 text-sm lg:text-base"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3 ml-2">Professional Title</label>
-                    <input 
-                      type="text" 
-                      value={content.owner.title}
-                      onChange={(e) => handleInputChange('owner', 'title', e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 lg:py-4 px-5 lg:px-6 focus:outline-none focus:bg-white focus:border-teal-500 transition-all font-bold text-slate-850 text-sm lg:text-base"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3 ml-2">Professional Bio</label>
-                    <textarea 
-                      value={content.owner.bio}
-                      rows={6}
-                      onChange={(e) => handleInputChange('owner', 'bio', e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 lg:py-4 px-5 lg:px-6 focus:outline-none focus:bg-white focus:border-teal-500 transition-all font-bold text-slate-800 resize-none text-sm lg:text-base leading-relaxed"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-8">
-                  <AssetPicker 
-                    label="Profile Photo"
-                    currentImage={content.owner?.image || ''}
-                    onSelect={(url) => handleInputChange('owner', 'image', url)}
-                  />
-                  <div className="p-6 lg:p-8 rounded-[2rem] bg-slate-50 border border-slate-200/80 space-y-6">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Social Accounts</p>
-                    {content.owner.socials.map((social, idx) => (
-                      <div key={idx} className="flex flex-col gap-2">
-                        <span className="text-[9px] font-black text-teal-650 uppercase tracking-wider ml-1">{social.name}</span>
-                        <input 
-                          type="text" 
-                          value={social.url} 
-                          onChange={(e) => {
-                            const newSocials = [...content.owner.socials];
-                            newSocials[idx].url = e.target.value;
-                            handleInputChange('owner', 'socials', newSocials);
-                          }}
-                          className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-xs text-slate-700 font-bold focus:outline-none focus:border-teal-500 transition-all"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeSection === 'footer' && (
-              <div className="space-y-8">
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
-                   <div className="space-y-6">
-                     <div>
-                       <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3 ml-2">Company Name</label>
-                       <input 
-                         type="text" 
-                         value={content.footer?.companyName || ''}
-                         onChange={(e) => handleInputChange('footer', 'companyName', e.target.value)}
-                         className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 lg:py-4 px-5 lg:px-6 focus:outline-none focus:bg-white focus:border-teal-500 transition-all font-bold text-slate-800"
-                       />
-                     </div>
-                     <div>
-                       <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3 ml-2">Address</label>
-                       <textarea 
-                         value={content.footer?.address || ''}
-                         rows={3}
-                         onChange={(e) => handleInputChange('footer', 'address', e.target.value)}
-                         className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 lg:py-4 px-5 lg:px-6 focus:outline-none focus:bg-white focus:border-teal-500 transition-all font-bold text-slate-800 resize-none"
-                       />
-                     </div>
-                   </div>
-                   <div className="space-y-6">
-                     <div>
-                       <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3 ml-2">Contact Email</label>
-                       <input 
-                         type="email" 
-                         value={content.footer?.email || ''}
-                         onChange={(e) => handleInputChange('footer', 'email', e.target.value)}
-                         className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 lg:py-4 px-5 lg:px-6 focus:outline-none focus:bg-white focus:border-teal-500 transition-all font-bold text-slate-800"
-                       />
-                     </div>
-                     <div>
-                       <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3 ml-2">Contact Phone</label>
-                       <input 
-                         type="text" 
-                         value={content.footer?.phone || ''}
-                         onChange={(e) => handleInputChange('footer', 'phone', e.target.value)}
-                         className="w-full bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl py-3.5 lg:py-4 px-5 lg:px-6 focus:outline-none focus:bg-white focus:border-teal-500 transition-all font-bold text-slate-850"
-                       />
-                     </div>
-                   </div>
-                 </div>
-              </div>
-            )}
-
-            <div className="pt-8 border-t border-slate-100 flex items-center justify-between text-slate-450">
-              <div className="flex items-center gap-2 text-[10px] lg:text-xs font-bold uppercase tracking-wider">
-                <AlertCircle className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-teal-650" />
-                <span>Changes won't be visible to users until you hit Publish.</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

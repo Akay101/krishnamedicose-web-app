@@ -1,305 +1,276 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { 
-  Users, FileEdit, ArrowUpRight, TrendingUp, Sparkles, 
-  MessageSquare, MousePointer2, Monitor, Smartphone, Tablet,
-  Globe, Chrome, ShieldAlert, Zap, ShieldCheck, RefreshCw
-} from 'lucide-react';
-import api from '../utils/api';
-import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, 
-  ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar 
-} from 'recharts';
+import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
+import {
+  ArrowUpRight,
+  Briefcase,
+  Eye,
+  FileEdit,
+  FileSpreadsheet,
+  Inbox,
+  IndianRupee,
+  MousePointer2,
+  RefreshCw,
+  ShieldCheck,
+  Stethoscope,
+  UsersRound,
+} from "lucide-react";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import api from "../utils/api";
+import servicesApi from "../utils/servicesApi";
 
-export default function Dashboard() {
-  const [stats, setStats] = useState({
-    totalLeads: 0,
-    newLeads: 0,
-    analytics: {
-      summary: { totalViews: 0, uniqueCount: 0 },
-      lifetime: { totalViews: 0, uniqueCount: 0 },
-      timeline: [],
-      devices: [],
-      browsers: []
-    }
-  });
-  const [loading, setLoading] = useState(true);
+const CHART_COLORS = ["#0D8576", "#38C2AC", "#F5920B", "#4A586D", "#70DBC7"];
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [enquiryResp, analyticsResp] = await Promise.all([
-          api.get('/enquiry?limit=1000'), 
-          api.get('/analytics/stats')
-        ]);
-        
-        setStats({
-          totalLeads: enquiryResp.data.total || 0,
-          newLeads: enquiryResp.data.pendingCount || 0,
-          analytics: analyticsResp.data
-        });
-      } catch (err) {
-        console.error('Failed to fetch stats:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+const readUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem("user") || "{}");
+  } catch {
+    return {};
+  }
+};
 
-  const COLORS = ['#0d9488', '#0284c7', '#6366f1', '#eab308'];
+const fmt = (n) => (typeof n === "number" ? n.toLocaleString("en-IN") : n ?? "—");
 
-  const mainStats = [
-    { 
-      name: 'Total Page Views', 
-      value: stats.analytics.lifetime?.totalViews || 0, 
-      icon: Eye, 
-      color: 'text-teal-600', 
-      detail: `${stats.analytics.summary?.totalViews || 0} in last 24h` 
-    },
-    { 
-      name: 'Unique Visitors', 
-      value: stats.analytics.lifetime?.uniqueCount || 0, 
-      icon: MousePointer2, 
-      color: 'text-sky-600', 
-      detail: `${stats.analytics.summary?.uniqueCount || 0} in last 24h` 
-    },
-    { 
-      name: 'Inbound Leads', 
-      value: stats.totalLeads, 
-      icon: Users, 
-      color: 'text-indigo-600', 
-      detail: `${stats.newLeads} pending review` 
-    },
-    { 
-      name: 'Real-time Health', 
-      value: 'Active', 
-      icon: Zap, 
-      color: 'text-emerald-600', 
-      detail: 'All systems operational' 
-    },
-  ];
-
-  if (loading) return (
-    <div className="h-[80vh] flex items-center justify-center">
-      <div className="relative">
-        <div className="w-20 h-20 border-2 border-teal-200 border-t-teal-600 rounded-full animate-spin" />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <Sparkles className="w-8 h-8 text-teal-600 animate-pulse" />
-        </div>
-      </div>
-    </div>
-  );
-
+function StatCard({ icon: Icon, label, value, detail, tone = "brand", delay = 0 }) {
+  const tones = {
+    brand: "bg-brand-50 text-brand-700 ring-brand-100",
+    sky: "bg-sky-50 text-sky-700 ring-sky-100",
+    saffron: "bg-saffron-50 text-saffron-600 ring-saffron-100",
+    ink: "bg-ink-100 text-ink-700 ring-ink-200",
+  };
   return (
-    <div className="space-y-10 pb-20">
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div>
-          <h1 className="text-3xl lg:text-4xl font-black font-outfit mb-2 tracking-tight text-slate-900">Intelligence <span className="text-teal-600 italic">Command</span></h1>
-          <p className="text-sm lg:text-base text-slate-600 font-bold">Detailed real-time metrics for Krishna Medicose.</p>
-        </div>
-        <div className="hidden md:flex items-center gap-4">
-          <div className="flex -space-x-2">
-            {[1,2,3].map(i => (
-              <div key={i} className="w-8 h-8 rounded-full border-2 border-white bg-slate-200" />
-            ))}
-          </div>
-          <p className="text-xs font-extrabold text-slate-500 uppercase tracking-widest">Team Online</p>
-        </div>
-      </header>
-
-      {/* Main Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-        {mainStats.map((card, i) => (
-          <motion.div
-            key={card.name}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className="glass-morphism p-6 lg:p-8 rounded-[2rem] lg:rounded-[2.5rem] relative overflow-hidden group hover:border-teal-500/30 transition-all duration-500"
-          >
-            <div className="flex justify-between items-start mb-4 lg:mb-6">
-              <div className={`p-3 lg:p-4 rounded-xl lg:rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center group-hover:bg-teal-50 transition-colors`}>
-                <card.icon className={`w-5 h-5 lg:w-6 lg:h-6 ${card.color}`} />
-              </div>
-              <TrendingUp className="w-4 h-4 text-emerald-500 opacity-70" />
-            </div>
-            <div>
-              <p className="text-slate-500 text-[10px] font-extrabold uppercase tracking-[0.2em] mb-1">{card.name}</p>
-              <h3 className="text-2xl lg:text-3xl font-black font-outfit mb-2 text-slate-900">{card.value}</h3>
-              <p className="text-[9px] lg:text-[10px] text-slate-500 italic font-bold">{card.detail}</p>
-            </div>
-            <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/5 blur-3xl -z-10 group-hover:bg-teal-500/10 transition-colors" />
-          </motion.div>
-        ))}
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.4 }}
+      className="card p-5"
+    >
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-ink-500">{label}</p>
+        <span className={`flex h-9 w-9 items-center justify-center rounded-xl ring-1 ring-inset ${tones[tone]}`}>
+          <Icon className="h-4 w-4" />
+        </span>
       </div>
+      <p className="mt-3 font-display text-3xl font-extrabold tracking-tight text-ink-900">{fmt(value)}</p>
+      {detail && <p className="mt-1 text-xs text-ink-500">{detail}</p>}
+    </motion.div>
+  );
+}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-        {/* Main Traffic Chart */}
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="lg:col-span-2 glass-morphism p-6 lg:p-10 rounded-[2.5rem] lg:rounded-[3.5rem] bg-white overflow-hidden"
-        >
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 lg:mb-10">
-            <div>
-              <h3 className="text-xl lg:text-2xl font-bold font-outfit text-slate-900">Traffic <span className="text-teal-600 italic">Trajectory</span></h3>
-              <p className="text-xs lg:text-sm text-slate-500 font-bold">Visitor volume over the last 7 days</p>
-            </div>
-            <div className="flex gap-2">
-              <div className="flex items-center gap-2 bg-slate-100 text-[9px] font-extrabold text-slate-600 border border-slate-200/60 px-3 py-1.5 rounded-lg">
-                <div className="w-2 h-2 rounded-full bg-teal-500" /> Page Views
-              </div>
-            </div>
-          </div>
-          
-          <div className="h-[250px] lg:h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={stats.analytics.timeline}>
-                <defs>
-                  <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0d9488" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#0d9488" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                <XAxis 
-                  dataKey="date" 
-                  stroke="#94a3b8" 
-                  fontSize={10} 
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { weekday: 'short' })}
-                />
-                <YAxis hide />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#ffffff', 
-                    borderColor: '#cbd5e1',
-                    borderRadius: '16px',
-                    fontSize: '12px',
-                    color: '#0f172a'
-                  }}
-                  itemStyle={{ color: '#0d9488' }}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="views" 
-                  stroke="#0d9488" 
-                  strokeWidth={4}
-                  fillOpacity={1} 
-                  fill="url(#colorViews)" 
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </motion.div>
-
-        {/* Device Breakdown */}
-        <motion.div 
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="glass-morphism p-6 lg:p-10 rounded-[2.5rem] lg:rounded-[3.5rem] bg-white"
-        >
-          <h3 className="text-xl lg:text-2xl font-bold font-outfit mb-2 text-center text-slate-900">Device <span className="text-sky-655 italic">Reach</span></h3>
-          <p className="text-xs lg:text-sm text-slate-500 font-bold text-center mb-6 lg:mb-8">Access by hardware type</p>
-          
-          <div className="h-[200px] lg:h-[250px] w-full relative">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={stats.analytics.devices}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={70}
-                  paddingAngle={8}
-                  dataKey="count"
-                >
-                  {stats.analytics.devices.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <Monitor className="w-6 h-6 text-slate-350" />
-            </div>
-          </div>
-
-          <div className="space-y-3 lg:space-y-4 mt-6">
-            {stats.analytics.devices.map((dev, i) => (
-              <div key={dev._id} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">{dev._id}</span>
-                </div>
-                <span className="text-xs font-black text-slate-800">{dev.count}</span>
-              </div>
-            ))}
-          </div>
-        </motion.div>
+function Panel({ title, subtitle, children, className = "" }) {
+  return (
+    <div className={`card p-5 sm:p-6 ${className}`}>
+      <div className="mb-5">
+        <h2 className="text-base font-bold text-ink-900">{title}</h2>
+        {subtitle && <p className="text-xs text-ink-500">{subtitle}</p>}
       </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
-        {/* Browser Stats */}
-        <div className="glass-morphism p-6 lg:p-10 rounded-[2rem] lg:rounded-[3rem] bg-white">
-          <div className="flex items-center gap-3 mb-6 lg:mb-8">
-            <Globe className="w-5 h-5 lg:w-6 lg:h-6 text-teal-600" />
-            <h3 className="text-lg lg:text-xl font-bold font-outfit text-slate-900">Browser Intelligence</h3>
-          </div>
-          <div className="space-y-4 lg:space-y-6">
-            {stats.analytics.browsers.map((browser, i) => (
-              <div key={browser._id} className="space-y-2">
-                <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
-                  <span className="text-slate-500">{browser._id}</span>
-                  <span className="text-slate-900 font-extrabold">{stats.analytics.summary.totalViews > 0 ? Math.round((browser.count / stats.analytics.summary.totalViews) * 100) : 0}%</span>
-                </div>
-                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: `${stats.analytics.summary.totalViews > 0 ? (browser.count / stats.analytics.summary.totalViews) * 100 : 0}%` }}
-                    className="h-full bg-teal-600"
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* System Notifications */}
-        <div className="glass-morphism p-6 lg:p-10 rounded-[2rem] lg:rounded-[3rem] bg-sky-50 border border-sky-200/60 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-6 lg:p-8 opacity-10 lg:opacity-30">
-            <ShieldAlert className="w-16 h-16 lg:w-20 lg:h-20 text-sky-600" />
-          </div>
-          <h3 className="text-xl lg:text-2xl font-bold font-outfit mb-6 lg:mb-8 text-slate-900">Security Hub</h3>
-          <div className="space-y-4 lg:space-y-6">
-            <div className="flex gap-4 p-4 lg:p-5 rounded-[1.5rem] lg:rounded-[2rem] bg-white border border-slate-200 shadow-sm">
-              <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl lg:rounded-2xl bg-sky-100 border border-sky-200 flex items-center justify-center text-sky-655 shrink-0">
-                <ShieldCheck className="w-5 h-5 lg:w-6 lg:h-6" />
-              </div>
-              <div>
-                <p className="text-sm lg:text-base font-extrabold text-slate-900 leading-tight mb-1">Anti-Grav Encryption Active</p>
-                <p className="text-[10px] lg:text-xs text-slate-600 font-bold">Real-time session monitoring is guarding your lead database.</p>
-              </div>
-            </div>
-            <div className="flex gap-4 p-4 lg:p-5 rounded-[1.5rem] lg:rounded-[2rem] bg-white border border-slate-200 shadow-sm">
-              <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl lg:rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-600 shrink-0">
-                <RefreshCw className="w-5 h-5 lg:w-6 lg:h-6" />
-              </div>
-              <div>
-                <p className="text-sm lg:text-base font-extrabold text-slate-900 leading-tight mb-1">Automated Data Synced</p>
-                <p className="text-[10px] lg:text-xs text-slate-500 font-bold">Last deep cloud sync performed 4 minutes ago.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      {children}
     </div>
   );
 }
 
-const Eye = ({ className }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+const Empty = ({ text = "No data yet" }) => (
+  <div className="flex h-56 items-center justify-center rounded-2xl border border-dashed border-ink-200 text-sm text-ink-400">{text}</div>
 );
+
+export default function Dashboard() {
+  const user = readUser();
+  const isRoot = user.role === "admin";
+  const can = (perm) => isRoot || Boolean(user.permissions?.[perm]);
+
+  const [data, setData] = useState({ analytics: null, leads: null, services: null, bundle: null });
+  const [loading, setLoading] = useState(true);
+  const [refreshedAt, setRefreshedAt] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    // Each widget only loads what this team member is allowed to see
+    const [analytics, leads, services, bundle] = await Promise.allSettled([
+      can("website") ? api.get("/analytics/stats") : Promise.reject(),
+      can("leads") ? api.get("/enquiry", { params: { limit: 1 } }) : Promise.reject(),
+      isRoot || can("services") ? servicesApi.get("/admin/stats") : Promise.reject(),
+      can("bundles") ? api.get("/medicine-bundle/analytics") : Promise.reject(),
+    ]);
+    const val = (r) => (r.status === "fulfilled" ? r.value.data : null);
+    setData({ analytics: val(analytics), leads: val(leads), services: val(services), bundle: val(bundle) });
+    setRefreshedAt(new Date());
+    setLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const { analytics, leads, services, bundle } = data;
+  const timeline = (analytics?.timeline || []).map((d) => ({
+    ...d,
+    day: new Date(d.date).toLocaleDateString("en-IN", { weekday: "short", day: "numeric" }),
+  }));
+  const devices = (analytics?.devices || []).map((d) => ({ name: d._id || "Unknown", value: d.count }));
+  const browsers = (analytics?.browsers || [])
+    .map((b) => ({ name: b._id || "Other", value: b.count }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 6);
+
+  const quickLinks = [
+    { label: "Edit website content", to: "/admin/content", icon: FileEdit, show: can("website") },
+    { label: "Review new leads", to: "/admin/leads", icon: Inbox, show: can("leads") },
+    { label: "Review pending listings", to: "/admin/services", icon: ShieldCheck, show: isRoot || can("services") },
+    { label: "Medicine data purchases", to: "/admin/medicine-data", icon: FileSpreadsheet, show: can("bundles") },
+  ].filter((l) => l.show);
+
+  const greeting = (() => {
+    const h = new Date().getHours();
+    return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  })();
+
+  return (
+    <div className="space-y-8 pb-12">
+      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+        <div>
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink-900 sm:text-3xl">
+            {greeting}, {user.name?.split(" ")[0] || "Admin"}
+          </h1>
+          <p className="mt-1 text-sm text-ink-500">Here's how Krishna Medicose is performing.</p>
+        </div>
+        <button type="button" onClick={load} disabled={loading} className="btn-secondary self-start px-4 py-2.5 sm:self-auto">
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          {refreshedAt ? `Updated ${refreshedAt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}` : "Refresh"}
+        </button>
+      </header>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {can("website") && (
+          <>
+            <StatCard icon={Eye} label="Page views" value={analytics?.lifetime?.totalViews ?? 0} detail={`${fmt(analytics?.summary?.totalViews ?? 0)} in the last 24h`} />
+            <StatCard icon={MousePointer2} label="Unique visitors" value={analytics?.lifetime?.uniqueCount ?? 0} detail={`${fmt(analytics?.summary?.uniqueCount ?? 0)} in the last 24h`} tone="sky" delay={0.05} />
+          </>
+        )}
+        {can("leads") && (
+          <StatCard icon={Inbox} label="Enquiries" value={leads?.total ?? 0} detail={`${fmt(leads?.pendingCount ?? 0)} awaiting follow-up`} tone="saffron" delay={0.1} />
+        )}
+        {(isRoot || can("services")) && (
+          <StatCard icon={UsersRound} label="Members" value={services?.totalUsers ?? 0} detail={`${fmt(services?.totalOwners ?? 0)} pharmacies · ${fmt(services?.totalPharmacists ?? 0)} pharmacists`} tone="ink" delay={0.15} />
+        )}
+        {(isRoot || can("services")) && (
+          <StatCard icon={ShieldCheck} label="Awaiting verification" value={(services?.pendingJobs ?? 0) + (services?.pendingCollabs ?? 0)} detail={`${fmt(services?.pendingJobs ?? 0)} jobs · ${fmt(services?.pendingCollabs ?? 0)} chambers`} tone="saffron" delay={0.18} />
+        )}
+        {(isRoot || can("services")) && (
+          <StatCard icon={Briefcase} label="Active job posts" value={services?.totalActiveJobs ?? 0} detail={`${fmt(services?.totalApplications ?? 0)} applications received`} delay={0.2} />
+        )}
+        {(isRoot || can("services")) && (
+          <StatCard icon={Stethoscope} label="Doctor collaborations" value={services?.totalActiveCollabs ?? 0} detail={`${fmt(services?.totalDoctors ?? 0)} doctors · ${fmt(services?.totalInquiries ?? 0)} inquiries`} tone="sky" delay={0.25} />
+        )}
+        {can("bundles") && (
+          <>
+            <StatCard icon={FileSpreadsheet} label="Bundle purchases" value={bundle?.totalPurchases ?? 0} detail={`${fmt(bundle?.activeSessions ?? 0)} active sessions now`} tone="saffron" delay={0.3} />
+            <StatCard icon={IndianRupee} label="Bundle revenue" value={`₹${fmt(bundle?.totalRevenue ?? 0)}`} detail="Lifetime, verified payments" delay={0.35} />
+          </>
+        )}
+      </div>
+
+      {can("website") && (
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Panel title="Traffic" subtitle="Page views and unique visitors · last 7 days" className="lg:col-span-2">
+            {timeline.length ? (
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={timeline} margin={{ left: -18, right: 8, top: 4 }}>
+                    <defs>
+                      <linearGradient id="kmViews" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#16A692" stopOpacity={0.35} />
+                        <stop offset="100%" stopColor="#16A692" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke="#EBEFF4" vertical={false} />
+                    <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#66758B" }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#66758B" }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #D8DFE8", fontSize: 12 }} />
+                    <Area type="monotone" dataKey="views" name="Views" stroke="#0D8576" strokeWidth={2.5} fill="url(#kmViews)" />
+                    <Area type="monotone" dataKey="uniques" name="Unique" stroke="#F5920B" strokeWidth={2} fill="transparent" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <Empty text="Traffic will appear once visitors arrive" />
+            )}
+          </Panel>
+
+          <Panel title="Devices" subtitle="Last 7 days">
+            {devices.length ? (
+              <>
+                <div className="h-44">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={devices} dataKey="value" nameKey="name" innerRadius={48} outerRadius={72} paddingAngle={3} stroke="none">
+                        {devices.map((_, i) => (
+                          <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #D8DFE8", fontSize: 12 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <ul className="mt-3 space-y-2">
+                  {devices.map((d, i) => (
+                    <li key={d.name} className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-2 capitalize text-ink-700">
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                        {d.name}
+                      </span>
+                      <span className="font-semibold text-ink-900">{fmt(d.value)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <Empty />
+            )}
+          </Panel>
+        </div>
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        {can("website") && (
+          <Panel title="Browsers" subtitle="Top browsers · last 7 days" className="lg:col-span-2">
+            {browsers.length ? (
+              <div className="h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={browsers} layout="vertical" margin={{ left: 10, right: 16 }}>
+                    <CartesianGrid stroke="#EBEFF4" horizontal={false} />
+                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12, fill: "#66758B" }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 12, fill: "#354255" }} axisLine={false} tickLine={false} />
+                    <Tooltip cursor={{ fill: "#F5F7FA" }} contentStyle={{ borderRadius: 12, border: "1px solid #D8DFE8", fontSize: 12 }} />
+                    <Bar dataKey="value" name="Visits" fill="#16A692" radius={[0, 8, 8, 0]} barSize={18} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <Empty />
+            )}
+          </Panel>
+        )}
+
+        <Panel title="Quick actions" subtitle="Jump to common tasks" className={can("website") ? "" : "lg:col-span-3"}>
+          <div className="space-y-2">
+            {quickLinks.map((l) => (
+              <Link
+                key={l.to}
+                to={l.to}
+                className="group flex items-center justify-between rounded-2xl border border-ink-200/70 px-4 py-3 text-sm font-medium text-ink-800 transition hover:border-brand-300 hover:bg-brand-50/50"
+              >
+                <span className="flex items-center gap-3">
+                  <l.icon className="h-4 w-4 text-brand-600" />
+                  {l.label}
+                </span>
+                <ArrowUpRight className="h-4 w-4 text-ink-300 transition group-hover:text-brand-600" />
+              </Link>
+            ))}
+            {quickLinks.length === 0 && <p className="text-sm text-ink-500">Ask the root admin to grant you a permission.</p>}
+          </div>
+        </Panel>
+      </div>
+    </div>
+  );
+}

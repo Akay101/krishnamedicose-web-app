@@ -1,6 +1,61 @@
 const User = require("../models/User");
 const jwt = require("jsonwebtoken");
 const emailService = require("../services/emailService");
+const { randomNumericCode, hashSecret, safeEqual } = require("../utils/security");
+
+const OTP_TTL_MS = 10 * 60 * 1000;
+const OTP_MAX_ATTEMPTS = 5;
+const isProduction = process.env.NODE_ENV === "production";
+
+const refreshCookieOptions = {
+  httpOnly: true,
+  secure: isProduction,
+  // "strict" keeps the refresh cookie away from every cross-site request (CSRF-safe).
+  // Only relax via COOKIE_SAMESITE=none if the admin UI and API are on different sites.
+  sameSite: process.env.COOKIE_SAMESITE === "none" && isProduction ? "none" : "strict",
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+};
+
+const signAccessToken = (user) =>
+  jwt.sign(
+    { id: user._id, type: "admin_access", tv: user.tokenVersion || 0 },
+    process.env.JWT_SECRET,
+    { expiresIn: "15m" }
+  );
+
+const signRefreshToken = (user) =>
+  jwt.sign(
+    { id: user._id, type: "admin_refresh", tv: user.tokenVersion || 0 },
+    process.env.REFRESH_TOKEN_SECRET,
+    { expiresIn: "7d" }
+  );
+
+const publicUser = (user) => ({
+  id: user._id,
+  email: user.email,
+  role: user.role,
+  permissions: user.permissions,
+  name: user.name,
+});
+
+// Verify a password-reset OTP, counting failed attempts against the account
+const checkResetOtp = async (user, otp) => {
+  if (!user || !user.otp || !user.otpExpires || user.otpExpires < Date.now()) {
+    return { ok: false, message: "Invalid or expired OTP" };
+  }
+  if ((user.otpAttempts || 0) >= OTP_MAX_ATTEMPTS) {
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    await user.save();
+    return { ok: false, message: "Too many incorrect attempts. Please request a new OTP." };
+  }
+  if (!safeEqual(hashSecret(otp), user.otp)) {
+    user.otpAttempts = (user.otpAttempts || 0) + 1;
+    await user.save();
+    return { ok: false, message: "Invalid or expired OTP" };
+  }
+  return { ok: true };
+};
 
 exports.login = async (req, res) => {
   try {
@@ -17,9 +72,7 @@ exports.login = async (req, res) => {
     }
 
     if (!user.isActive) {
-      return res
-        .status(401)
-        .json({ message: "Account is deactivated. Contact Admin." });
+      return res.status(401).json({ message: "Account is deactivated. Contact Admin." });
     }
 
     if (!process.env.JWT_SECRET || !process.env.REFRESH_TOKEN_SECRET) {
@@ -27,35 +80,18 @@ exports.login = async (req, res) => {
       return res.status(500).json({ message: "Server authentication error" });
     }
 
-    const accessToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "15m",
-    });
-    const refreshToken = jwt.sign(
-      { id: user._id },
-      process.env.REFRESH_TOKEN_SECRET,
-      { expiresIn: "7d" }
-    );
+    user.lastLoginAt = new Date();
+    await user.save();
 
-    // Store refresh token in HTTP-only cookie
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // Secure HTTPS in prod
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie("refreshToken", signRefreshToken(user), refreshCookieOptions);
 
     res.json({
-      token: accessToken,
-      user: {
-        id: user._id,
-        email: user.email,
-        role: user.role,
-        permissions: user.permissions,
-        name: user.name,
-      },
+      token: signAccessToken(user),
+      user: publicUser(user),
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Admin login error:", error);
+    res.status(500).json({ message: "Server error during sign in" });
   }
 };
 
@@ -65,32 +101,39 @@ exports.refreshToken = async (req, res) => {
     if (!refreshToken || typeof refreshToken !== "string")
       return res.status(401).json({ message: "Refresh token missing" });
 
-    jwt.verify(
-      refreshToken,
-      process.env.REFRESH_TOKEN_SECRET,
-      (err, decoded) => {
-        if (err)
-          return res.status(403).json({ message: "Invalid refresh token" });
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+    } catch {
+      return res.status(403).json({ message: "Invalid refresh token" });
+    }
 
-        const accessToken = jwt.sign(
-          { id: decoded.id },
-          process.env.JWT_SECRET,
-          { expiresIn: "15m" }
-        );
-        res.json({ token: accessToken });
-      }
-    );
+    if (decoded.type !== "admin_refresh") {
+      return res.status(403).json({ message: "Invalid refresh token" });
+    }
+
+    // Refresh is only honoured for active accounts whose sessions have not been revoked
+    const user = await User.findById(decoded.id);
+    if (!user || !user.isActive || (user.tokenVersion || 0) !== (decoded.tv || 0)) {
+      res.clearCookie("refreshToken", { ...refreshCookieOptions, maxAge: undefined });
+      return res.status(403).json({ message: "Session revoked" });
+    }
+
+    // Rotate the refresh token on every use
+    res.cookie("refreshToken", signRefreshToken(user), refreshCookieOptions);
+    res.json({ token: signAccessToken(user), user: publicUser(user) });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Unable to refresh session" });
   }
 };
 
 exports.logout = (req, res) => {
-  res.clearCookie("refreshToken");
+  res.clearCookie("refreshToken", { ...refreshCookieOptions, maxAge: undefined });
   res.json({ message: "Logged out successfully" });
 };
 
 exports.forgotPassword = async (req, res) => {
+  const genericResponse = { message: "If this email is registered, an OTP has been sent." };
   try {
     const { email } = req.body;
     if (typeof email !== "string") {
@@ -100,21 +143,22 @@ exports.forgotPassword = async (req, res) => {
     const normalizedEmail = email.trim().toLowerCase();
     const user = await User.findOne({ email: normalizedEmail });
 
-    if (!user) {
-      // Return 200/404 handling without giving away account existence enumeration if preferred, but for now standard response
-      return res.status(404).json({ message: "User not found" });
+    // Same response whether or not the account exists (no account enumeration)
+    if (!user || !user.isActive) {
+      return res.json(genericResponse);
     }
 
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    user.otp = otp;
-    user.otpExpires = Date.now() + 10 * 60 * 1000; // 10 mins
+    const otp = randomNumericCode(6);
+    user.otp = hashSecret(otp);
+    user.otpExpires = Date.now() + OTP_TTL_MS;
+    user.otpAttempts = 0;
     await user.save();
 
     await emailService.sendOTPEmail(normalizedEmail, otp);
-    res.json({ message: "OTP sent to your email" });
+    res.json(genericResponse);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Admin forgot password error:", error);
+    res.status(500).json({ message: "Unable to process request right now" });
   }
 };
 
@@ -125,64 +169,41 @@ exports.verifyOtp = async (req, res) => {
       return res.status(400).json({ message: "Email and OTP must be valid strings" });
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
-    const cleanOtp = otp.trim();
-
-    const user = await User.findOne({ email: normalizedEmail });
-
-    if (
-      !user ||
-      !user.otp ||
-      user.otp !== cleanOtp ||
-      !user.otpExpires ||
-      user.otpExpires < Date.now()
-    ) {
-      return res.status(400).json({ message: "Invalid or expired OTP" });
-    }
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
+    const result = await checkResetOtp(user, otp.trim());
+    if (!result.ok) return res.status(400).json({ message: result.message });
 
     res.json({ message: "OTP verified success" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Unable to verify OTP" });
   }
 };
 
 exports.resetPassword = async (req, res) => {
   try {
     const { email, otp, password } = req.body;
-    if (
-      typeof email !== "string" ||
-      typeof otp !== "string" ||
-      typeof password !== "string"
-    ) {
+    if (typeof email !== "string" || typeof otp !== "string" || typeof password !== "string") {
       return res.status(400).json({ message: "Invalid input parameters" });
     }
 
-    if (password.length < 8) {
-      return res.status(400).json({ message: "Password must be at least 8 characters long" });
+    if (password.length < 8 || password.length > 128) {
+      return res.status(400).json({ message: "Password must be between 8 and 128 characters long" });
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
-    const cleanOtp = otp.trim();
-
-    const user = await User.findOne({ email: normalizedEmail });
-
-    if (
-      !user ||
-      !user.otp ||
-      user.otp !== cleanOtp ||
-      !user.otpExpires ||
-      user.otpExpires < Date.now()
-    ) {
-      return res.status(400).json({ message: "Invalid or expired OTP" });
-    }
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
+    const result = await checkResetOtp(user, otp.trim());
+    if (!result.ok) return res.status(400).json({ message: result.message });
 
     user.password = password;
     user.otp = undefined;
     user.otpExpires = undefined;
+    user.otpAttempts = 0;
+    // Invalidate every existing session for this account
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
     await user.save();
 
     res.json({ message: "Password reset successfully" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Unable to reset password" });
   }
 };

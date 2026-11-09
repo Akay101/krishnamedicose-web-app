@@ -1,3 +1,18 @@
+const { escapeRegex } = require("../utils/security");
+
+// Members' precise home/work coordinates and street address are never published;
+// the directory only needs city-level location (distance is computed server-side).
+const coarseLocation = (loc, isAuth) =>
+  loc
+    ? {
+        city: loc.city,
+        state: loc.state,
+        pincode: isAuth ? loc.pincode : undefined,
+        address: isAuth ? loc.address : undefined,
+        type: 'Point',
+        coordinates: Array.isArray(loc.coordinates) ? loc.coordinates.map((c) => Math.round(c * 100) / 100) : undefined
+      }
+    : undefined;
 const ServiceUser = require('../models/ServiceUser');
 const { calculateDistanceKm } = require('../utils/geoUtils');
 
@@ -32,9 +47,9 @@ exports.getOpenPharmacists = async (req, res) => {
 
     if (search) {
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { 'location.city': { $regex: search, $options: 'i' } },
-        { 'pharmacistDetails.skills': { $regex: search, $options: 'i' } }
+        { name: { $regex: escapeRegex(search), $options: 'i' } },
+        { 'location.city': { $regex: escapeRegex(search), $options: 'i' } },
+        { 'pharmacistDetails.skills': { $regex: escapeRegex(search), $options: 'i' } }
       ];
     }
 
@@ -88,6 +103,11 @@ exports.getOpenPharmacists = async (req, res) => {
       ...p,
       mobile: isAuth ? p.mobile : null,
       email: isAuth ? p.email : null,
+      location: coarseLocation(p.location, isAuth),
+      // Never expose identity documents or registration numbers in the public directory
+      pharmacyDetails: undefined,
+      pharmacistDetails: p.pharmacistDetails ? { ...p.pharmacistDetails, licenseImage: undefined, licenseNumber: undefined, resumeUrl: isAuth ? p.pharmacistDetails.resumeUrl : undefined } : undefined,
+      doctorDetails: p.doctorDetails ? { ...p.doctorDetails, medicalRegistrationNumber: undefined } : undefined,
       isContactLocked: !isAuth
     }));
 
@@ -129,14 +149,14 @@ exports.getOpenDoctors = async (req, res) => {
 
     if (search) {
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { 'doctorDetails.specialization': { $regex: search, $options: 'i' } },
-        { 'location.city': { $regex: search, $options: 'i' } }
+        { name: { $regex: escapeRegex(search), $options: 'i' } },
+        { 'doctorDetails.specialization': { $regex: escapeRegex(search), $options: 'i' } },
+        { 'location.city': { $regex: escapeRegex(search), $options: 'i' } }
       ];
     }
 
     if (specialization && specialization !== 'All') {
-      query['doctorDetails.specialization'] = { $regex: specialization, $options: 'i' };
+      query['doctorDetails.specialization'] = { $regex: escapeRegex(specialization), $options: 'i' };
     }
 
     if (minExperience && !isNaN(minExperience)) {
@@ -185,6 +205,9 @@ exports.getOpenDoctors = async (req, res) => {
       ...d,
       mobile: isAuth ? d.mobile : null,
       email: isAuth ? d.email : null,
+      location: coarseLocation(d.location, isAuth),
+      pharmacyDetails: undefined,
+      pharmacistDetails: undefined,
       isContactLocked: !isAuth
     }));
 

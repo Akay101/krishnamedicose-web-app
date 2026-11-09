@@ -2,10 +2,15 @@ import React, { useState } from 'react';
 import { X, Briefcase, MapPin, DollarSign, Clock, Users, FileText, Loader2, AlertCircle } from 'lucide-react';
 import servicesApi from '../../utils/servicesApi';
 import LocationPicker from './LocationPicker';
+import { useModal } from '../../context/ModalContext';
+import { useAccount } from '../../context/AccountContext';
 
-export default function CreateJobModal({ isOpen, onClose, onJobCreated, initialJob = null, userLocation = null, t = {}, lang }) {
+export default function CreateJobModal({ isOpen, onClose, onJobCreated, initialJob = null, userLocation = null, t = {}, lang, adminMode = false }) {
+  const { showModal } = useModal();
+  const { user } = useAccount();
   const [formData, setFormData] = useState({
     title: initialJob?.title || '',
+    pharmacyName: initialJob?.pharmacyName || user?.pharmacyDetails?.pharmacyName || '',
     jobType: initialJob?.jobType || 'Full-time',
     requiredExperience: initialJob?.requiredExperience || '1 - 2 Years',
     requiredQualification: initialJob?.requiredQualification || 'B.Pharm',
@@ -54,6 +59,7 @@ export default function CreateJobModal({ isOpen, onClose, onJobCreated, initialJ
     try {
       const payload = {
         title: cleanTitle,
+        pharmacyName: (formData.pharmacyName || '').trim().slice(0, 120),
         jobType: formData.jobType,
         requiredExperience: formData.requiredExperience,
         requiredQualification: formData.requiredQualification,
@@ -78,13 +84,18 @@ export default function CreateJobModal({ isOpen, onClose, onJobCreated, initialJ
 
       let res;
       if (initialJob?._id) {
-        res = await servicesApi.put(`/jobs/${initialJob._id}`, payload);
+        res = await servicesApi.put(`${adminMode ? '/admin' : ''}/jobs/${initialJob._id}`, payload);
       } else {
         res = await servicesApi.post('/jobs', payload);
       }
 
       if (onJobCreated) onJobCreated(res.data.job);
       onClose();
+      showModal(adminMode ? { title: 'Listing updated', message: 'Changes saved by administrator.', type: 'success' } : {
+        title: 'Sent for verification',
+        message: res.data.message || 'Your vacancy will go live after verification by Krishna Medicose. We have emailed you a confirmation.',
+        type: 'success'
+      });
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to save job posting.');
     } finally {
@@ -130,6 +141,18 @@ export default function CreateJobModal({ isOpen, onClose, onJobCreated, initialJ
 
           {/* Job Details */}
           <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Pharmacy / Store Name *</label>
+              <input
+                type="text"
+                required
+                maxLength={120}
+                value={formData.pharmacyName}
+                onChange={(e) => setFormData({ ...formData, pharmacyName: e.target.value })}
+                placeholder="e.g. Krishna Medicose, Shalimar Garden"
+                className="w-full px-4 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600"
+              />
+            </div>
             <div>
               <div className="flex justify-between items-center mb-1">
                 <label className="block text-xs font-bold text-slate-700">Job Title *</label>

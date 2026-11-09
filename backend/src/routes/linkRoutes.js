@@ -2,10 +2,11 @@ const express = require('express');
 const router = express.Router();
 const linkController = require('../controllers/linkController');
 const { authMiddleware, checkPermission } = require('../middleware/authMiddleware');
+const { serviceAuthMiddleware } = require('../middleware/serviceAuthMiddleware');
 
-// Public Routes
-router.get('/', linkController.getPublicLinks);
-router.post('/:id/click', linkController.trackClick);
+// Member Routes (centralized Krishna Medicose account required)
+router.get('/', serviceAuthMiddleware, linkController.getPublicLinks);
+router.post('/:id/click', serviceAuthMiddleware, linkController.trackClick);
 
 // Admin Routes (Protected)
 router.use(authMiddleware);

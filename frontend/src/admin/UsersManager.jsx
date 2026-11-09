@@ -16,7 +16,7 @@ export default function UsersManager() {
     email: '',
     password: '',
     mobile: '',
-    permissions: { website: false, leads: false }
+    permissions: { website: false, leads: false, services: false, bundles: false }
   });
 
   const fetchUsers = async () => {
@@ -75,7 +75,7 @@ export default function UsersManager() {
   const resetForm = () => {
     setFormData({
       name: '', email: '', password: '', mobile: '',
-      permissions: { website: false, leads: false }
+      permissions: { website: false, leads: false, services: false, bundles: false }
     });
   };
 
@@ -159,6 +159,8 @@ export default function UsersManager() {
               <div className="grid grid-cols-2 gap-4">
                 <PermissionCard label="Website Access" granted={user.role === 'admin' || user.permissions?.website} />
                 <PermissionCard label="Leads Viewer" granted={user.role === 'admin' || user.permissions?.leads} />
+                <PermissionCard label="Members & Catalogs" granted={user.role === 'admin' || user.permissions?.services} />
+                <PermissionCard label="Medicine Bundle" granted={user.role === 'admin' || user.permissions?.bundles} />
               </div>
 
               {user.role === 'admin' && (
@@ -185,13 +187,15 @@ export default function UsersManager() {
                   <input required type="tel" placeholder="Mobile Number" className="bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl px-6 py-3.5 lg:py-4 w-full focus:outline-none focus:bg-white focus:border-teal-500 font-bold text-slate-800 text-sm" value={formData.mobile} onChange={e => setFormData({...formData, mobile: e.target.value})} />
                 </div>
                 <input required type="email" placeholder="Email Address" className="bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl px-6 py-3.5 lg:py-4 w-full focus:outline-none focus:bg-white focus:border-teal-500 font-bold text-slate-800 text-sm" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-                <input required type="password" placeholder="Temporary Password" className="bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl px-6 py-3.5 lg:py-4 w-full focus:outline-none focus:bg-white focus:border-teal-500 font-bold text-slate-800 text-sm" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                <input required minLength={8} type="password" autoComplete="new-password" placeholder="Temporary password (min 8 characters)" className="bg-slate-50 border border-slate-200 rounded-xl lg:rounded-2xl px-6 py-3.5 lg:py-4 w-full focus:outline-none focus:bg-white focus:border-teal-500 font-bold text-slate-800 text-sm" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
                 
                 <div className="space-y-4">
                   <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-2"><Shield className="w-3.5 h-3.5 text-teal-650" /> Set Access Permissions</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 lg:gap-4">
                     <PermissionToggle label="Edit Website" active={formData.permissions.website} onToggle={() => setFormData({...formData, permissions: {...formData.permissions, website: !formData.permissions.website}})} />
                     <PermissionToggle label="Manage Leads" active={formData.permissions.leads} onToggle={() => setFormData({...formData, permissions: {...formData.permissions, leads: !formData.permissions.leads}})} />
+                    <PermissionToggle label="Members, Jobs & Catalogs" active={formData.permissions.services} onToggle={() => setFormData({...formData, permissions: {...formData.permissions, services: !formData.permissions.services}})} />
+                    <PermissionToggle label="Medicine Bundle & Payments" active={formData.permissions.bundles} onToggle={() => setFormData({...formData, permissions: {...formData.permissions, bundles: !formData.permissions.bundles}})} />
                   </div>
                 </div>
 

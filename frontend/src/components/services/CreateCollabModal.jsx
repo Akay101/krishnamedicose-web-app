@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { X, Stethoscope, MapPin, Clock, Calendar, CheckSquare, Loader2, AlertCircle } from 'lucide-react';
 import servicesApi from '../../utils/servicesApi';
 import LocationPicker from './LocationPicker';
+import ListingImageUploader from './ListingImageUploader';
+import { useModal } from '../../context/ModalContext';
 
 const COMMON_FACILITIES = [
   'Air-conditioned Doctor Consultation Chamber',
@@ -14,7 +16,7 @@ const COMMON_FACILITIES = [
   'Doctor Car Parking Space'
 ];
 
-export default function CreateCollabModal({ isOpen, onClose, onCollabCreated, initialCollab = null, userLocation = null, t = {}, lang }) {
+export default function CreateCollabModal({ isOpen, onClose, onCollabCreated, initialCollab = null, userLocation = null, t = {}, lang, adminMode = false }) {
   const [formData, setFormData] = useState({
     pharmacyName: initialCollab?.pharmacyName || '',
     clinicOrChamberName: initialCollab?.clinicOrChamberName || '',
@@ -28,6 +30,7 @@ export default function CreateCollabModal({ isOpen, onClose, onCollabCreated, in
       'Fully Stocked Attached Pharmacy'
     ],
     description: initialCollab?.description || '',
+    images: initialCollab?.images || [],
     visibilityRadiusKm: initialCollab?.visibilityRadiusKm || 30,
     address: initialCollab?.location?.address || userLocation?.address || '',
     city: initialCollab?.location?.city || userLocation?.city || '',
@@ -38,6 +41,7 @@ export default function CreateCollabModal({ isOpen, onClose, onCollabCreated, in
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const { showModal } = useModal();
 
   if (!isOpen) return null;
 
@@ -89,6 +93,7 @@ export default function CreateCollabModal({ isOpen, onClose, onCollabCreated, in
           .map((f) => f.slice(0, 100))
           .slice(0, 15),
         description: cleanDesc,
+        images: formData.images,
         visibilityRadiusKm: Math.max(5, Math.min(100, Number(formData.visibilityRadiusKm) || 30)),
         location: {
           address: (formData.address || '').trim().slice(0, 200),
@@ -101,13 +106,18 @@ export default function CreateCollabModal({ isOpen, onClose, onCollabCreated, in
 
       let res;
       if (initialCollab?._id) {
-        res = await servicesApi.put(`/collab-posts/${initialCollab._id}`, payload);
+        res = await servicesApi.put(`${adminMode ? '/admin' : ''}/collab-posts/${initialCollab._id}`, payload);
       } else {
         res = await servicesApi.post('/collab-posts', payload);
       }
 
       if (onCollabCreated) onCollabCreated(res.data.post);
       onClose();
+      showModal(adminMode ? { title: 'Listing updated', message: 'Changes saved by administrator.', type: 'success' } : {
+        title: 'Sent for verification',
+        message: res.data.message || 'Your chamber listing will go live after verification by Krishna Medicose. We have emailed you a confirmation.',
+        type: 'success'
+      });
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to save doctor collaboration listing.');
     } finally {
@@ -269,6 +279,12 @@ export default function CreateCollabModal({ isOpen, onClose, onCollabCreated, in
               />
             </div>
           </div>
+
+          <ListingImageUploader
+            label="Chamber photos (optional)"
+            images={formData.images}
+            onChange={(images) => setFormData((prev) => ({ ...prev, images }))}
+          />
 
           {/* Visibility Radius Slider */}
           <div className="pt-4 border-t border-slate-200 space-y-4">

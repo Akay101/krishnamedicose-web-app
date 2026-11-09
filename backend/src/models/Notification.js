@@ -27,6 +27,7 @@ const notificationSchema = new mongoose.Schema(
         'collab_posted',
         'collab_inquiry',
         'inquiry_status',
+        'listing_review',
         'general'
       ],
       default: 'general'

@@ -1,3 +1,25 @@
+const { escapeRegex } = require("../utils/security");
+const { PUBLIC_LISTING_FILTER, isPubliclyVisible, touchesContent } = require("../utils/moderation");
+
+// Public-safe view of an owner's pharmacy profile (license documents/numbers stay private)
+const publicPharmacyDetails = (pd) =>
+  pd ? { pharmacyName: pd.pharmacyName, openingHours: pd.openingHours, establishedYear: pd.establishedYear } : undefined;
+
+// Contact details are only revealed to signed-in members
+const redactListing = (item, isAuth) => ({
+  ...item,
+  contactPhone: isAuth ? item.contactPhone : null,
+  contactEmail: isAuth ? item.contactEmail : null,
+  ownerId: item.ownerId && item.ownerId._id ? {
+    _id: item.ownerId._id,
+    name: item.ownerId.name,
+    mobile: isAuth ? item.ownerId.mobile : null,
+    email: isAuth ? item.ownerId.email : null,
+    pharmacyDetails: publicPharmacyDetails(item.ownerId.pharmacyDetails),
+    isVerified: item.ownerId.isVerified
+  } : item.ownerId,
+  isContactLocked: !isAuth
+});
 const JobPost = require('../models/JobPost');
 const JobApplication = require('../models/JobApplication');
 const ServiceUser = require('../models/ServiceUser');
@@ -6,7 +28,10 @@ const {
   notifyPharmacistsOfNewJob,
   notifyOwnerOfJobApplication,
   notifyApplicantOfStatusUpdate,
-  sendJobPostConfirmationEmail
+  sendJobPostConfirmationEmail,
+  sendListingSubmittedEmail,
+  sendListingReviewedEmail,
+  notifyAdminOfListingSubmission
 } = require('../services/serviceNotificationService');
 
 /**
@@ -28,7 +53,8 @@ exports.createJobPost = async (req, res) => {
       contactPhone,
       contactEmail,
       location,
-      visibilityRadiusKm
+      visibilityRadiusKm,
+      pharmacyName: bodyPharmacyName
     } = req.body;
 
     if (!title || !description) {
@@ -64,8 +90,8 @@ exports.createJobPost = async (req, res) => {
     const owner = await ServiceUser.findById(req.serviceUser._id);
     if (!owner) return res.status(404).json({ message: 'Owner account not found.' });
 
-    // Use owner's pharmacy name or provided
-    const pharmacyName = (owner.pharmacyDetails?.pharmacyName || owner.name || '').slice(0, 120);
+    // Pharmacy name from the form, else the owner's profile
+    const pharmacyName = String(bodyPharmacyName || owner.pharmacyDetails?.pharmacyName || owner.name || '').trim().slice(0, 120);
 
     // Resolve location
     let finalLocation = {
@@ -103,23 +129,18 @@ exports.createJobPost = async (req, res) => {
       contactEmail: contactEmail || owner.email,
       location: finalLocation,
       visibilityRadiusKm: cleanRadius,
-      status: 'active'
+      status: 'active',
+      moderationStatus: 'pending'
     });
 
     await job.save();
 
-    // Send confirmation email to the job poster
-    sendJobPostConfirmationEmail(job, owner).catch((err) =>
-      console.error('Job post owner confirmation email error:', err)
-    );
-
-    // Trigger notification and emails to nearby pharmacists asynchronously
-    notifyPharmacistsOfNewJob(job, owner).catch((err) =>
-      console.error('Job notification trigger error:', err)
-    );
+    // Submitter + admin are told it is awaiting verification; nearby pharmacists
+    // are only alerted once the admin approves it.
+    announceJobSubmission(job, owner).catch((err) => console.error('Job submission email error:', err));
 
     res.status(201).json({
-      message: 'Job posting published successfully.',
+      message: 'Job vacancy submitted. It will go live after verification by Krishna Medicose.',
       job
     });
   } catch (error) {
@@ -127,6 +148,35 @@ exports.createJobPost = async (req, res) => {
     res.status(500).json({ message: error.message || 'Error creating job post.' });
   }
 };
+
+const jobEmailRows = (job) => [
+  ['Job role', job.title],
+  ['Pharmacy', job.pharmacyName],
+  ['Job type', job.jobType],
+  ['Salary', job.salaryRange],
+  ['Location', [job.location?.city, job.location?.state].filter(Boolean).join(', ')]
+];
+
+const announceJobSubmission = async (job, owner, isUpdate = false) => {
+  await sendListingSubmittedEmail({
+    kind: 'job',
+    to: owner.email,
+    name: owner.name,
+    userId: owner._id,
+    heading: job.title,
+    rows: jobEmailRows(job),
+    isUpdate
+  });
+  await notifyAdminOfListingSubmission({
+    kind: 'job',
+    heading: job.title,
+    submitterName: owner.name,
+    submitterEmail: owner.email,
+    rows: jobEmailRows(job).slice(1),
+    isUpdate
+  });
+};
+exports.announceJobSubmission = announceJobSubmission;
 
 /**
  * Get jobs posted by the logged-in owner
@@ -214,10 +264,24 @@ exports.updateJobPost = async (req, res) => {
       }
     }
 
+    // Content edits by the owner go back through verification before going public again
+    const needsReview = !req.isAdmin && touchesContent(updates);
+    if (needsReview) {
+      job.moderationStatus = 'pending';
+      job.moderationNote = '';
+    }
+
     await job.save();
 
+    if (needsReview) {
+      const owner = await ServiceUser.findById(job.ownerId);
+      if (owner) announceJobSubmission(job, owner, true).catch((err) => console.error('Job update email error:', err));
+    }
+
     res.json({
-      message: 'Job post updated successfully.',
+      message: needsReview
+        ? 'Changes saved and sent for verification. The listing is hidden until approved.'
+        : 'Job post updated successfully.',
       job
     });
   } catch (error) {
@@ -274,14 +338,14 @@ exports.getJobFeed = async (req, res) => {
     }
 
     // Build query
-    const query = { status: 'active' };
+    const query = { status: 'active', ...PUBLIC_LISTING_FILTER };
 
     if (search) {
       query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { pharmacyName: { $regex: search, $options: 'i' } },
-        { 'location.city': { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
+        { title: { $regex: escapeRegex(search), $options: 'i' } },
+        { pharmacyName: { $regex: escapeRegex(search), $options: 'i' } },
+        { 'location.city': { $regex: escapeRegex(search), $options: 'i' } },
+        { description: { $regex: escapeRegex(search), $options: 'i' } }
       ];
     }
 
@@ -366,7 +430,7 @@ exports.getJobFeed = async (req, res) => {
         name: job.ownerId.name,
         mobile: isAuth ? job.ownerId.mobile : null,
         email: isAuth ? job.ownerId.email : null,
-        pharmacyDetails: job.ownerId.pharmacyDetails,
+        pharmacyDetails: publicPharmacyDetails(job.ownerId.pharmacyDetails),
         isVerified: job.ownerId.isVerified
       } : null,
       isContactLocked: !isAuth
@@ -391,6 +455,12 @@ exports.getJobById = async (req, res) => {
 
     if (!job) return res.status(404).json({ message: 'Job not found.' });
 
+    // Unverified listings are only visible to their owner and the admin
+    const isOwner = req.serviceUser && String(job.ownerId?._id || job.ownerId) === String(req.serviceUser._id);
+    if (!isPubliclyVisible(job) && !isOwner && !req.isAdmin) {
+      return res.status(404).json({ message: 'Job not found.' });
+    }
+
     let hasApplied = false;
     if (req.serviceUser) {
       const app = await JobApplication.findOne({
@@ -400,7 +470,7 @@ exports.getJobById = async (req, res) => {
       hasApplied = Boolean(app);
     }
 
-    res.json({ ...job, hasApplied });
+    res.json({ ...redactListing(job, Boolean(req.serviceUser || req.isAdmin)), hasApplied });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -418,7 +488,7 @@ exports.applyForJob = async (req, res) => {
     const job = await JobPost.findById(req.params.id);
     if (!job) return res.status(404).json({ message: 'Job post not found.' });
 
-    if (job.status !== 'active') {
+    if (job.status !== 'active' || !isPubliclyVisible(job)) {
       return res.status(400).json({ message: 'This job vacancy is no longer accepting applications.' });
     }
 

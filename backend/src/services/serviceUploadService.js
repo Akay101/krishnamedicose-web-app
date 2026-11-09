@@ -35,13 +35,22 @@ if (isR2Configured) {
   }
 }
 
-const ALLOWED_MIME_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/jpg',
-  'application/pdf'
-];
+// The stored extension is derived from the verified MIME type, never from the client filename
+const MIME_EXTENSION = {
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'application/pdf': '.pdf'
+};
+const ALLOWED_MIME_TYPES = Object.keys(MIME_EXTENSION);
+
+const MAGIC_CHECKS = {
+  '.jpg': (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+  '.png': (b) => b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47,
+  '.webp': (b) => b.slice(0, 4).toString('ascii') === 'RIFF' && b.slice(8, 12).toString('ascii') === 'WEBP',
+  '.pdf': (b) => b.slice(0, 5).toString('ascii') === '%PDF-'
+};
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -63,8 +72,22 @@ const upload = multer({
 const uploadDocument = async (file) => {
   if (!file) throw new Error('No file provided');
 
-  const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
-  const safeName = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 25);
+  // Trust the bytes, not the browser label: phones often save JPEGs as ".png".
+  // The stored extension comes from the detected format, which must be on the allow-list.
+  const buffer = file.buffer;
+  const ext =
+    buffer && buffer.length >= 12
+      ? Object.keys(MAGIC_CHECKS).find((candidate) => MAGIC_CHECKS[candidate](buffer))
+      : undefined;
+  if (!ext) {
+    throw new Error('File content does not match an allowed JPG, PNG, WEBP or PDF document.');
+  }
+  const detectedMime = { '.jpg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.pdf': 'application/pdf' }[ext];
+  file.mimetype = detectedMime;
+  const safeName = path
+    .basename(file.originalname, path.extname(file.originalname))
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .substring(0, 25);
   const uniqueKey = `services/docs/${Date.now()}-${crypto.randomBytes(6).toString('hex')}-${safeName}${ext}`;
 
   if (isR2Configured && s3Client) {
